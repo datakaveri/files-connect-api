@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 // Use any type for papaparse to avoid type errors
 import * as Papa from 'papaparse';
 import { XMLParser } from 'fast-xml-parser';
+import { readParquet } from 'parquet-wasm';
 import { S3ServiceInterface } from './s3-service';
 import { createLogger } from '../core/utils/logger';
 import { FileTypes, S3Constants } from '../config/constants';
@@ -14,6 +15,7 @@ import {
   FilePreviewOptions, 
   CSVPreviewResult, 
   XLSXPreviewResult,
+  ParquetPreviewResult,
   SupportedFileType,
   FileType
 } from '../core/types/file';
@@ -59,7 +61,7 @@ export interface PreviewMetadata {
  */
 export interface PreviewResult {
   /** Preview data */
-  data: CSVPreviewResult | XLSXPreviewResult | Record<string, unknown> | string;
+  data: CSVPreviewResult | XLSXPreviewResult | ParquetPreviewResult | Record<string, unknown> | string;
   /** File metadata */
   metadata: PreviewMetadata;
 }
@@ -83,7 +85,7 @@ export interface FileServiceInterface {
     key: string, 
     databankId: string, 
     options?: FilePreviewOptions
-  ): Promise<CSVPreviewResult | XLSXPreviewResult | Record<string, unknown> | string>;
+  ): Promise<CSVPreviewResult | XLSXPreviewResult | ParquetPreviewResult | Record<string, unknown> | string>;
   
   /**
    * Generates a preview of a file
@@ -171,6 +173,8 @@ export class FileService implements FileServiceInterface {
       case 'xlsx':
       case 'xls':
         return FileTypes.XLSX as SupportedFileType;
+      case 'parquet':
+        return FileTypes.PARQUET as SupportedFileType;
       default:
         return null;
     }
@@ -187,7 +191,7 @@ export class FileService implements FileServiceInterface {
     key: string, 
     databankId: string, 
     options: FilePreviewOptions = {}
-  ): Promise<CSVPreviewResult | XLSXPreviewResult | Record<string, unknown> | string> {
+  ): Promise<CSVPreviewResult | XLSXPreviewResult | ParquetPreviewResult | Record<string, unknown> | string> {
     const fileType = options.fileType || this.detectFileType(key);
     const maxLines = options.maxLines || S3Constants.DEFAULT_PREVIEW_LINES;
     
@@ -245,6 +249,9 @@ export class FileService implements FileServiceInterface {
           case FileTypes.XML as SupportedFileType:
             result = await this.processXML(stream);
             break;
+          case FileTypes.PARQUET as SupportedFileType:
+            result = await this.processParquet(stream, maxLines);
+            break;
           default:
             throw new Error(`Unsupported file type: ${fileType}`);
         }
@@ -288,17 +295,14 @@ export class FileService implements FileServiceInterface {
   }
   
   /**
-   * Processes a CSV file stream
-   * @param stream - The CSV file stream
-   * @param maxLines - Maximum number of lines to return
-   * @returns Promise resolving to the CSV preview result
+   * Utility method to process a stream and return a buffer
+   * @param stream - The stream to process
+   * @returns Promise resolving to a buffer
    */
-  private async processCSV(stream: Readable, maxLines: number): Promise<CSVPreviewResult> {
-    logger.debug('Processing CSV file', { maxLines });
+  private async streamToBuffer(stream: Readable): Promise<Buffer> {
+    logger.debug('Converting stream to buffer');
     
     return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      
       // Check if we're dealing with a stream that has traditional Node.js methods
       const isNodeStream = typeof stream.on === 'function' && typeof stream.read === 'function';
       
@@ -307,51 +311,22 @@ export class FileService implements FileServiceInterface {
         try {
           // @ts-ignore - We'll read the entire stream as a buffer
           const buffer = Buffer.from(stream);
-          const content = buffer.toString('utf-8');
-          
-          // Parse CSV
-          const result = Papa.parse(content, {
-            header: true,
-            skipEmptyLines: true,
-          });
-          
-          if (result.errors && result.errors.length > 0) {
-            logger.warn('CSV parsing warnings', { errors: result.errors });
-          }
-          
-          resolve({
-            data: result.data.slice(0, maxLines) as Record<string, any>[],
-            headers: result.meta.fields || [],
-            totalRows: result.data.length,
-          });
+          resolve(buffer);
         } catch (err) {
           reject(err);
         }
       } else {
         // Node.js stream handling
+        const chunks: Buffer[] = [];
+        
         stream.on('data', (chunk) => {
           chunks.push(chunk);
         });
         
         stream.on('end', () => {
           try {
-            const content = Buffer.concat(chunks).toString('utf-8');
-            
-            // Parse CSV
-            const result = Papa.parse(content, {
-              header: true,
-              skipEmptyLines: true,
-            });
-            
-            if (result.errors && result.errors.length > 0) {
-              logger.warn('CSV parsing warnings', { errors: result.errors });
-            }
-            
-            resolve({
-              data: result.data.slice(0, maxLines) as Record<string, any>[],
-              headers: result.meta.fields || [],
-              totalRows: result.data.length,
-            });
+            const buffer = Buffer.concat(chunks);
+            resolve(buffer);
           } catch (err) {
             reject(err);
           }
@@ -363,6 +338,40 @@ export class FileService implements FileServiceInterface {
       }
     });
   }
+
+  /**
+   * Processes a CSV file stream
+   * @param stream - The CSV file stream
+   * @param maxLines - Maximum number of lines to return
+   * @returns Promise resolving to the CSV preview result
+   */
+  private async processCSV(stream: Readable, maxLines: number): Promise<CSVPreviewResult> {
+    logger.debug('Processing CSV file', { maxLines });
+    
+    try {
+      const buffer = await this.streamToBuffer(stream);
+      const content = buffer.toString('utf-8');
+      
+      // Parse CSV
+      const result = Papa.parse(content, {
+        header: true,
+        skipEmptyLines: true,
+      });
+      
+      if (result.errors && result.errors.length > 0) {
+        logger.warn('CSV parsing warnings', { errors: result.errors });
+      }
+      
+      return {
+        data: result.data.slice(0, maxLines) as Record<string, any>[],
+        headers: result.meta.fields || [],
+        totalRows: result.data.length,
+      };
+    } catch (err) {
+      logger.error('Error processing CSV file', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  }
   
   /**
    * Processes an XLSX file stream
@@ -373,41 +382,15 @@ export class FileService implements FileServiceInterface {
   private async processXLSX(stream: Readable, maxLines: number): Promise<XLSXPreviewResult> {
     logger.debug('Processing XLSX file', { maxLines });
     
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      
-      // Check if we're dealing with a stream that has traditional Node.js methods
-      const isNodeStream = typeof stream.on === 'function' && typeof stream.read === 'function';
-      
-      if (!isNodeStream) {
-        // Handle as a buffer directly
-        try {
-          // @ts-ignore - We'll read the entire stream as a buffer
-          const buffer = Buffer.from(stream);
-          this.processXLSXBuffer(buffer, maxLines, resolve, reject);
-        } catch (err) {
-          reject(err);
-        }
-      } else {
-        // Node.js stream handling
-        stream.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-        
-        stream.on('end', () => {
-          try {
-            const buffer = Buffer.concat(chunks);
-            this.processXLSXBuffer(buffer, maxLines, resolve, reject);
-          } catch (err) {
-            reject(err);
-          }
-        });
-        
-        stream.on('error', (err) => {
-          reject(err);
-        });
-      }
-    });
+    try {
+      const buffer = await this.streamToBuffer(stream);
+      return await new Promise((resolve, reject) => {
+        this.processXLSXBuffer(buffer, maxLines, resolve, reject);
+      });
+    } catch (err) {
+      logger.error('Error processing XLSX file', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
   }
   
   /**
@@ -447,7 +430,7 @@ export class FileService implements FileServiceInterface {
       const headers = sheetData.length > 0 ? sheetData[0] as string[] : [];
       
       // Extract data rows (skip header row)
-      const dataRows = sheetData.slice(1).map(row => {
+      const dataRows = sheetData.slice(1).map((row: any) => {
         const rowData: Record<string, any> = {};
         
         // Map each cell to its corresponding header
@@ -480,43 +463,14 @@ export class FileService implements FileServiceInterface {
   private async processJSON(stream: Readable): Promise<Record<string, unknown>> {
     logger.debug('Processing JSON file');
     
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      
-      // Check if we're dealing with a stream that has traditional Node.js methods
-      const isNodeStream = typeof stream.on === 'function' && typeof stream.read === 'function';
-      
-      if (!isNodeStream) {
-        // Handle as a buffer directly
-        try {
-          // @ts-ignore - We'll read the entire stream as a buffer
-          const buffer = Buffer.from(stream);
-          const jsonData = JSON.parse(buffer.toString('utf-8'));
-          resolve(jsonData);
-        } catch (err) {
-          reject(err);
-        }
-      } else {
-        // Node.js stream handling
-        stream.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-        
-        stream.on('end', () => {
-          try {
-            const buffer = Buffer.concat(chunks);
-            const jsonData = JSON.parse(buffer.toString('utf-8'));
-            resolve(jsonData);
-          } catch (err) {
-            reject(err);
-          }
-        });
-        
-        stream.on('error', (err) => {
-          reject(err);
-        });
-      }
-    });
+    try {
+      const buffer = await this.streamToBuffer(stream);
+      const jsonData = JSON.parse(buffer.toString('utf-8'));
+      return jsonData;
+    } catch (err) {
+      logger.error('Error processing JSON file', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
   }
   
   /**
@@ -527,45 +481,112 @@ export class FileService implements FileServiceInterface {
   private async processXML(stream: Readable): Promise<Record<string, unknown>> {
     logger.debug('Processing XML file');
     
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
+    try {
+      const buffer = await this.streamToBuffer(stream);
+      const parser = new XMLParser();
+      const xmlData = parser.parse(buffer.toString('utf-8'));
+      return xmlData;
+    } catch (err) {
+      logger.error('Error processing XML file', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  }
+  
+  /**
+   * Processes a Parquet file stream
+   * @param stream - The Parquet file stream
+   * @param maxLines - Maximum number of rows to return
+   * @returns Promise resolving to the Parquet preview result
+   */
+  private async processParquet(stream: Readable, maxLines: number): Promise<ParquetPreviewResult> {
+    logger.debug('Processing Parquet file', { maxLines });
+    
+    try {
+      const buffer = await this.streamToBuffer(stream);
+      return await new Promise((resolve, reject) => {
+        this.processParquetBuffer(buffer, maxLines, resolve, reject);
+      });
+    } catch (err) {
+      logger.error('Error processing Parquet file', err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  }
+  
+  /**
+   * Process a Parquet file from a buffer
+   * @param buffer - The buffer containing the Parquet file
+   * @param maxLines - Maximum number of rows to return
+   * @param resolve - Promise resolve function
+   * @param reject - Promise reject function
+   */
+  private processParquetBuffer(
+    buffer: Buffer, 
+    maxLines: number, 
+    resolve: (value: ParquetPreviewResult) => void, 
+    reject: (reason?: any) => void
+  ): void {
+    try {
+      logger.debug('Processing Parquet buffer');
       
-      // Check if we're dealing with a stream that has traditional Node.js methods
-      const isNodeStream = typeof stream.on === 'function' && typeof stream.read === 'function';
+      // Use parquet-wasm to read the parquet file
+      const table = readParquet(buffer);
       
-      if (!isNodeStream) {
-        // Handle as a buffer directly
-        try {
-          // @ts-ignore - We'll read the entire stream as a buffer
-          const buffer = Buffer.from(stream);
-          const parser = new XMLParser();
-          const xmlData = parser.parse(buffer.toString('utf-8'));
-          resolve(xmlData);
-        } catch (err) {
-          reject(err);
-        }
-      } else {
-        // Node.js stream handling
-        stream.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
+      // Create a schema representation
+      const schema: Record<string, any> = {};
+      
+      // Get column names from the table
+      const columnNames = table.columnNames();
+      
+      // Use column names as headers
+      const headers = columnNames;
+      
+      // For each column, add schema information
+      columnNames.forEach((name: string) => {
+        schema[name] = {
+          // Get basic type information if available
+          type: 'unknown'
+        };
+      });
+      
+      // Convert Arrow Table to array of objects
+      const data: Record<string, any>[] = [];
+      
+      // Get the number of rows
+      const rowCount = table.numRows();
+      
+      // Process only up to maxLines rows
+      const rowsToProcess = Math.min(rowCount, maxLines);
+      
+      // Extract data from the table
+      for (let i = 0; i < rowsToProcess; i++) {
+        const row: Record<string, any> = {};
         
-        stream.on('end', () => {
+        // For each column, get the value at the current row
+        headers.forEach((header: string) => {
           try {
-            const buffer = Buffer.concat(chunks);
-            const parser = new XMLParser();
-            const xmlData = parser.parse(buffer.toString('utf-8'));
-            resolve(xmlData);
-          } catch (err) {
-            reject(err);
+            // Get the value at the current row and column
+            const value = table.getColumnByName(header)?.get(i);
+            row[header] = value;
+          } catch (e) {
+            // If there's an error getting the value, set it to null
+            row[header] = null;
           }
         });
         
-        stream.on('error', (err) => {
-          reject(err);
-        });
+        data.push(row);
       }
-    });
+      
+      // Return the preview result
+      resolve({
+        data,
+        headers,
+        schema,
+        totalRows: rowCount,
+      });
+    } catch (err) {
+      logger.error('Error processing Parquet file', err instanceof Error ? err : new Error(String(err)));
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   }
 }
 

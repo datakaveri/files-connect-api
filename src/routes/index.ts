@@ -36,9 +36,9 @@ router.basePath("/v1");
 // Mount routes
 router.route(ApiPaths.S3, s3Routes);
 router.route(ApiPaths.FILE_PREVIEW, filePreviewRoutes);
-router.route(ApiPaths.UPLOADS, multipartUploadRoutes);
+router.route(ApiPaths.MULTIPART_UPLOAD, multipartUploadRoutes);
 router.route(ApiPaths.ZIP, zipDownloadRoutes);
-router.route(ApiPaths.LAMBDA, lambdaTriggerRoutes);
+router.route(ApiPaths.LAMBDA_TRIGGER, lambdaTriggerRoutes);
 router.route(ApiPaths.HEALTH, healthRoutes);
 
 // Export the router

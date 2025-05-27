@@ -42,6 +42,7 @@ export const FileTypes = {
   JSON: 'json',
   XML: 'xml',
   XLSX: 'xlsx',
+  PARQUET: 'parquet',
 } as const;
 
 /**
@@ -52,8 +53,6 @@ export const ApiPaths = {
   FILE_PREVIEW: '/file',
   MULTIPART_UPLOAD: '/uploads',
   LAMBDA_TRIGGER: '/lambda',
-  UPLOADS: '/uploads',  // Alias for MULTIPART_UPLOAD
   ZIP: '/zip',          // Path for zip download routes
-  LAMBDA: '/lambda',    // Alias for LAMBDA_TRIGGER
   HEALTH: '/health'     // Path for health check routes
 } as const;
