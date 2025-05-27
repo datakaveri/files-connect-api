@@ -47,12 +47,21 @@ export const FileTypes = {
 
 /**
  * API paths for different endpoints
+ * Organized by functionality and following REST practices
  */
 export const ApiPaths = {
-  S3: '/s3',
-  FILE_PREVIEW: '/file',
-  MULTIPART_UPLOAD: '/uploads',
-  LAMBDA_TRIGGER: '/lambda',
-  ZIP: '/zip',          // Path for zip download routes
-  HEALTH: '/health'     // Path for health check routes
+  // Health check routes
+  HEALTH: '/health',
+  
+  // File operations (list, preview, metadata, download)
+  FILES: '/files',
+  
+  // Upload operations
+  UPLOADS: '/uploads',
+  
+  // Data processing and databank operations
+  DATABANKS: '/databanks',
+  
+  // Processing jobs (for creating zip and generating reports)
+  PROCESSING: '/processing'
 } as const;

@@ -4,7 +4,18 @@
 
 import { Context } from 'hono';
 import { UserRole } from './auth';
-import { PresignedListRequest, CompleteMultipartUploadRequest } from '../../routes/multipart-uploads';
+
+// Define these types here instead of importing from deprecated route files
+type PresignedListRequest = {
+  key: string;
+  parts: number;
+};
+
+type CompleteMultipartUploadRequest = {
+  key: string;
+  uploadId: string;
+  parts: Array<{ ETag: string; PartNumber: number }>;
+};
 
 declare module 'hono' {
   interface ContextVariableMap {

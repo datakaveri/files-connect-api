@@ -1,13 +1,13 @@
 /**
  * Routes exports
  * This file exports all routes from the routes directory
+ * Simplified to follow REST practices with improved route organization
  */
 import { Hono } from 'hono';
-import { s3Routes } from './s3-routes';
-import { filePreviewRoutes } from './file-preview-routes';
-import { multipartUploadRoutes } from './multipart-uploads';
-import { zipDownloadRoutes } from './zip-download';
-import { lambdaTriggerRoutes } from './lambda-trigger';
+import { createFilesRoutes } from './files-routes';
+import { createUploadsRoutes } from './uploads-routes';
+import { createDatabanksRoutes } from './databanks-routes';
+import { createProcessingRoutes } from './processing-routes';
 import { healthRoutes } from './health-routes';
 import { ApiPaths } from '../config/constants';
 import { errorBoundary } from '../middleware/error-handler';
@@ -33,13 +33,18 @@ router.use('*',
 // Set base path for all routes
 router.basePath("/v1");
 
+// Create route instances
+const filesRoutes = createFilesRoutes();
+const uploadsRoutes = createUploadsRoutes();
+const databanksRoutes = createDatabanksRoutes();
+const processingRoutes = createProcessingRoutes();
+
 // Mount routes
-router.route(ApiPaths.S3, s3Routes);
-router.route(ApiPaths.FILE_PREVIEW, filePreviewRoutes);
-router.route(ApiPaths.MULTIPART_UPLOAD, multipartUploadRoutes);
-router.route(ApiPaths.ZIP, zipDownloadRoutes);
-router.route(ApiPaths.LAMBDA_TRIGGER, lambdaTriggerRoutes);
-router.route(ApiPaths.HEALTH, healthRoutes);
+router.route(ApiPaths.FILES, filesRoutes);           // File operations (list, preview, metadata, download)
+router.route(ApiPaths.UPLOADS, uploadsRoutes);       // Upload operations
+router.route(ApiPaths.DATABANKS, databanksRoutes);   // Databank operations (zip downloads)
+router.route(ApiPaths.PROCESSING, processingRoutes); // Processing jobs (zip creation and report generation)
+router.route(ApiPaths.HEALTH, healthRoutes);         // Health check endpoints
 
 // Export the router
 export default router;

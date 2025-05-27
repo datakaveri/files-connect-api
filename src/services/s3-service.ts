@@ -8,12 +8,13 @@ import { S3Repository, S3RepositoryInterface } from '../repositories/s3-reposito
 import { createLogger } from '../core/utils/logger';
 import { S3Constants } from '../config/constants';
 import { 
-  FileMetadata, 
-  FolderMetadata, 
   S3Object, 
+  FileMetadata, 
+  FolderMetadata,
   MultipartUploadInit,
   MultipartUploadPart
 } from '../core/types/file';
+import { S3ObjectDetails } from '../core/types/s3-service';
 import { isFolder, getFileExtension } from '../core/utils/helpers';
 import { env } from '../config/environment';
 
