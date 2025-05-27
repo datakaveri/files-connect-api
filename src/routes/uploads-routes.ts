@@ -84,9 +84,8 @@ uploadsRoutes.post(
       
       return c.json({
         uploadId: result.uploadId,
-        fileKey: result.fileKey,
-        urls: result.urls,
-        expiresIn: result.expiresIn
+        // Use signedUrls property which is in the interface
+        signedUrls: result.signedUrls
       });
     } catch (error) {
       logger.error(`Error initiating upload: ${error instanceof Error ? error.message : String(error)}`);
@@ -126,7 +125,7 @@ uploadsRoutes.put(
       const result = await multipartUploadService.finalizeMultipartUpload(body);
       
       return c.json({
-        key: result.key,
+        message: result.message,
         location: result.location,
         etag: result.etag
       });

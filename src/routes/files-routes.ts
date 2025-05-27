@@ -151,8 +151,8 @@ filesRoutes.get(
       size: details.size || 0,
       lastModified: details.lastModified || new Date(),
       contentType: details.contentType || 'application/octet-stream',
-      etag: details.etag,
-      metadata: details.metadata
+      etag: 'etag' in details && typeof details.etag === 'string' ? details.etag : undefined,
+      metadata: 'metadata' in details && details.metadata ? details.metadata as Record<string, any> : undefined
     };
     
     return c.json(buildResponse(response));

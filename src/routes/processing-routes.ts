@@ -168,7 +168,7 @@ function databankId(jobId: string): string {
   // In a real implementation, this would be properly tracked in a database
   if (!jobId) return 'unknown';
   const parts = jobId.split('-');
-  return parts.length > 1 ? parts[1] : 'unknown';
+  return parts.length > 1 ? parts[1]! : 'unknown';
 }
 
 /**
