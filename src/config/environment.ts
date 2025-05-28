@@ -39,6 +39,9 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().trim().transform(val => 
     typeof val === 'string' ? val.split(',') : val
   ).default('*'),
+  
+  // API version
+  VERSION: z.string().default('1.0.0'),
 });
 
 // Export type definition

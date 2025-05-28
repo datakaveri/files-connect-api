@@ -9,6 +9,7 @@ import { createUploadsRoutes } from './uploads-routes';
 import { createDatabanksRoutes } from './databanks-routes';
 import { createProcessingRoutes } from './processing-routes';
 import { healthRoutes } from './health-routes';
+import { swaggerRoutes } from './swagger-routes';
 import { ApiPaths } from '../config/constants';
 import { errorBoundary } from '../middleware/error-handler';
 import { cors } from 'hono/cors';
@@ -45,6 +46,7 @@ router.route(ApiPaths.UPLOADS, uploadsRoutes);       // Upload operations
 router.route(ApiPaths.DATABANKS, databanksRoutes);   // Databank operations (zip downloads)
 router.route(ApiPaths.PROCESSING, processingRoutes); // Processing jobs (zip creation and report generation)
 router.route(ApiPaths.HEALTH, healthRoutes);         // Health check endpoints
+router.route('/docs', swaggerRoutes);                // API documentation with Swagger UI
 
 // Export the router
 export default router;

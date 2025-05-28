@@ -5,7 +5,9 @@
 import { Context, Next } from 'hono';
 import { ApplicationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
-import { ErrorCode } from '../core/types/error';
+import { ErrorCode } from '../core/types/response';
+import { HttpStatusCode } from '../core/types/response';
+import { errorResponse } from '../core/utils/response';
 import { toApplicationError, createErrorContext } from '../core/utils/error-utils';
 
 // Create a logger for this module
@@ -63,18 +65,16 @@ export async function errorHandler(err: unknown, c: Context) {
     );
   }
   
-  // Return standardized error response
-  // Use type assertion to handle the status code type compatibility issue with Hono
-  return c.json(
-    {
-      error: {
-        code: errorCode,
-        message,
-        requestId,
-        ...(details ? { details } : {}),
-      },
-    },
-    statusCode as any
+  // Map internal error code to standardized API error code
+  const apiErrorCode = mapErrorCode(errorCode);
+  
+  // Return standardized error response using our utility function
+  return errorResponse(
+    c,
+    message,
+    apiErrorCode,
+    statusCode as HttpStatusCode,
+    details
   );
 }
 
@@ -93,5 +93,38 @@ export async function errorBoundary(c: Context, next: Next) {
   } catch (err) {
     // Handle the error
     return errorHandler(err as Error, c);
+  }
+}
+
+/**
+ * Maps internal error codes to standardized API error codes
+ * @param code The internal error code
+ * @returns Standardized API error code
+ */
+function mapErrorCode(code: string): ErrorCode {
+  // Map internal error codes to our standardized error codes
+  switch (code) {
+    case 'NOT_FOUND':
+      return ErrorCode.RESOURCE_NOT_FOUND;
+    case 'VALIDATION_ERROR':
+      return ErrorCode.VALIDATION_ERROR;
+    case 'UNAUTHORIZED':
+      return ErrorCode.UNAUTHORIZED;
+    case 'FORBIDDEN':
+      return ErrorCode.FORBIDDEN;
+    case 'CONFLICT':
+      return ErrorCode.CONFLICT;
+    case 'FILE_NOT_FOUND':
+      return ErrorCode.FILE_NOT_FOUND;
+    case 'DATABANK_NOT_FOUND':
+      return ErrorCode.DATABANK_NOT_FOUND;
+    case 'UPLOAD_FAILED':
+      return ErrorCode.UPLOAD_FAILED;
+    case 'PROCESSING_FAILED':
+      return ErrorCode.PROCESSING_FAILED;
+    case 'JOB_NOT_FOUND':
+      return ErrorCode.JOB_NOT_FOUND;
+    default:
+      return ErrorCode.UNKNOWN_ERROR;
   }
 }

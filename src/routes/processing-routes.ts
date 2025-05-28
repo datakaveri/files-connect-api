@@ -2,11 +2,11 @@
  * Processing Routes
  * Handles REST operations for databank processing jobs
  */
-import { Hono, Context } from "hono";
+import { Context } from "hono";
 import { z } from "zod";
 import { env } from "../config/environment";
 import { createLogger } from "../core/utils/logger";
-import { HTTPException } from "hono/http-exception";
+import { createOpenAPIHono, createSuccessRoute, SuccessResponseSchema, ErrorResponseSchema } from "../config/openapi";
 import { 
   authenticate, 
   authorize 
@@ -15,6 +15,8 @@ import { validateBody, VALIDATED_BODY } from "../middleware/validation";
 import { errorBoundary } from "../middleware/error-handler";
 import { requestLogger, requestContext } from "../middleware/logger";
 import { UserRole } from "../core/types/auth";
+import { successResponse, errorResponse, notFoundResponse } from "../core/utils/response";
+import { HttpStatusCode, ErrorCode } from "../core/types/response";
 
 // Create a logger for this module
 const logger = createLogger('ProcessingRoutes');
@@ -41,9 +43,9 @@ const processingJobSchema = z.object({
 type ProcessingJobRequest = z.infer<typeof processingJobSchema>;
 
 /**
- * Create a new Hono router for processing operations
+ * Create a new OpenAPIHono router for processing operations
  */
-export const processingRoutes = new Hono();
+export const processingRoutes = createOpenAPIHono();
 
 // Apply common middleware to all routes
 processingRoutes.use('*', errorBoundary, requestContext, requestLogger);
@@ -52,8 +54,86 @@ processingRoutes.use('*', errorBoundary, requestContext, requestLogger);
  * POST /processing/jobs
  * Create a processing job for a databank (zip creation and/or report generation)
  */
-processingRoutes.post(
-  '/jobs',
+const createJobRoute = createSuccessRoute({
+  method: 'post',
+  path: '/jobs',
+  tags: ['Processing'],
+  summary: 'Create a new processing job',
+  description: 'Creates a new job for databank processing (zip creation and/or report generation)',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: processingJobSchema
+        }
+      }
+    }
+  },
+  responses: {
+    '201': {
+      description: 'Job created successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            jobId: z.string(),
+            status: z.string(),
+            databankId: z.string(),
+            operations: z.object({
+              createZip: z.boolean(),
+              generateReport: z.boolean()
+            }),
+            config: z.object({
+              zipOptions: z.object({
+                includeMetadata: z.boolean(),
+                compression: z.enum(['standard', 'maximum', 'none'])
+              }),
+              reportOptions: z.object({
+                type: z.enum(['summary', 'detailed', 'compliance']),
+                format: z.enum(['pdf', 'json', 'csv'])
+              })
+            }),
+            createdAt: z.string(),
+            estimatedCompletionTime: z.string()
+          }))
+        }
+      }
+    },
+    '400': {
+      description: 'Invalid request parameters',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '401': {
+      description: 'Unauthorized - Authentication required',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '403': {
+      description: 'Forbidden - Insufficient permissions',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '500': {
+      description: 'Internal server error',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+processingRoutes.openapi(createJobRoute, [
   authenticate,
   authorize([UserRole.PROVIDER]),
   validateBody(processingJobSchema),
@@ -76,8 +156,11 @@ processingRoutes.post(
       // Generate a unique job ID
       const jobId = `proc-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       
-      // Return job information
-      return c.json({
+      // Start performance measurement
+      const startTime = Date.now();
+      
+      // Create response data
+      const responseData = {
         jobId,
         status: 'submitted',
         databankId,
@@ -91,31 +174,128 @@ processingRoutes.post(
         },
         createdAt: new Date().toISOString(),
         estimatedCompletionTime: new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutes from now
-      });
+      };
+      
+      // Calculate processing time
+      const processingTime = Date.now() - startTime;
+      
+      // Return standardized success response
+      return successResponse(
+        responseData,
+        c,
+        HttpStatusCode.CREATED,
+        processingTime
+      );
     } catch (error) {
       logger.error(`Error submitting processing job: ${error instanceof Error ? error.message : String(error)}`);
       
-      throw new HTTPException(500, { message: "Failed to submit processing job" });
+      return errorResponse(
+        c,
+        "Failed to submit processing job",
+        ErrorCode.PROCESSING_FAILED,
+        HttpStatusCode.INTERNAL_SERVER_ERROR
+      );
     }
   }
-);
+]);
 
 /**
  * GET /processing/jobs/:jobId
  * Get the status of a processing job
  */
-processingRoutes.get(
-  '/jobs/:jobId',
+const getJobStatusRoute = createSuccessRoute({
+  method: 'get',
+  path: '/jobs/:jobId',
+  tags: ['Processing'],
+  summary: 'Get processing job status',
+  description: 'Retrieves the current status of a processing job',
+  request: {
+    params: z.object({
+      jobId: z.string().min(1, 'Job ID is required')
+    })
+  },
+  responses: {
+    '200': {
+      description: 'Job status retrieved successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            jobId: z.string(),
+            status: z.enum(['pending', 'in-progress', 'completed', 'failed']),
+            progress: z.number().int().min(0).max(100),
+            lastUpdated: z.string(),
+            results: z.object({
+              zip: z.object({
+                complete: z.boolean(),
+                zipKey: z.string().optional(),
+                size: z.number().optional(),
+                fileCount: z.number().int().optional()
+              }).optional(),
+              report: z.object({
+                complete: z.boolean(),
+                reportKey: z.string().optional(),
+                pageCount: z.number().int().optional(),
+                summary: z.string().optional()
+              }).optional()
+            }).nullable()
+          }))
+        }
+      }
+    },
+    '401': {
+      description: 'Unauthorized - Authentication required',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '403': {
+      description: 'Forbidden - Insufficient permissions',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '404': {
+      description: 'Job not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '500': {
+      description: 'Internal server error',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+processingRoutes.openapi(getJobStatusRoute, [
   authenticate,
   authorize([UserRole.PROVIDER]),
   async (c: Context) => {
     try {
       const jobId = c.req.param('jobId');
       
+      // Validate job ID format
+      if (!jobId || !jobId.startsWith('proc-')) {
+        return notFoundResponse(c, `Job not found: ${jobId}`);
+      }
+      
       logger.info(`Job status request for jobId: ${jobId}`);
       
       // In a real implementation, this would check the status in a database
       // For now, we'll simulate a response
+      
+      // Start performance measurement
+      const startTime = Date.now();
       
       // Randomly determine job status for demo purposes
       const statusOptions = ['pending', 'in-progress', 'completed', 'failed'];
@@ -123,18 +303,24 @@ processingRoutes.get(
       const status = statusOptions[randomIndex];
       
       if (status === 'failed') {
-        return c.json({
-          jobId,
-          status,
-          error: 'Simulated failure for demonstration purposes',
-          lastUpdated: new Date().toISOString()
-        });
+        return errorResponse(
+          c,
+          'Simulated failure for demonstration purposes',
+          ErrorCode.PROCESSING_FAILED,
+          HttpStatusCode.OK,
+          {
+            jobId,
+            status,
+            lastUpdated: new Date().toISOString()
+          }
+        );
       }
       
       // Build response with results for completed jobs
       const dbId = databankId(jobId); // Extract the databank ID once
       
-      return c.json({
+      // Create response data
+      const responseData = {
         jobId,
         status,
         progress: status === 'completed' ? 100 : Math.floor(Math.random() * 100),
@@ -153,14 +339,30 @@ processingRoutes.get(
             summary: 'Report generated successfully'
           }
         } : null
-      });
+      };
+      
+      // Calculate processing time
+      const processingTime = Date.now() - startTime;
+      
+      // Return standardized success response
+      return successResponse(
+        responseData,
+        c,
+        HttpStatusCode.OK,
+        processingTime
+      );
     } catch (error) {
       logger.error(`Error getting job status: ${error instanceof Error ? error.message : String(error)}`);
       
-      throw new HTTPException(500, { message: "Failed to get job status" });
+      return errorResponse(
+        c,
+        "Failed to get job status",
+        ErrorCode.UNKNOWN_ERROR,
+        HttpStatusCode.INTERNAL_SERVER_ERROR
+      );
     }
   }
-);
+]);
 
 // Helper function to extract a databank ID from a job ID
 function databankId(jobId: string): string {
@@ -170,6 +372,139 @@ function databankId(jobId: string): string {
   const parts = jobId.split('-');
   return parts.length > 1 ? parts[1]! : 'unknown';
 }
+
+/**
+ * DELETE /processing/jobs/:jobId
+ * Cancel a processing job
+ */
+const cancelJobRoute = createSuccessRoute({
+  method: 'delete',
+  path: '/jobs/:jobId',
+  tags: ['Processing'],
+  summary: 'Cancel processing job',
+  description: 'Cancels a running processing job',
+  request: {
+    params: z.object({
+      jobId: z.string().min(1, 'Job ID is required')
+    })
+  },
+  responses: {
+    '200': {
+      description: 'Job cancelled successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            jobId: z.string(),
+            status: z.literal('cancelled'),
+            message: z.string(),
+            cancelledAt: z.string()
+          }))
+        }
+      }
+    },
+    '401': {
+      description: 'Unauthorized - Authentication required',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '403': {
+      description: 'Forbidden - Insufficient permissions',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '404': {
+      description: 'Job not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '409': {
+      description: 'Conflict - Job already completed or cancelled',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '500': {
+      description: 'Internal server error',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+processingRoutes.openapi(cancelJobRoute, [
+  authenticate,
+  authorize([UserRole.PROVIDER]),
+  async (c: Context) => {
+    try {
+      const jobId = c.req.param('jobId');
+      
+      // Validate job ID format
+      if (!jobId || !jobId.startsWith('proc-')) {
+        return notFoundResponse(c, `Job not found: ${jobId}`);
+      }
+      
+      logger.info(`Job cancellation request for jobId: ${jobId}`);
+      
+      // In a real implementation, this would cancel the job in a database
+      // and stop any running processes
+      
+      // Start performance measurement
+      const startTime = Date.now();
+      
+      // Simulate a small chance that the job is already completed
+      if (Math.random() < 0.2) {
+        return errorResponse(
+          c,
+          'Job cannot be cancelled because it is already completed',
+          ErrorCode.CONFLICT,
+          HttpStatusCode.CONFLICT
+        );
+      }
+      
+      // Create response data for successful cancellation
+      const responseData = {
+        jobId,
+        status: 'cancelled' as const,
+        message: 'Job was successfully cancelled',
+        cancelledAt: new Date().toISOString()
+      };
+      
+      // Calculate processing time
+      const processingTime = Date.now() - startTime;
+      
+      // Return standardized success response
+      return successResponse(
+        responseData,
+        c,
+        HttpStatusCode.OK,
+        processingTime
+      );
+    } catch (error) {
+      logger.error(`Error cancelling job: ${error instanceof Error ? error.message : String(error)}`);
+      
+      return errorResponse(
+        c,
+        "Failed to cancel job",
+        ErrorCode.UNKNOWN_ERROR,
+        HttpStatusCode.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+]);
 
 /**
  * Creates a new processing routes instance
