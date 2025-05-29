@@ -2,7 +2,7 @@
  * Route utility functions
  * Provides common utilities for route handlers to reduce redundancy
  */
-import { Context, Next } from 'hono';
+import { Request, Response, NextFunction } from 'express';
 import { createLogger } from './logger';
 
 const logger = createLogger('RouteUtils');
@@ -15,22 +15,21 @@ const logger = createLogger('RouteUtils');
  * @param operationName Name of the operation for logging
  * @returns A wrapped handler with error handling
  */
-export function withErrorHandling<T>(
-  handler: (c: Context) => Promise<T>,
+export function withErrorHandling(
+  handler: (req: Request, res: Response, next: NextFunction) => Promise<void>,
   operationName: string
 ) {
-  return async (c: Context): Promise<T> => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       logger.debug(`Starting operation: ${operationName}`);
-      const result = await handler(c);
+      await handler(req, res, next);
       logger.debug(`Completed operation: ${operationName}`);
-      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error in ${operationName}: ${errorMessage}`);
       
-      // Rethrow the error to be handled by the error boundary middleware
-      throw error;
+      // Pass the error to the Express error handling middleware
+      next(error);
     }
   };
 }

@@ -2,7 +2,8 @@
  * Files Routes
  * Handles REST operations for file resources
  */
-import { Hono, Context } from "hono";
+import { Router, Request, Response, NextFunction } from "express";
+import { Readable } from 'stream';
 import { createLogger } from "../core/utils/logger";
 import { createS3Service, S3ServiceInterface } from "../services/s3-service";
 import { createFileService } from "../services/file-service";
@@ -13,11 +14,10 @@ import {
 } from "../core/validators/schemas";
 import { 
   authenticate, 
-  authorize
+  authorize,
+  databankAccess
 } from "../middleware/auth";
 import { validateBody, VALIDATED_BODY } from "../middleware/validation";
-import { errorBoundary } from "../middleware/error-handler";
-import { requestLogger, requestContext } from "../middleware/logger";
 import { UserRole } from "../core/types/auth";
 import { 
   ApplicationError, 
@@ -25,7 +25,7 @@ import {
   ValidationError
 } from "../core/errors/application-errors";
 import { FileType } from "../core/types/file";
-import { withErrorHandling, buildResponse } from "../core/utils/route-utils";
+import { buildResponse } from "../core/utils/route-utils";
 import { FileListingResponse, FileMetadataResponse, FilePreviewResponse } from "../core/types/api-response";
 
 // Create a logger for this module
@@ -36,25 +36,37 @@ const s3Service = createS3Service();
 const fileService = createFileService(s3Service);
 
 /**
- * Create a new Hono router for file operations
+ * Utility to wrap async route handlers to handle errors properly
+ * This ensures that errors thrown in async handlers are caught by Express error middleware
+ * 
+ * @param fn - Async route handler function
+ * @returns Wrapped route handler
  */
-export const filesRoutes = new Hono();
-
-// Apply common middleware to all routes
-filesRoutes.use('*', errorBoundary, requestContext, requestLogger);
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+};
 
 /**
- * GET /files
+ * Create a new Express router for file operations
+ */
+export const filesRoutes = Router();
+
+/**
+ * POST /files
  * List files in a directory
  */
 filesRoutes.post(
   '/',
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  databankAccess,
   validateBody(listObjectsSchema),
-  withErrorHandling(async (c: Context) => {
-    const body = (c as any)[VALIDATED_BODY];
-    const databankId = c.get('databankId') as string;
+  asyncHandler(async (req: Request, res: Response) => {
+    // Get validated data from request
+    const body = req[VALIDATED_BODY];
+    const databankId = res.locals.databankId as string;
     
     logger.info(`Listing files: prefix=${body.prefix}, databankId=${databankId}`);
     
@@ -79,23 +91,29 @@ filesRoutes.post(
       timestamp: new Date().toISOString()
     });
     
-    return c.json(response);
-  }, 'list-files')
+    // Send the response
+    res.json(response);
+  })
 );
 
 /**
- * GET /files/:key
+ * POST /files/:key
  * Get a file by key
  */
 filesRoutes.post(
   '/:key',
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  databankAccess,
   validateBody(getObjectSchema),
-  withErrorHandling(async (c: Context) => {
-    const body = (c as any)[VALIDATED_BODY];
-    const key = c.req.param('key');
-    const databankId = c.get('databankId') as string;
+  asyncHandler(async (req: Request, res: Response) => {
+    // Get validated data from request
+    const body = req[VALIDATED_BODY];
+    const key = req.params.key;
+    if (!key) {
+      throw new ValidationError('Key parameter is required');
+    }
+    const databankId = res.locals.databankId as string;
     
     logger.info(`Getting file: key=${key}, databankId=${databankId}`);
     
@@ -105,23 +123,21 @@ filesRoutes.post(
     // Set content type based on file extension or default to octet-stream
     const contentType = body.contentType || 'application/octet-stream';
     
-    // Convert Node.js Readable stream to Web-compatible ReadableStream
-    const readableStream = new ReadableStream({
-      start(controller) {
-        stream.on('data', (chunk) => controller.enqueue(chunk));
-        stream.on('end', () => controller.close());
-        stream.on('error', (err) => controller.error(err));
-      }
-    });
+    // Set response headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${key.split('/').pop() || 'file'}"`);
     
-    // Return the file
-    return new Response(readableStream, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${key.split('/').pop()}"`
-      }
-    });
-  }, 'get-file')
+    // Pipe the stream to the response
+    // This is more efficient than using the Web Streams API in Express
+    if (stream instanceof Readable) {
+      stream.pipe(res);
+    } else {
+      // If it's not a Node.js Readable stream (it might be a Web API ReadableStream)
+      // we need to convert it to a Node.js stream
+      const nodeStream = Readable.from(stream as any);
+      nodeStream.pipe(res);
+    }
+  })
 );
 
 /**
@@ -132,9 +148,13 @@ filesRoutes.get(
   '/:key/metadata',
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  withErrorHandling(async (c: Context) => {
-    const key = c.req.param('key');
-    const databankId = c.get('databankId') as string;
+  databankAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    const key = req.params.key;
+    if (!key) {
+      throw new ValidationError('Key parameter is required');
+    }
+    const databankId = res.locals.databankId as string;
     
     logger.info(`Getting file metadata: key=${key}, databankId=${databankId}`);
     
@@ -155,23 +175,28 @@ filesRoutes.get(
       metadata: 'metadata' in details && details.metadata ? details.metadata as Record<string, any> : undefined
     };
     
-    return c.json(buildResponse(response));
-  }, 'get-file-metadata')
+    // Send the response
+    res.json(buildResponse(response));
+  })
 );
 
 /**
- * GET /files/:key/preview
+ * POST /files/:key/preview
  * Preview file contents
  */
 filesRoutes.post(
   '/:key/preview',
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  databankAccess,
   validateBody(filePreviewSchema),
-  withErrorHandling(async (c: Context) => {
-    const key = c.req.param('key');
-    const body = (c as any)[VALIDATED_BODY];
-    const databankId = c.get('databankId') as string;
+  asyncHandler(async (req: Request, res: Response) => {
+    const key = req.params.key;
+    if (!key) {
+      throw new ValidationError('Key parameter is required');
+    }
+    const body = req[VALIDATED_BODY];
+    const databankId = res.locals.databankId as string;
     
     logger.info(`Previewing file: key=${key}, databankId=${databankId}, fileType=${body.fileType || 'auto'}`);
     
@@ -195,8 +220,9 @@ filesRoutes.post(
       metadata: previewResult.metadata
     };
     
-    return c.json(buildResponse(response));
-  }, 'preview-file')
+    // Send the response
+    res.json(buildResponse(response));
+  })
 );
 
 /**

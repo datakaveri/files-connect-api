@@ -7,8 +7,8 @@ import { env } from '../../config/environment';
 import { DecodedToken, UserRole, DatabankAccessResult } from '../types/auth';
 import { AuthConstants } from '../../config/constants';
 import { isDecodedToken } from './type-guards';
-import { Context } from 'hono';
-import { HTTPException } from 'hono/http-exception';
+import { Request, Response, NextFunction } from 'express';
+import { RequestWithUser, ResponseLocals } from '../types/hono';
 import * as jwt from 'jsonwebtoken';
 
 // Import development configuration if available
@@ -216,19 +216,22 @@ export async function callLambdaFunction(databankId: string): Promise<LambdaFunc
 }
 
 /**
- * Extracts user information from a request context
- * @param c - Hono context
+ * Extracts user information from Express request
+ * @param req - Express request
+ * @param res - Express response
  * @returns Promise resolving to the user information
  */
-export async function extractUserInfo(c: Context): Promise<UserInfo> {
+export async function extractUserInfo(req: Request, res: Response): Promise<UserInfo> {
   try {
     // 1. Get authorization token from header
-    const authHeader = c.req.header('Authorization');
+    const authHeader = req.header('Authorization');
     
     // 2. Get databank ID from query params or header
-    const databankId = c.req.query('databankId') || c.req.header('X-Databank-ID') || '';
+    const databankId = req.query.databankId?.toString() || req.header('X-Databank-ID') || '';
     if (!databankId) {
-      throw new HTTPException(400, { message: 'Databank ID is required' });
+      const error = new Error('Databank ID is required');
+      (error as any).statusCode = 400;
+      throw error;
     }
     
     // 3. Extract and decode token
@@ -247,11 +250,14 @@ export async function extractUserInfo(c: Context): Promise<UserInfo> {
       isConsumer
     };
   } catch (error) {
-    if (error instanceof HTTPException) {
+    // Check if error already has a status code
+    if ((error as any).statusCode) {
       throw error;
     }
     
     logger.error('Error extracting user info', error as Error);
-    throw new HTTPException(401, { message: (error as Error).message });
+    const authError = new Error((error as Error).message);
+    (authError as any).statusCode = 401;
+    throw authError;
   }
 }

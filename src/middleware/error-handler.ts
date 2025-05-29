@@ -2,12 +2,11 @@
  * Error Handler Middleware
  * Provides consistent error handling for all routes
  */
-import { Context, Next } from 'hono';
+import { Request, Response, NextFunction } from 'express';
 import { ApplicationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
 import { ErrorCode } from '../core/types/response';
 import { HttpStatusCode } from '../core/types/response';
-import { errorResponse } from '../core/utils/response';
 import { toApplicationError, createErrorContext } from '../core/utils/error-utils';
 
 // Create a logger for this module
@@ -18,24 +17,31 @@ const logger = createLogger('ErrorHandler');
  * Catches errors and transforms them into standardized API responses
  * 
  * @param err - Error object
- * @param c - Hono context
+ * @param req - Express request
+ * @param res - Express response
+ * @param next - Express next function
  * @returns Response with standardized error format
  */
-export async function errorHandler(err: unknown, c: Context) {
-  // Get request ID from context
-  const requestId = c.get('requestId') || 'unknown';
+export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction) {
+  // Get request ID from locals or generate a new one
+  const requestId = res.locals.requestId || 'unknown';
   
   // Get request-scoped logger if available
-  const reqLogger = c.get('logger') || createLogger('ErrorHandler').setRequestId(requestId);
+  const reqLogger = res.locals.logger || createLogger('ErrorHandler').setRequestId(requestId);
   
   // Create error context with request information
-  const errorContext = createErrorContext(c);
+  const errorContext = {
+    path: req.path,
+    method: req.method,
+    requestId: requestId,
+    userId: res.locals.userId || 'anonymous'
+  };
   
   // Convert to ApplicationError if it's not already one
   const applicationError = toApplicationError(err, 'An unexpected error occurred', errorContext);
   
   // Extract error details
-  const statusCode = applicationError.statusCode;
+  const statusCode = applicationError.statusCode || 500;
   const errorCode = applicationError.code as ErrorCode;
   const message = applicationError.message;
   const details = applicationError.details;
@@ -68,33 +74,20 @@ export async function errorHandler(err: unknown, c: Context) {
   // Map internal error code to standardized API error code
   const apiErrorCode = mapErrorCode(errorCode);
   
-  // Return standardized error response using our utility function
-  return errorResponse(
-    c,
-    message,
-    apiErrorCode,
-    statusCode as HttpStatusCode,
-    details
-  );
+  // Return standardized error response
+  res.status(statusCode).json({
+    error: {
+      message: message,
+      code: apiErrorCode,
+      details: details,
+      requestId: requestId
+    }
+  });
 }
 
-/**
- * Error boundary middleware
- * Wraps route handlers in a try-catch block and passes errors to the error handler
- * 
- * @param c - Hono context
- * @param next - Next function
- * @returns Response from the route handler or error handler
- */
-export async function errorBoundary(c: Context, next: Next) {
-  try {
-    // Execute the route handler
-    return await next();
-  } catch (err) {
-    // Handle the error
-    return errorHandler(err as Error, c);
-  }
-}
+// Note: In Express, we don't need a separate error boundary middleware
+// because Express automatically catches errors in async route handlers
+// when using express-async-errors package and passes them to error handlers
 
 /**
  * Maps internal error codes to standardized API error codes

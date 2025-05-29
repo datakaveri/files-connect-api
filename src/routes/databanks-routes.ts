@@ -2,22 +2,22 @@
  * Databanks Routes
  * Handles operations specific to databanks, including zip downloads
  */
-import { Hono, Context } from "hono";
+import express, { Request, Response, NextFunction, Router } from "express";
 import { z } from "zod";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createS3Service } from "../services/s3-service";
 import { env } from "../config/environment";
 import { createLogger } from "../core/utils/logger";
-import { HTTPException } from "hono/http-exception";
 import { 
   authenticate, 
   authorize 
 } from "../middleware/auth";
-import { validateBody, VALIDATED_BODY } from "../middleware/validation";
-import { errorBoundary } from "../middleware/error-handler";
-import { requestLogger, requestContext } from "../middleware/logger";
+import { validateBody } from "../middleware/validation";
+import { errorHandler } from "../middleware/error-handler";
+import { requestContext, responseLogger } from "../middleware/logger";
 import { UserRole } from "../core/types/auth";
+import { successResponse, errorResponse } from "../core/utils/response";
 
 // Create a logger for this module
 const logger = createLogger('DatabanksRoutes');
@@ -34,12 +34,12 @@ const downloadZipSchema = z.object({
 type DownloadZipRequest = z.infer<typeof downloadZipSchema>;
 
 /**
- * Create a new Hono router for databank operations
+ * Create a new Express router for databank operations
  */
-export const databanksRoutes = new Hono();
+export const databanksRoutes = Router();
 
 // Apply common middleware to all routes
-databanksRoutes.use('*', errorBoundary, requestContext, requestLogger);
+databanksRoutes.use(requestContext);
 
 /**
  * GET /databanks/:databankId/download
@@ -49,9 +49,9 @@ databanksRoutes.get(
   '/:databankId/download',
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  async (c: Context) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const databankId = c.req.param('databankId');
+      const databankId = req.params.databankId;
       
       logger.info(`Download request received for databankId: ${databankId}`);
       
@@ -75,7 +75,7 @@ databanksRoutes.get(
         
         logger.info(`Successfully generated download URL for key: ${zipKey}`);
         
-        return c.json({
+        res.status(200).json({
           downloadUrl: presignedUrl,
           expiresIn: 3600,
           key: zipKey,
@@ -86,17 +86,19 @@ databanksRoutes.get(
         // If the ZIP file doesn't exist
         logger.error(`Zip file not found: ${zipKey}, error: ${error instanceof Error ? error.message : String(error)}`);
         
-        throw new HTTPException(404, { message: `Zip file for databank ${databankId} not found` });
+        res.status(404).json({ 
+          success: false,
+          error: {
+            message: `Zip file for databank ${databankId} not found`,
+            code: 'RESOURCE_NOT_FOUND'
+          }
+        });
       }
     } catch (error) {
       // Handle errors
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      
       logger.error(`Error generating download URL: ${error instanceof Error ? error.message : String(error)}`);
       
-      throw new HTTPException(500, { message: "Failed to generate download URL" });
+      next(error);
     }
   }
 );

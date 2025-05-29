@@ -2,7 +2,7 @@
  * Uploads Routes
  * Handles REST operations for file uploads
  */
-import { Hono, Context } from "hono";
+import express, { Request, Response, NextFunction, Router } from "express";
 import { z } from "zod";
 import { createS3Service } from "../services/s3-service";
 import { createLogger } from "../core/utils/logger";
@@ -10,10 +10,11 @@ import {
   authenticate, 
   authorize 
 } from "../middleware/auth";
-import { validateBody, VALIDATED_BODY } from "../middleware/validation";
-import { errorBoundary } from "../middleware/error-handler";
-import { requestLogger, requestContext } from "../middleware/logger";
+import { validateBody } from "../middleware/validation";
+import { errorHandler } from "../middleware/error-handler";
+import { requestContext, responseLogger } from "../middleware/logger";
 import { UserRole } from "../core/types/auth";
+import { successResponse, errorResponse } from "../core/utils/response";
 import { 
   createMultipartUploadService,
   PresignedUrlRequest, 
@@ -51,12 +52,12 @@ const finalizeUploadSchema = z.object({
 });
 
 /**
- * Create a new Hono router for upload operations
+ * Create a new Express router for upload operations
  */
-export const uploadsRoutes = new Hono();
+export const uploadsRoutes = Router();
 
 // Apply common middleware to all routes
-uploadsRoutes.use('*', errorBoundary, requestContext, requestLogger);
+uploadsRoutes.use(requestContext);
 
 /**
  * POST /uploads
@@ -67,12 +68,12 @@ uploadsRoutes.post(
   authenticate,
   authorize([UserRole.PROVIDER]), // Only providers can initiate uploads
   validateBody(presignedUrlSchema),
-  async (c: Context) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       logger.info('Initiating multipart upload');
       
-      const body = (c as any)[VALIDATED_BODY] as PresignedUrlRequest;
-      const databankId = c.get('databankId') as string;
+      const body = req.body as PresignedUrlRequest;
+      const databankId = res.locals.databankId as string;
       
       // Ensure databankId is set
       if (!body.databankId) {
@@ -82,14 +83,14 @@ uploadsRoutes.post(
       // Generate presigned URLs for each part
       const result = await multipartUploadService.generatePresignedUrls(body);
       
-      return c.json({
+      res.status(200).json({
         uploadId: result.uploadId,
         // Use signedUrls property which is in the interface
         signedUrls: result.signedUrls
       });
     } catch (error) {
       logger.error(`Error initiating upload: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      next(error);
     }
   }
 );
@@ -103,15 +104,21 @@ uploadsRoutes.put(
   authenticate,
   authorize([UserRole.PROVIDER]), // Only providers can finalize uploads
   validateBody(finalizeUploadSchema),
-  async (c: Context) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const uploadId = c.req.param('uploadId');
-      const body = (c as any)[VALIDATED_BODY] as FinalizeMultipartUploadRequest;
-      const databankId = c.get('databankId') as string;
+      const uploadId = req.params.uploadId;
+      const body = req.body as FinalizeMultipartUploadRequest;
+      const databankId = res.locals.databankId as string;
       
       // Ensure uploadId from URL matches body
       if (body.uploadId !== uploadId) {
-        throw new Error('Upload ID in URL does not match body');
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Upload ID in URL does not match body',
+            code: 'VALIDATION_ERROR'
+          }
+        });
       }
       
       // Ensure databankId is set
@@ -124,14 +131,14 @@ uploadsRoutes.put(
       // Finalize the multipart upload
       const result = await multipartUploadService.finalizeMultipartUpload(body);
       
-      return c.json({
+      res.status(200).json({
         message: result.message,
         location: result.location,
         etag: result.etag
       });
     } catch (error) {
       logger.error(`Error finalizing upload: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+      next(error);
     }
   }
 );

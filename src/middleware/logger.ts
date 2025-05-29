@@ -2,7 +2,7 @@
  * Logger Middleware
  * Provides request logging and request ID generation
  */
-import { Context, Next } from 'hono';
+import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../core/utils/logger';
 
@@ -11,73 +11,74 @@ const logger = createLogger('RequestLogger');
 
 /**
  * Request context middleware
- * Generates a unique request ID and adds it to the request context
+ * Generates a unique request ID and adds it to the response locals
  * 
- * @param c - Hono context
+ * @param req - Express request
+ * @param res - Express response
  * @param next - Next function
  * @returns Response from the next middleware or route handler
  */
-export async function requestContext(c: Context, next: Next) {
+export function requestContext(req: Request, res: Response, next: NextFunction) {
   // Generate or use existing request ID
-  const requestId = c.req.header('X-Request-ID') || uuidv4();
+  const requestId = req.header('X-Request-ID') || uuidv4();
   
-  // Set request ID in context
-  c.set('requestId', requestId);
+  // Store request ID in response locals for access in other middleware/routes
+  res.locals.requestId = requestId;
   
   // Set request ID in response header
-  c.header('X-Request-ID', requestId);
+  res.setHeader('X-Request-ID', requestId);
   
   // Create a request-scoped logger with the request ID
   const requestLogger = createLogger('Request').setRequestId(requestId);
-  c.set('logger', requestLogger);
+  res.locals.logger = requestLogger;
+  
+  // Log the start of the request
+  requestLogger.info('Request received', {
+    method: req.method,
+    path: req.path,
+    query: req.query,
+    headers: {
+      ...req.headers,
+      authorization: req.header('authorization') ? '[REDACTED]' : undefined,
+    },
+  });
   
   // Continue to next middleware or route handler
-  await next();
+  next();
 }
 
 /**
- * Request logger middleware
- * Logs incoming requests and outgoing responses
+ * Response logger middleware
+ * Logs response after it's sent
+ * This uses Express's on-finish event to log the response
  * 
- * @param c - Hono context
+ * @param req - Express request
+ * @param res - Express response
  * @param next - Next function
- * @returns Response from the next middleware or route handler
+ * @returns void
  */
-export async function requestLogger(c: Context, next: Next) {
-  // Get request ID and logger from context
-  const requestId = c.get('requestId') || 'unknown';
-  const reqLogger = c.get('logger') || createLogger('RequestLogger').setRequestId(requestId);
+export function responseLogger(req: Request, res: Response, next: NextFunction) {
+  // Get request ID and logger from locals
+  const requestId = res.locals.requestId || 'unknown';
+  const reqLogger = res.locals.logger || createLogger('ResponseLogger').setRequestId(requestId);
   
   // Start timer
   const start = performance.now();
   
-  // Log request
-  reqLogger.info('Request received', {
-    method: c.req.method,
-    path: c.req.path,
-    query: c.req.query(),
-    headers: {
-      ...c.req.header(),
-      authorization: c.req.header('authorization') ? '[REDACTED]' : undefined,
-    },
-  });
-  
-  try {
-    // Continue to next middleware or route handler
-    await next();
-  } finally {
+  // Handle response finish event
+  res.on('finish', () => {
     // Calculate request duration
     const duration = performance.now() - start;
     
-    // Get response status from context
-    const status = c.res.status;
-    
     // Log response
     reqLogger.info('Response sent', {
-      method: c.req.method,
-      path: c.req.path,
-      status,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
       duration: `${duration.toFixed(2)}ms`,
     });
-  }
+  });
+  
+  // Continue to next middleware
+  next();
 }

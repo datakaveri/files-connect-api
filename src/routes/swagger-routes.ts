@@ -2,9 +2,9 @@
  * Swagger UI Routes
  * Provides OpenAPI documentation UI for the API
  */
-import { Hono } from 'hono';
-import { swaggerUI } from '@hono/swagger-ui';
-import { openApiInfo } from '../config/openapi';
+import { Router } from 'express';
+import swaggerUi from 'swagger-ui-express';
+import { openApiDocument } from '../config/openapi';
 import { createLogger } from '../core/utils/logger';
 
 // Create a logger for this module
@@ -12,20 +12,24 @@ const logger = createLogger('SwaggerRoutes');
 
 /**
  * Creates Swagger UI routes for API documentation
- * @returns Hono router with Swagger UI routes
+ * @returns Express router with Swagger UI routes
  */
 export function createSwaggerRoutes() {
-  const router = new Hono();
+  const router = Router();
   
-  // Mount Swagger UI with our OpenAPI info
-  router.get('/', swaggerUI({
-    url: '/v1/docs/openapi.json', // Path where OpenAPI JSON will be served
-    defaultModelsExpandDepth: 4,
-    defaultModelExpandDepth: 3
+  // Mount Swagger UI with our OpenAPI document
+  router.use('/', swaggerUi.serve);
+  router.get('/', swaggerUi.setup(openApiDocument, {
+    explorer: true,
+    customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+      defaultModelsExpandDepth: 4,
+      defaultModelExpandDepth: 3
+    }
   }));
   
   // Serve the OpenAPI specification as JSON
-  router.get('/openapi.json', (c) => c.json(openApiInfo));
+  router.get('/openapi.json', (req, res) => res.json(openApiDocument));
   
   logger.info('Swagger UI routes initialized');
   

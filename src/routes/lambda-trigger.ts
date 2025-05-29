@@ -1,12 +1,12 @@
-import { Hono } from "hono";
+import express, { Request, Response, NextFunction, Router } from "express";
 import { z } from "zod";
 import { env } from "../config/environment";
 import { createLogger } from "../core/utils/logger";
-import { HTTPException } from "hono/http-exception";
 import axios from "axios";
 import { authenticate, authorize } from "../middleware/auth";
 import { validateBody } from "../middleware/validation";
 import { UserRole } from "../core/types/auth";
+import { successResponse, errorResponse } from "../core/utils/response";
 
 // Create a logger for this module
 const logger = createLogger('LambdaTriggerRoutes');
@@ -20,12 +20,9 @@ const lambdaTriggerSchema = z.object({
 export type LambdaTriggerRequest = z.infer<typeof lambdaTriggerSchema>;
 
 /**
- * Create a new Hono router for Lambda trigger operations
+ * Create a new Express router for Lambda trigger operations
  */
-export const lambdaTriggerRoutes = new Hono();
-
-// Apply common middleware to all routes
-lambdaTriggerRoutes.use('*', (c, next) => next());
+export const lambdaTriggerRoutes = Router();
 
 /**
  * Lambda trigger route
@@ -36,10 +33,10 @@ lambdaTriggerRoutes.post(
   authenticate,
   authorize([UserRole.PROVIDER]), // Only providers can trigger Lambda functions
   validateBody(lambdaTriggerSchema),
-  async (c) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Get the validated request body directly from the request
-      const body = await c.req.json() as LambdaTriggerRequest;
+      const body = req.body as LambdaTriggerRequest;
       // Validation middleware has already validated this body
       const databankId = body.databankId;
       
@@ -67,7 +64,7 @@ lambdaTriggerRoutes.post(
         
         logger.info(`Lambda function called successfully for databank: ${databankId}, jobId: ${lambdaResponse.jobId}`);
         
-        return c.json({
+        res.status(200).json({
           message: "Lambda function triggered successfully",
           databankId,
           jobId: lambdaResponse.jobId
@@ -75,17 +72,19 @@ lambdaTriggerRoutes.post(
       } catch (lambdaError) {
         logger.error(`Error calling Lambda function: ${lambdaError instanceof Error ? lambdaError.message : String(lambdaError)}`);
         
-        throw new HTTPException(500, { message: "Failed to call Lambda function" });
+        res.status(500).json({
+          success: false,
+          error: {
+            message: "Failed to call Lambda function",
+            code: "INTERNAL_SERVER_ERROR"
+          }
+        });
       }
     } catch (error) {
       // Handle errors
-      if (error instanceof HTTPException) {
-        throw error;
-      }
-      
       logger.error(`Error processing Lambda trigger request: ${error instanceof Error ? error.message : String(error)}`);
       
-      throw new HTTPException(500, { message: "Internal server error" });
+      next(error);
     }
   }
 );

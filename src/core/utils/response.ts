@@ -2,7 +2,8 @@
  * Response utility functions
  * Provides consistent response formatting across the API
  */
-import { Context } from "hono";
+import { Request, Response } from "express";
+import { ResponseLocals } from "../types/hono";
 import { v4 as uuidv4 } from "uuid";
 import { ApiResponse, ApiError, HttpStatusCode, ErrorCode } from "../types/response";
 import { env } from "../../config/environment";
@@ -15,12 +16,12 @@ import { env } from "../../config/environment";
  */
 export function successResponse<T>(
   data: T,
-  context: Context,
+  res: Response,
   statusCode: number = HttpStatusCode.OK,
   processingTimeMs?: number
-): Response {
+): void {
   // Create a request ID if not already present
-  const requestId = context.get('requestId') || uuidv4();
+  const requestId = res.locals.requestId || uuidv4();
   
   const response: ApiResponse<T> = {
     success: true,
@@ -33,9 +34,7 @@ export function successResponse<T>(
     }
   };
   
-
-  
-  return context.json(response, statusCode as any);
+  res.status(statusCode).json(response);
 }
 
 /**
@@ -44,14 +43,14 @@ export function successResponse<T>(
  * @param statusCode HTTP status code
  */
 export function errorResponse(
-  context: Context,
+  res: Response,
   message: string,
   code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
   statusCode: number = HttpStatusCode.INTERNAL_SERVER_ERROR,
   details?: unknown
-): Response {
+): void {
   // Create a request ID if not already present
-  const requestId = context.get('requestId') || uuidv4();
+  const requestId = res.locals.requestId || uuidv4();
   
   const error: ApiError = {
     code,
@@ -69,9 +68,7 @@ export function errorResponse(
     }
   };
   
-
-  
-  return context.json(response, statusCode as any);
+  res.status(statusCode).json(response);
 }
 
 /**
@@ -88,12 +85,12 @@ export function paginatedResponse<T>(
   page: number,
   pageSize: number,
   totalItems: number,
-  context: Context,
+  res: Response,
   statusCode: number = HttpStatusCode.OK,
   processingTimeMs?: number
-): Response {
+): void {
   // Create a request ID if not already present
-  const requestId = context.get('requestId') || uuidv4();
+  const requestId = res.locals.requestId || uuidv4();
   
   const totalPages = Math.ceil(totalItems / pageSize);
   const hasMore = page < totalPages;
@@ -116,18 +113,17 @@ export function paginatedResponse<T>(
     }
   };
   
-
-  
-  return context.json(response, statusCode as any);
+  res.status(statusCode).json(response);
 }
 
 /**
  * Create a 404 Not Found response
+ * @param res Express response object
  * @param message Custom error message
  */
-export function notFoundResponse(context: Context, message: string = "Resource not found"): Response {
-  return errorResponse(
-    context,
+export function notFoundResponse(res: Response, message: string = "Resource not found"): void {
+  errorResponse(
+    res,
     message,
     ErrorCode.RESOURCE_NOT_FOUND,
     HttpStatusCode.NOT_FOUND
@@ -136,16 +132,17 @@ export function notFoundResponse(context: Context, message: string = "Resource n
 
 /**
  * Create a 400 Bad Request response
+ * @param res Express response object
  * @param message Custom error message
  * @param details Additional error details
  */
 export function badRequestResponse(
-  context: Context,
+  res: Response,
   message: string = "Invalid request",
   details?: unknown
-): Response {
-  return errorResponse(
-    context,
+): void {
+  errorResponse(
+    res,
     message,
     ErrorCode.VALIDATION_ERROR,
     HttpStatusCode.BAD_REQUEST,
@@ -155,14 +152,15 @@ export function badRequestResponse(
 
 /**
  * Create a 401 Unauthorized response
+ * @param res Express response object
  * @param message Custom error message
  */
 export function unauthorizedResponse(
-  context: Context,
+  res: Response,
   message: string = "Authentication required"
-): Response {
-  return errorResponse(
-    context,
+): void {
+  errorResponse(
+    res,
     message,
     ErrorCode.UNAUTHORIZED,
     HttpStatusCode.UNAUTHORIZED
@@ -171,14 +169,15 @@ export function unauthorizedResponse(
 
 /**
  * Create a 403 Forbidden response
+ * @param res Express response object
  * @param message Custom error message
  */
 export function forbiddenResponse(
-  context: Context,
+  res: Response,
   message: string = "Permission denied"
-): Response {
-  return errorResponse(
-    context,
+): void {
+  errorResponse(
+    res,
     message,
     ErrorCode.FORBIDDEN,
     HttpStatusCode.FORBIDDEN
@@ -187,15 +186,16 @@ export function forbiddenResponse(
 
 /**
  * Create a 409 Conflict response
+ * @param res Express response object
  * @param message Custom error message
  */
 export function conflictResponse(
-  context: Context,
+  res: Response,
   message: string = "Resource conflict",
   details?: unknown
-): Response {
-  return errorResponse(
-    context,
+): void {
+  errorResponse(
+    res,
     message,
     ErrorCode.CONFLICT,
     HttpStatusCode.CONFLICT,

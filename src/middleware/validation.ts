@@ -2,15 +2,26 @@
  * Validation Middleware
  * Provides request validation using Zod schemas
  */
-import { Context, Next } from 'hono';
+import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { ValidationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
 
-// Define a symbol for storing validated data in the context
-export const VALIDATED_BODY = Symbol('validatedBody');
-export const VALIDATED_QUERY = Symbol('validatedQuery');
-export const VALIDATED_PARAMS = Symbol('validatedParams');
+// Extend Express interfaces to include validated data
+declare global {
+  namespace Express {
+    interface Request {
+      validatedBody?: any;
+      validatedQuery?: any;
+      validatedParams?: any;
+    }
+  }
+}
+
+// Keys for storing validated data in request object
+export const VALIDATED_BODY = 'validatedBody';
+export const VALIDATED_QUERY = 'validatedQuery';
+export const VALIDATED_PARAMS = 'validatedParams';
 
 // Create a logger for this module
 const logger = createLogger('ValidationMiddleware');
@@ -22,20 +33,15 @@ const logger = createLogger('ValidationMiddleware');
  * @returns Middleware function that validates request body
  */
 export function validateBody<T extends z.ZodType>(schema: T) {
-  return async (c: Context, next: Next) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     // Check if validation should be skipped
-    if (c.get('skip-validation')) {
-      return await next();
+    if (res.locals.skipValidation) {
+      return next();
     }
     
     try {
-      // Get body from context if available, otherwise parse from request
-      let body;
-      if (c.get('body')) {
-        body = c.get('body');
-      } else {
-        body = await c.req.json();
-      }
+      // Get body from request
+      const body = req.body;
       
       // Validate body against schema
       const result = schema.safeParse(body);
@@ -48,36 +54,36 @@ export function validateBody<T extends z.ZodType>(schema: T) {
         }));
         
         logger.warn('Validation error', { 
-          path: c.req.path, 
-          method: c.req.method,
+          path: req.path, 
+          method: req.method,
           errors 
         });
         
-        // Throw validation error
-        throw new ValidationError('Request validation failed', { errors });
+        // Return a validation error to the error handler
+        return next(new ValidationError('Request validation failed', { errors }));
       }
       
-      // Set validated data in context using the symbol
-      (c as any)[VALIDATED_BODY] = result.data;
+      // Store validated data in request object
+      req[VALIDATED_BODY] = result.data;
       
       // Continue to next middleware or route handler
-      await next();
+      next();
     } catch (err) {
-      // If error is already a ValidationError, rethrow it
+      // If error is already a ValidationError, pass it to the error handler
       if (err instanceof ValidationError) {
-        throw err;
+        return next(err);
       }
       
       // Otherwise, create a new ValidationError
       logger.warn('Invalid request body', { 
-        path: c.req.path, 
-        method: c.req.method,
+        path: req.path, 
+        method: req.method,
         error: (err as Error).message 
       });
       
-      throw new ValidationError('Invalid request body', {
+      next(new ValidationError('Invalid request body', {
         error: (err as Error).message,
-      });
+      }));
     }
   };
 }
@@ -89,10 +95,10 @@ export function validateBody<T extends z.ZodType>(schema: T) {
  * @returns Middleware function that validates request query parameters
  */
 export function validateQuery<T extends z.ZodType>(schema: T) {
-  return async (c: Context, next: Next) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     try {
       // Get query parameters
-      const query = c.req.query();
+      const query = req.query;
       
       // Validate query against schema
       const result = schema.safeParse(query);
@@ -105,36 +111,36 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
         }));
         
         logger.warn('Query validation error', { 
-          path: c.req.path, 
-          method: c.req.method,
+          path: req.path, 
+          method: req.method,
           errors 
         });
         
-        // Throw validation error
-        throw new ValidationError('Query validation failed', { errors });
+        // Return a validation error to the error handler
+        return next(new ValidationError('Query validation failed', { errors }));
       }
       
-      // Set validated data in context using the symbol
-      (c as any)[VALIDATED_QUERY] = result.data;
+      // Store validated data in request object
+      req[VALIDATED_QUERY] = result.data;
       
       // Continue to next middleware or route handler
-      await next();
+      next();
     } catch (err) {
-      // If error is already a ValidationError, rethrow it
+      // If error is already a ValidationError, pass it to the error handler
       if (err instanceof ValidationError) {
-        throw err;
+        return next(err);
       }
       
       // Otherwise, create a new ValidationError
       logger.warn('Invalid query parameters', { 
-        path: c.req.path, 
-        method: c.req.method,
+        path: req.path, 
+        method: req.method,
         error: (err as Error).message 
       });
       
-      throw new ValidationError('Invalid query parameters', {
+      next(new ValidationError('Invalid query parameters', {
         error: (err as Error).message,
-      });
+      }));
     }
   };
 }
@@ -146,10 +152,10 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
  * @returns Middleware function that validates request parameters
  */
 export function validateParams<T extends z.ZodType>(schema: T) {
-  return async (c: Context, next: Next) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     try {
       // Get parameters
-      const params = c.req.param();
+      const params = req.params;
       
       // Validate parameters against schema
       const result = schema.safeParse(params);
@@ -162,36 +168,36 @@ export function validateParams<T extends z.ZodType>(schema: T) {
         }));
         
         logger.warn('Parameter validation error', { 
-          path: c.req.path, 
-          method: c.req.method,
+          path: req.path, 
+          method: req.method,
           errors 
         });
         
-        // Throw validation error
-        throw new ValidationError('Parameter validation failed', { errors });
+        // Return a validation error to the error handler
+        return next(new ValidationError('Parameter validation failed', { errors }));
       }
       
-      // Set validated data in context using the symbol
-      (c as any)[VALIDATED_PARAMS] = result.data;
+      // Store validated data in request object
+      req[VALIDATED_PARAMS] = result.data;
       
       // Continue to next middleware or route handler
-      await next();
+      next();
     } catch (err) {
-      // If error is already a ValidationError, rethrow it
+      // If error is already a ValidationError, pass it to the error handler
       if (err instanceof ValidationError) {
-        throw err;
+        return next(err);
       }
       
       // Otherwise, create a new ValidationError
       logger.warn('Invalid parameters', { 
-        path: c.req.path, 
-        method: c.req.method,
+        path: req.path, 
+        method: req.method,
         error: (err as Error).message 
       });
       
-      throw new ValidationError('Invalid parameters', {
+      next(new ValidationError('Invalid parameters', {
         error: (err as Error).message,
-      });
+      }));
     }
   };
 }

@@ -2,8 +2,8 @@
  * Error utility functions
  * Provides helper functions for error handling
  */
-import { Context } from 'hono';
-import { HTTPException } from 'hono/http-exception';
+import { Request, Response, NextFunction } from 'express';
+import { RequestWithUser, ResponseLocals } from '../types/hono';
 import { ZodError } from 'zod';
 import { 
   ApplicationError, 
@@ -37,13 +37,14 @@ export function toApplicationError(
     return error;
   }
   
-  // Handle Hono HTTPException
-  if (error instanceof HTTPException) {
+  // Handle Express errors with status codes
+  if (error instanceof Error && (error as any).statusCode) {
+    const statusCode = (error as any).statusCode;
     return new ApplicationError(
       error.message || defaultMessage,
-      error.status,
-      getErrorCodeFromStatus(error.status),
-      { ...context, cause: error as any }
+      statusCode,
+      getErrorCodeFromStatus(statusCode),
+      { ...context, cause: error }
     );
   }
   
@@ -136,15 +137,16 @@ function getErrorCodeFromStatus(status: number): string {
 /**
  * Creates a context object with request information
  * 
- * @param c - Hono context
+ * @param req - Express request
+ * @param res - Express response
  * @returns Context object with request information
  */
-export function createErrorContext(c: Context): ErrorContext {
+export function createErrorContext(req: Request, res: Response): ErrorContext {
   return {
-    path: c.req.path,
-    method: c.req.method,
-    requestId: c.get('requestId') || c.req.header('x-request-id'),
-    userId: c.get('userId'),
-    databankId: c.get('databankId'),
+    path: req.path,
+    method: req.method,
+    requestId: (res.locals.requestId as string) || req.header('x-request-id'),
+    userId: res.locals.userId as string,
+    databankId: res.locals.databankId as string,
   };
 }

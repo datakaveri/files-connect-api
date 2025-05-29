@@ -8,6 +8,12 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true
-  }
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true
+  },
+  "exclude": [
+    "node_modules",
+    "migration-plan",
+    "build"
+  ]
 }

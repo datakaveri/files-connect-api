@@ -1,4 +1,5 @@
-# Files Connect API Documentation
+
+# Files Connect API Documentation
 
 ## API Endpoints
 
@@ -8,8 +9,7 @@ The API has been restructured to follow REST best practices, with resources orga
 
 | Endpoint | Method | Description | Auth Required | Roles |
 |----------|--------|-------------|--------------|-------|
-| `/v1/health` | GET | Basic health check | No | None |
-| `/v1/health/deep` | GET | Deep health check with dependencies | No | None |
+| `/health` | GET | Basic health check | No | None |
 
 ### File Operations APIs
 
