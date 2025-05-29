@@ -39,22 +39,7 @@ export const openApiInfo = {
 
 // Base schemas for responses
 export const ApiResponseSchema = z.object({
-  success: z.boolean(),
-  meta: z.object({
-    requestId: z.string(),
-    timestamp: z.string(),
-    processingTimeMs: z.number().optional(),
-    version: z.string().optional(),
-    pagination: z
-      .object({
-        page: z.number(),
-        pageSize: z.number(),
-        totalItems: z.number(),
-        totalPages: z.number(),
-        hasMore: z.boolean(),
-      })
-      .optional(),
-  }),
+  success: z.boolean()
 });
 
 export const ErrorResponseSchema = ApiResponseSchema.extend({
@@ -501,6 +486,87 @@ registry.registerPath({
     },
     '400': {
       description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+// Register Asset Routes
+// 1. Upload an asset
+registry.registerPath({
+  method: 'post',
+  path: '/assets',
+  tags: ['Assets'],
+  summary: 'Upload an asset',
+  description: 'Uploads an asset (image, PDF, etc.) and returns a unique key for future reference',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            content: z.string().describe('Base64 encoded file content'),
+            filename: z.string().describe('Filename to use for the asset'),
+            contentType: z.string().optional().describe('Content type of the file')
+          })
+        }
+      }
+    }
+  },
+  responses: {
+    '201': {
+      description: 'Asset uploaded successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            key: z.string().describe('Unique key for the uploaded asset')
+          }))
+        }
+      }
+    },
+    '400': {
+      description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+// 2. Get a presigned URL for an asset
+registry.registerPath({
+  method: 'get',
+  path: '/assets/{key}',
+  tags: ['Assets'],
+  summary: 'Get a presigned URL for an asset',
+  description: 'Returns a presigned URL for downloading an asset',
+  request: {
+    params: z.object({
+      key: z.string().describe('Asset key')
+    }),
+    query: z.object({
+      expiresIn: z.number().optional().describe('Expiration time in seconds')
+    })
+  },
+  responses: {
+    '200': {
+      description: 'Presigned URL generated successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            url: z.string().describe('Presigned URL for the asset'),
+            expiresIn: z.number().describe('Expiration time in seconds')
+          }))
+        }
+      }
+    },
+    '404': {
+      description: 'Asset not found',
       content: {
         'application/json': {
           schema: ErrorResponseSchema

@@ -50,6 +50,23 @@ export interface S3ServiceInterface {
   listObjects(prefix: string, databankId: string, maxKeys?: number, delimiter?: string): Promise<S3Object[]>;
   
   /**
+   * Uploads an asset directly to S3 (without multipart)
+   * @param key - The key to store the asset under
+   * @param data - The asset data as a buffer
+   * @param contentType - The content type of the asset
+   * @returns Promise resolving to the key of the uploaded asset
+   */
+  uploadAsset(key: string, data: Buffer, contentType?: string): Promise<string>;
+  
+  /**
+   * Creates a presigned URL for an asset
+   * @param key - The key of the asset
+   * @param expiresIn - The number of seconds until the URL expires
+   * @returns Promise resolving to the presigned URL
+   */
+  createAssetPresignedUrl(key: string, expiresIn?: number): Promise<string>;
+  
+  /**
    * Gets an object from the S3 bucket
    * @param key - The key of the object to get
    * @param databankId - The databank ID for authorization
@@ -69,7 +86,7 @@ export interface S3ServiceInterface {
   /**
    * Gets details about an object in the S3 bucket
    * @param key - The key of the object to get details for
-   * @param databankId - The databank ID for authorization
+   * @param databankId - The databank ID for authorization (can be empty for assets)
    * @returns Promise resolving to the object details
    */
   getObjectDetails(key: string, databankId: string): Promise<S3Object | null>;
@@ -155,6 +172,58 @@ export class S3Service implements S3ServiceInterface {
   constructor(s3Repository: S3RepositoryInterface) {
     this.s3Repository = s3Repository;
     logger.info('S3Service initialized');
+  }
+  
+  /**
+   * Uploads an asset directly to S3 (without multipart)
+   * @param key - The key to store the asset under
+   * @param data - The asset data as a buffer
+   * @param contentType - The content type of the asset
+   * @returns Promise resolving to the key of the uploaded asset
+   */
+  async uploadAsset(key: string, data: Buffer, contentType?: string): Promise<string> {
+    logger.debug('Uploading asset', { key, contentType, size: data.length });
+    
+    try {
+      await this.s3Repository.putObject(key, data, contentType);
+      
+      logger.debug('Asset uploaded successfully', { key });
+      
+      return key;
+    } catch (error) {
+      logger.error('Error uploading asset', error as Error, { key });
+      throw error;
+    }
+  }
+  
+  /**
+   * Creates a presigned URL for an asset
+   * @param key - The key of the asset
+   * @param expiresIn - The number of seconds until the URL expires
+   * @returns Promise resolving to the presigned URL
+   */
+  async createAssetPresignedUrl(
+    key: string, 
+    expiresIn: number = S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION
+  ): Promise<string> {
+    logger.info('Creating presigned URL for asset', { key, expiresIn });
+    
+    try {
+      const url = await this.s3Repository.createPresignedUrl(key, expiresIn);
+      
+      logger.debug('Created presigned URL for asset successfully', { 
+        key,
+        expiresIn
+      });
+      
+      return url;
+    } catch (error) {
+      logger.error('Error creating presigned URL for asset', error as Error, { 
+        key,
+        expiresIn
+      });
+      throw error;
+    }
   }
   
   /**

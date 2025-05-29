@@ -11,6 +11,13 @@ The API has been restructured to follow REST best practices, with all resources 
 |----------|--------|-------------|--------------|-------|
 | `/health` | GET | Basic health check | No | None |
 
+### Asset Operations APIs
+
+| Endpoint | Method | Description | Auth Required | Roles |
+|----------|--------|-------------|--------------|-------|
+| `/v1/assets` | POST | Upload an asset (image, PDF, etc.) | Yes | Provider, Consumer |
+| `/v1/assets/:key` | GET | Get presigned URL for an asset | Yes | Provider, Consumer |
+
 ### File Operations APIs
 
 | Endpoint | Method | Description | Auth Required | Roles |

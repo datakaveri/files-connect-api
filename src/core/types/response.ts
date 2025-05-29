@@ -8,7 +8,6 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: ApiError;
-  meta: ResponseMetadata;
 }
 
 // Error details structure
@@ -18,25 +17,7 @@ export interface ApiError {
   details?: unknown;
 }
 
-// Metadata for pagination and other response information
-export interface ResponseMetadata {
-  // Request tracing
-  requestId: string;
-  timestamp: string;
-  
-  // Pagination (optional)
-  pagination?: {
-    page: number;
-    pageSize: number;
-    totalItems: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
-  
-  // Other metadata
-  processingTimeMs?: number;
-  version?: string;
-}
+
 
 // HTTP status codes mapped to descriptive names
 export enum HttpStatusCode {

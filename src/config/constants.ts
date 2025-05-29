@@ -57,6 +57,9 @@ export const ApiPaths = {
   // Databank operations (main resource)
   DATABANKS: '/databanks',
   
+  // Asset operations (separate from databanks)
+  ASSETS: '/assets',
+  
   // Sub-resources (accessed through databanks/{databankId}/...)
   DATABANK_FILES: 'files',          // For file operations within a databank
   DATABANK_UPLOADS: 'uploads',      // For upload operations within a databank

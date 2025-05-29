@@ -3,7 +3,7 @@
  * Provides consistent response formatting across the API
  */
 import { Response } from "express";
-import { v4 as uuidv4 } from "uuid";
+
 import { ApiResponse, ApiError, HttpStatusCode, ErrorCode } from "../types/response";
 import { env } from "../../config/environment";
 
@@ -19,18 +19,9 @@ export function successResponse<T>(
   statusCode: number = HttpStatusCode.OK,
   processingTimeMs?: number
 ): void {
-  // Create a request ID if not already present
-  const requestId = res.locals.requestId || uuidv4();
-  
-  const response: ApiResponse<T> = {
+    const response: ApiResponse<T> = {
     success: true,
-    data,
-    meta: {
-      requestId,
-      timestamp: new Date().toISOString(),
-      processingTimeMs,
-      version: env.VERSION || '1.0.0'
-    }
+    data
   };
   
   res.status(statusCode).json(response);
@@ -48,10 +39,7 @@ export function errorResponse(
   statusCode: number = HttpStatusCode.INTERNAL_SERVER_ERROR,
   details?: unknown
 ): void {
-  // Create a request ID if not already present
-  const requestId = res.locals.requestId || uuidv4();
-  
-  const error: ApiError = {
+    const error: ApiError = {
     code,
     message,
     details
@@ -59,12 +47,7 @@ export function errorResponse(
   
   const response: ApiResponse = {
     success: false,
-    error,
-    meta: {
-      requestId,
-      timestamp: new Date().toISOString(),
-      version: env.VERSION || '1.0.0'
-    }
+    error
   };
   
   res.status(statusCode).json(response);
@@ -88,28 +71,10 @@ export function paginatedResponse<T>(
   statusCode: number = HttpStatusCode.OK,
   processingTimeMs?: number
 ): void {
-  // Create a request ID if not already present
-  const requestId = res.locals.requestId || uuidv4();
-  
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const hasMore = page < totalPages;
-  
+    
   const response: ApiResponse<T[]> = {
     success: true,
-    data,
-    meta: {
-      requestId,
-      timestamp: new Date().toISOString(),
-      processingTimeMs,
-      version: env.VERSION || '1.0.0',
-      pagination: {
-        page,
-        pageSize,
-        totalItems,
-        totalPages,
-        hasMore
-      }
-    }
+    data
   };
   
   res.status(statusCode).json(response);
