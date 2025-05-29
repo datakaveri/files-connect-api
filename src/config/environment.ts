@@ -22,6 +22,7 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
   BUCKET_NAME: z.string(),
+  ASSETS_BUCKET_NAME: z.string().optional().default(''),  // Optional, will default to BUCKET_NAME if not specified
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform(val => parseInt(val, 10)),
   
   // Authentication configuration

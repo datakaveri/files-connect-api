@@ -164,13 +164,16 @@ export interface S3ServiceInterface {
  */
 export class S3Service implements S3ServiceInterface {
   private s3Repository: S3RepositoryInterface;
+  private assetsRepository: S3RepositoryInterface;
   
   /**
    * Creates a new S3Service instance
-   * @param s3Repository - The S3 repository to use
+   * @param s3Repository - The S3 repository to use for regular operations
+   * @param assetsRepository - The S3 repository to use for assets operations (optional)
    */
-  constructor(s3Repository: S3RepositoryInterface) {
+  constructor(s3Repository: S3RepositoryInterface, assetsRepository?: S3RepositoryInterface) {
     this.s3Repository = s3Repository;
+    this.assetsRepository = assetsRepository || s3Repository; // Fall back to main repository if no assets repository provided
     logger.info('S3Service initialized');
   }
   
@@ -185,7 +188,8 @@ export class S3Service implements S3ServiceInterface {
     logger.debug('Uploading asset', { key, contentType, size: data.length });
     
     try {
-      await this.s3Repository.putObject(key, data, contentType);
+      // Use the assets repository specifically for asset operations
+      await this.assetsRepository.putObject(key, data, contentType);
       
       logger.debug('Asset uploaded successfully', { key });
       
@@ -209,7 +213,8 @@ export class S3Service implements S3ServiceInterface {
     logger.info('Creating presigned URL for asset', { key, expiresIn });
     
     try {
-      const url = await this.s3Repository.createPresignedUrl(key, expiresIn);
+      // Use the assets repository specifically for asset operations
+      const url = await this.assetsRepository.createPresignedUrl(key, expiresIn);
       
       logger.debug('Created presigned URL for asset successfully', { 
         key,
@@ -859,7 +864,7 @@ export class S3Service implements S3ServiceInterface {
  * @returns S3Service instance
  */
 export function createS3Service(): S3ServiceInterface {
-  // Create the S3 repository with retry logic
+  // Create the main S3 repository with retry logic
   const s3Repository = new S3Repository({
     region: env.S3_REGION,
     bucketName: env.BUCKET_NAME,
@@ -871,10 +876,33 @@ export function createS3Service(): S3ServiceInterface {
     }
   });
   
-  // Create the base S3 service
-  const s3Service: S3ServiceInterface = new S3Service(s3Repository);
+  // Determine assets bucket - use dedicated bucket if specified, otherwise fall back to main bucket
+  const assetsBucketName = env.ASSETS_BUCKET_NAME || env.BUCKET_NAME;
   
-  logger.info('S3 service created');
+  // Create a separate repository for assets if using a different bucket
+  let assetsRepository: S3Repository | undefined;
+  if (assetsBucketName !== env.BUCKET_NAME) {
+    assetsRepository = new S3Repository({
+      region: env.S3_REGION,
+      bucketName: assetsBucketName,
+      retryOptions: {
+        maxRetries: 3,
+        baseDelayMs: 100,
+        maxDelayMs: 5000,
+        useExponentialBackoff: true
+      }
+    });
+    logger.info('Created separate assets repository', { assetsBucketName });
+  }
+  
+  // Create the base S3 service with both repositories
+  const s3Service: S3ServiceInterface = new S3Service(s3Repository, assetsRepository);
+  
+  logger.info('S3 service created', { 
+    mainBucket: env.BUCKET_NAME, 
+    assetsBucket: assetsBucketName,
+    usingDedicatedAssetsBucket: assetsBucketName !== env.BUCKET_NAME 
+  });
   
   return s3Service;
 }
