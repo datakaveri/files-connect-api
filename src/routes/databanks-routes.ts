@@ -77,7 +77,7 @@ export const databanksRoutes = Router();
  * List files in a databank directory
  */
 databanksRoutes.post(
-  '/:databankId/' + ApiPaths.DATABANK_FILES,
+  `/:databankId/${ApiPaths.DATABANK_FILES}`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   validateBody(listObjectsSchema),
@@ -128,7 +128,7 @@ databanksRoutes.post(
  * Get/download a file from databank by key
  */
 databanksRoutes.post(
-  '/:databankId/' + ApiPaths.DATABANK_FILES + '/:key(*)',
+  `/:databankId/${ApiPaths.DATABANK_FILES}/:key`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   validateBody(getObjectSchema),
@@ -213,7 +213,7 @@ databanksRoutes.post(
  * Get metadata for a file in the databank
  */
 databanksRoutes.get(
-  '/:databankId/' + ApiPaths.DATABANK_FILES + '/:key(*)/metadata',
+  `/:databankId/${ApiPaths.DATABANK_FILES}/:key/metadata`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   asyncHandler(async (req: Request, res: Response) => {
@@ -270,7 +270,7 @@ databanksRoutes.get(
  * Generate a preview for a file in the databank
  */
 databanksRoutes.post(
-  '/:databankId/' + ApiPaths.DATABANK_FILES + '/:key(*)/preview',
+  `/:databankId/${ApiPaths.DATABANK_FILES}/:key/preview`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   validateBody(filePreviewSchema),
@@ -348,7 +348,7 @@ databanksRoutes.post(
  * Initiate a multipart upload to a databank
  */
 databanksRoutes.post(
-  '/:databankId/' + ApiPaths.DATABANK_UPLOADS,
+  `/:databankId/${ApiPaths.DATABANK_UPLOADS}`,
   authenticate,
   authorize([UserRole.PROVIDER]),
   validateBody(initiateUploadSchema),
@@ -401,7 +401,7 @@ databanksRoutes.post(
  * Complete a multipart upload to a databank
  */
 databanksRoutes.put(
-  '/:databankId/' + ApiPaths.DATABANK_UPLOADS + '/:uploadId',
+  `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId`,
   authenticate,
   authorize([UserRole.PROVIDER]),
   validateBody(completeUploadSchema),
@@ -464,7 +464,7 @@ databanksRoutes.put(
  * TODO: Add DB logic to store job in database instead of in-memory
  */
 databanksRoutes.post(
-  '/:databankId/' + ApiPaths.DATABANK_PROCESS,
+  `/:databankId/${ApiPaths.DATABANK_PROCESS}`,
   authenticate,
   authorize([UserRole.PROVIDER]),
   validateBody(createProcessingJobSchema),
@@ -511,7 +511,7 @@ databanksRoutes.post(
  * TODO: Implement proper authentication for Lambda function callbacks
  */
 databanksRoutes.put(
-  '/:databankId/' + ApiPaths.DATABANK_PROCESS + '/:jobId/status',
+  `/:databankId/${ApiPaths.DATABANK_PROCESS}/:jobId/status`,
   authenticate,
   authorize([UserRole.PROVIDER]),
   validateBody(updateProcessingJobStatusSchema),
@@ -580,7 +580,7 @@ databanksRoutes.put(
  * Get a download URL for a databank zip file
  */
 databanksRoutes.get(
-  '/:databankId/' + ApiPaths.DATABANK_DOWNLOAD,
+  `/:databankId/${ApiPaths.DATABANK_DOWNLOAD}`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   asyncHandler(async (req: Request, res: Response) => {
