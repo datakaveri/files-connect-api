@@ -2,8 +2,7 @@
  * Error utility functions
  * Provides helper functions for error handling
  */
-import { Request, Response, NextFunction } from 'express';
-import { RequestWithUser, ResponseLocals } from '../types/hono';
+import { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { 
   ApplicationError, 
@@ -13,8 +12,6 @@ import {
   NotFoundError,
   AuthenticationError,
   AuthorizationError,
-  ServiceUnavailableError,
-  FileProcessingError
 } from '../errors';
 import { ErrorCode, ErrorContext } from '../types/error';
 

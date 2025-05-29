@@ -12,8 +12,7 @@ export enum UserRole {
 }
 
 /**
- * Interface for Hono context variables
- * This is used to extend Hono's ContextVariableMap interface
+ * Interface for context variables
  */
 export interface ContextVariableMap {
   /** User ID */

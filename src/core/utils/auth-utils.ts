@@ -7,31 +7,13 @@ import { env } from '../../config/environment';
 import { DecodedToken, UserRole, DatabankAccessResult } from '../types/auth';
 import { AuthConstants } from '../../config/constants';
 import { isDecodedToken } from './type-guards';
-import { Request, Response, NextFunction } from 'express';
-import { RequestWithUser, ResponseLocals } from '../types/hono';
+import { Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
-
-// Import development configuration if available
-let devConfig: { jwt: { secretKey: string } } | undefined;
-let shouldUseMockAuth: () => boolean = () => false;
-
-// Only import development configuration in development mode
-if (process.env.NODE_ENV === 'development') {
-  try {
-    const devModule = require('../../dev/dev-config');
-    devConfig = devModule.devConfig;
-    shouldUseMockAuth = devModule.shouldUseMockAuth;
-    
-    // Log that we're using development configuration
-    const logger = createLogger('AuthUtils');
-    logger.info('Development mode detected, mock authentication is available');
-  } catch (error) {
-    // Development configuration not available, continue with production settings
-  }
-}
 
 // Create a logger for this module
 const logger = createLogger('AuthUtils');
+
+
 
 /**
  * Interface for user information extracted from a request
@@ -80,21 +62,25 @@ export function extractToken(authHeader: string | undefined): string {
  */
 export async function decodeToken(token: string): Promise<DecodedToken> {
   try {
+    // Verify the token with Keycloak's public key/secret
+    // Use proper verification for production environment
     let decoded: jwt.JwtPayload | string | null;
     
-    // Check if we should use mock authentication
-    if (shouldUseMockAuth() && devConfig) {
-      // Verify with the development secret key
-      decoded = jwt.verify(token, devConfig.jwt.secretKey);
-      logger.debug('Using mock authentication for token verification');
-    } else {
-      // In production, we would verify with the real JWT secret or public key
-      // For now, we'll decode without verification for development
-      decoded = jwt.decode(token);
-      
-      // TODO: In production, replace with proper verification:
-      // decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['RS256'] });
+    if (!env.KEYCLOAK_PUBLIC_KEY) {
+      throw new Error('KEYCLOAK_PUBLIC_KEY is not configured');
     }
+    
+    // Format the public key properly (add BEGIN/END lines if needed)
+    const formattedPublicKey = env.KEYCLOAK_PUBLIC_KEY.includes('BEGIN PUBLIC KEY') ?
+      env.KEYCLOAK_PUBLIC_KEY : 
+      `-----BEGIN PUBLIC KEY-----\n${env.KEYCLOAK_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
+    
+    // Verify token with Keycloak's public key
+    decoded = jwt.verify(token, formattedPublicKey, { 
+      algorithms: ['RS256'] // Use appropriate algorithm as configured in Keycloak
+    });
+    
+    logger.debug('Token verified successfully');
     
     if (!decoded || typeof decoded !== 'object') {
       throw new Error('Invalid token format');

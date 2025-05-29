@@ -2,8 +2,7 @@
  * Response utility functions
  * Provides consistent response formatting across the API
  */
-import { Request, Response } from "express";
-import { ResponseLocals } from "../types/hono";
+import { Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { ApiResponse, ApiError, HttpStatusCode, ErrorCode } from "../types/response";
 import { env } from "../../config/environment";
@@ -77,7 +76,7 @@ export function errorResponse(
  * @param page Current page number
  * @param pageSize Items per page
  * @param totalItems Total number of items
- * @param context Hono context
+ * @param res Express response object
  * @param statusCode HTTP status code (defaults to 200 OK)
  */
 export function paginatedResponse<T>(
