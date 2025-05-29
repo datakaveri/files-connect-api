@@ -48,20 +48,18 @@ export const FileTypes = {
 /**
  * API paths for different endpoints
  * Organized by functionality and following REST practices
+ * All endpoints are now organized under databanks for better resource hierarchy
  */
 export const ApiPaths = {
   // Health check routes
   HEALTH: '/health',
   
-  // File operations (list, preview, metadata, download)
-  FILES: '/files',
-  
-  // Upload operations
-  UPLOADS: '/uploads',
-  
-  // Data processing and databank operations
+  // Databank operations (main resource)
   DATABANKS: '/databanks',
   
-  // Processing jobs (for creating zip and generating reports)
-  PROCESSING: '/processing'
+  // Sub-resources (accessed through databanks/{databankId}/...)
+  DATABANK_FILES: 'files',          // For file operations within a databank
+  DATABANK_UPLOADS: 'uploads',      // For upload operations within a databank
+  DATABANK_PROCESS: 'process',      // For processing jobs within a databank
+  DATABANK_DOWNLOAD: 'download'     // For downloading databank as zip
 } as const;

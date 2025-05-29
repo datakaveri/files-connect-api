@@ -239,15 +239,18 @@ registry.registerPath({
   }
 });
 
-// Register File Operations Routes
+// Register File Operations Routes (All under databanks)
 // 1. List files in a directory
 registry.registerPath({
   method: 'post',
-  path: '/files',
-  tags: ['Files'],
-  summary: 'List files in a directory',
-  description: 'Returns a list of files and directories in the specified directory',
+  path: '/databanks/{databankId}/files',
+  tags: ['Databanks'],
+  summary: 'List files in a databank directory',
+  description: 'Returns a list of files and directories in the specified databank directory',
   request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID')
+    }),
     body: {
       content: {
         'application/json': {
@@ -291,12 +294,13 @@ registry.registerPath({
 // 2. Download a specific file
 registry.registerPath({
   method: 'post',
-  path: '/files/{key}',
-  tags: ['Files'],
-  summary: 'Download a specific file',
+  path: '/databanks/{databankId}/files/{key}',
+  tags: ['Databanks'],
+  summary: 'Download a specific file from a databank',
   description: 'Returns a specific file or generates a presigned URL for download',
   request: {
     params: z.object({
+      databankId: z.string().describe('Databank ID'),
       key: z.string().describe('File key/path')
     }),
     body: {
@@ -335,12 +339,13 @@ registry.registerPath({
 // 3. Get metadata for a specific file
 registry.registerPath({
   method: 'get',
-  path: '/files/{key}/metadata',
-  tags: ['Files'],
-  summary: 'Get metadata for a specific file',
-  description: 'Returns metadata for a specific file',
+  path: '/databanks/{databankId}/files/{key}/metadata',
+  tags: ['Databanks'],
+  summary: 'Get metadata for a specific file in a databank',
+  description: 'Returns metadata for a specific file in a databank',
   request: {
     params: z.object({
+      databankId: z.string().describe('Databank ID'),
       key: z.string().describe('File key/path')
     })
   },
@@ -367,12 +372,13 @@ registry.registerPath({
 // 4. Generate preview for a specific file
 registry.registerPath({
   method: 'post',
-  path: '/files/{key}/preview',
-  tags: ['Files'],
-  summary: 'Generate preview for a specific file',
-  description: 'Returns a preview of a specific file',
+  path: '/databanks/{databankId}/files/{key}/preview',
+  tags: ['Databanks'],
+  summary: 'Generate preview for a specific file in a databank',
+  description: 'Returns a preview of a specific file in a databank',
   request: {
     params: z.object({
+      databankId: z.string().describe('Databank ID'),
       key: z.string().describe('File key/path')
     }),
     body: {
@@ -414,15 +420,18 @@ registry.registerPath({
   }
 });
 
-// Register Upload Operations Routes
+// Register Upload Operations Routes (under databanks)
 // 1. Initiate a multipart upload and get presigned URLs
 registry.registerPath({
   method: 'post',
-  path: '/uploads',
-  tags: ['Uploads'],
-  summary: 'Initiate a multipart upload',
-  description: 'Initiates a multipart upload and returns presigned URLs for uploading parts',
+  path: '/databanks/{databankId}/uploads',
+  tags: ['Databanks'],
+  summary: 'Initiate a multipart upload to a databank',
+  description: 'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts',
   request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID')
+    }),
     body: {
       content: {
         'application/json': {
@@ -458,12 +467,13 @@ registry.registerPath({
 // 2. Finalize a multipart upload
 registry.registerPath({
   method: 'put',
-  path: '/uploads/{uploadId}',
-  tags: ['Uploads'],
-  summary: 'Complete a multipart upload',
-  description: 'Finalizes a multipart upload',
+  path: '/databanks/{databankId}/uploads/{uploadId}',
+  tags: ['Databanks'],
+  summary: 'Complete a multipart upload to a databank',
+  description: 'Finalizes a multipart upload to a databank',
   request: {
     params: z.object({
+      databankId: z.string().describe('Databank ID'),
       uploadId: z.string().describe('Upload ID')
     }),
     body: {
@@ -533,21 +543,23 @@ registry.registerPath({
   }
 });
 
-// Register Processing Routes
+// Register Processing Routes (under databanks)
 // 1. Create a processing job
 registry.registerPath({
   method: 'post',
-  path: '/processing/jobs',
-  tags: ['Processing'],
-  summary: 'Create a processing job',
-  description: 'Creates a new processing job (zip and/or report)',
+  path: '/databanks/{databankId}/process',
+  tags: ['Databanks'],
+  summary: 'Create a processing job for a databank',
+  description: 'Creates a new processing job (zip and/or report) for a databank',
   request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID')
+    }),
     body: {
       content: {
         'application/json': {
           schema: z.object({
             type: z.string().describe('Type of processing job (zip or report)'),
-            databankId: z.string(),
             prefix: z.string().optional(),
             options: z.object({}).passthrough()
           })
@@ -575,21 +587,34 @@ registry.registerPath({
   }
 });
 
-// 2. Get status of a processing job
+// 2. Update status of a processing job
 registry.registerPath({
-  method: 'get',
-  path: '/processing/jobs/{jobId}',
-  tags: ['Processing'],
-  summary: 'Get processing job status',
-  description: 'Returns the status of a processing job',
+  method: 'put',
+  path: '/databanks/{databankId}/process/{jobId}/status',
+  tags: ['Databanks'],
+  summary: 'Update processing job status',
+  description: 'Updates the status of a processing job for a databank',
   request: {
     params: z.object({
+      databankId: z.string().describe('Databank ID'),
       jobId: z.string().describe('Job ID')
-    })
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            status: z.string().describe('New status for the job'),
+            progress: z.number().optional(),
+            error: z.string().optional(),
+            result: z.object({}).passthrough().optional()
+          })
+        }
+      }
+    }
   },
   responses: {
     '200': {
-      description: 'Processing job status',
+      description: 'Processing job status updated successfully',
       content: {
         'application/json': {
           schema: SuccessResponseSchema(ProcessingJobSchema)

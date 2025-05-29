@@ -94,21 +94,52 @@ export const filePreviewSchema = z.object({
 /**
  * Schema for multipart upload initialization request
  */
-export const initMultipartUploadSchema = z.object({
+export const initiateUploadSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
   
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
+  /** Number of parts to upload */
+  numParts: z.number().int().positive('Number of parts must be a positive integer'),
   
   /** Content type of the file */
   contentType: z.string().optional(),
 });
 
 /**
+ * Schema for processing job creation request
+ */
+export const createProcessingJobSchema = z.object({
+  /** Type of processing job (e.g. 'zip', 'report') */
+  type: z.string().min(1, 'Job type is required'),
+  
+  /** Optional prefix to filter files in the databank */
+  prefix: z.string().optional(),
+  
+  /** Optional processing options */
+  options: z.record(z.any()).optional(),
+});
+
+/**
+ * Schema for processing job status update request
+ */
+export const updateProcessingJobStatusSchema = z.object({
+  /** New status for the job */
+  status: z.string().min(1, 'Status is required'),
+  
+  /** Optional progress value (0-100) */
+  progress: z.number().min(0).max(100).optional(),
+  
+  /** Optional error message if job failed */
+  error: z.string().optional(),
+  
+  /** Optional result data if job completed */
+  result: z.record(z.any()).optional(),
+});
+
+/**
  * Schema for multipart upload completion request
  */
-export const completeMultipartUploadSchema = z.object({
+export const completeUploadSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
   
@@ -172,11 +203,13 @@ export const lambdaTriggerSchema = z.object({
 // Export type definitions derived from schemas
 // Note: S3 route types have been moved to core/types/s3-routes.ts
 export type FilePreviewRequest = z.infer<typeof filePreviewSchema>;
-export type InitMultipartUploadRequest = z.infer<typeof initMultipartUploadSchema>;
-export type CompleteMultipartUploadRequest = z.infer<typeof completeMultipartUploadSchema>;
+export type InitiateUploadRequest = z.infer<typeof initiateUploadSchema>;
+export type CompleteMultipartUploadRequest = z.infer<typeof completeUploadSchema>;
 export type AbortMultipartUploadRequest = z.infer<typeof abortMultipartUploadSchema>;
 export type PresignedUrlRequest = z.infer<typeof presignedUrlSchema>;
 export type LambdaTriggerRequest = z.infer<typeof lambdaTriggerSchema>;
+export type CreateProcessingJobRequest = z.infer<typeof createProcessingJobSchema>;
+export type UpdateProcessingJobStatusRequest = z.infer<typeof updateProcessingJobStatusSchema>;
 
 // Re-export these for backward compatibility
 export type { 

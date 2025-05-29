@@ -84,7 +84,37 @@ export interface ProcessingJobResponse {
 }
 
 /**
- * Upload response
+ * Upload initiation response
+ */
+export interface UploadInitiationResponse {
+  uploadId: string;
+  key: string;
+  parts: Array<{
+    partNumber: number;
+    presignedUrl: string;
+  }>;
+}
+
+/**
+ * Upload completion response
+ */
+export interface UploadCompletionResponse {
+  etag?: string;
+  key?: string;
+  location?: string;
+  message: string;
+}
+
+/**
+ * Databank download response
+ */
+export interface DatabankDownloadResponse {
+  downloadUrl: string;
+  expiresAt: string;
+}
+
+/**
+ * Upload response (legacy)
  */
 export interface UploadResponse {
   key: string;
