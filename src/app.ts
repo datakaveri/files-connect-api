@@ -33,12 +33,67 @@ import { openApiDocument } from './config/openapi';
 const app: Express = express();
 
 // Create a logger for this module
-const logger = pino({ name: 'App' });
-const httpLogger = pinoHttp({ logger });
+let logger: any;
+let httpLogger: any;
 
-// Ensure middleware hooks complete properly
-// This addresses past issues with middleware hooks not completing properly
-// causing curl requests to hang indefinitely
+if (process.env.NODE_ENV === 'test') {
+  // Simple console logger for tests
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.debug,
+    fatal: console.error,
+    trace: console.trace,
+    child: () => logger
+  };
+  
+  httpLogger = (req: any, res: any, next: any) => next();
+} else {
+  // Production/development logger with pino-pretty
+  logger = pino({ 
+    name: 'App',
+    level: 'info',
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        colorize: true
+      }
+    }
+  });
+  
+  httpLogger = pinoHttp({ 
+    logger,
+    serializers: {
+      req: (req: any) => ({
+        method: req.method,
+        url: req.url,
+        headers: req.headers
+      }),
+      res: (res: any) => ({
+        statusCode: res.statusCode
+      })
+    }
+  });
+}
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // In test environment, we want to fail fast
+  if (process.env.NODE_ENV === 'test') {
+    process.exit(1);
+  }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  // In test environment, we want to fail fast
+  if (process.env.NODE_ENV === 'test') {
+    process.exit(1);
+  }
+});
 
 // Apply global middleware
 app.use(helmet()); // Security headers

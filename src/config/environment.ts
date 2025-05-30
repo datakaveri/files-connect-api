@@ -26,7 +26,8 @@ const envSchema = z.object({
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform(val => parseInt(val, 10)),
   
   // Authentication configuration
-  AUTH_API_URL: z.string().url().default('https://api.example.com/auth'),
+  KEYCLOAK_AUTH_URL: z.string().url().default('https://idp.tgdex.telangana.gov.in/auth/realms/tgdex/protocol/openid-connect/token'),
+  KEYCLOAK_CLIENT_ID: z.string().default('angular-tgdex-client'),
   KEYCLOAK_PUBLIC_KEY: z.string().optional(),
   KEYCLOAK_REALM: z.string().optional().default('tgdex'),
   

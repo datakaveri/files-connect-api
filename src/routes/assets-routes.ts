@@ -12,6 +12,7 @@ import { successResponse, notFoundResponse } from '../core/utils/response';
 import { NotFoundError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 // Create a logger for this module
 const logger = createLogger('AssetRoutes');
@@ -54,7 +55,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
         const buffer = Buffer.from(content, 'base64');
         
         // Generate a unique key for the asset using UUID
-        const key = `${Date.now()}-${filename}`;
+        const key = `${Date.now()}-${uuidv4()}-${filename}`;
         
         // Use S3 service to upload the file directly (without multipart)
         // We'll store assets in a separate folder 'assets/' to keep them distinct from databank files
