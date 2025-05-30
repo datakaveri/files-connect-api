@@ -27,7 +27,7 @@ export const logger = pino({
   // Add base properties to all logs
   base: {
     env: process.env.NODE_ENV || 'development',
-    service: 'multipart-upload-middleware',
+    service: 'files-connect-api',
   },
 });
 
