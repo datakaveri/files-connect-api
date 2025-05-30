@@ -504,21 +504,19 @@ registry.registerPath({
 });
 
 // Register Asset Routes
-// 1. Upload an asset
+// 1. Upload an asset (multipart/form-data)
 registry.registerPath({
   method: 'post',
   path: '/assets',
   tags: ['Assets'],
-  summary: 'Upload an asset',
-  description: 'Uploads an asset (image, PDF, etc.) and returns a unique key for future reference',
+  summary: 'Upload an asset (multipart/form-data)',
+  description: 'Uploads an asset using multipart/form-data and returns a unique key for future reference',
   request: {
     body: {
       content: {
-        'application/json': {
+        'multipart/form-data': {
           schema: z.object({
-            content: z.string().describe('Base64 encoded file content'),
-            filename: z.string().describe('Filename to use for the asset'),
-            contentType: z.string().optional().describe('Content type of the file')
+            file: z.any().describe('File to upload')
           })
         }
       }
@@ -530,7 +528,10 @@ registry.registerPath({
       content: {
         'application/json': {
           schema: SuccessResponseSchema(z.object({
-            key: z.string().describe('Unique key for the uploaded asset')
+            key: z.string().describe('Unique key for the uploaded asset'),
+            originalname: z.string().describe('Original filename'),
+            size: z.number().describe('File size in bytes'),
+            contentType: z.string().describe('Content type of the file')
           }))
         }
       }
@@ -546,7 +547,7 @@ registry.registerPath({
   }
 });
 
-// 2. Get a presigned URL for an asset
+// 3. Get a presigned URL for an asset
 registry.registerPath({
   method: 'get',
   path: '/assets/{key}',

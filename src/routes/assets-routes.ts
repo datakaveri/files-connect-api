@@ -2,14 +2,15 @@
  * Asset Routes
  * Defines routes for asset operations
  */
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import { S3ServiceInterface } from '../services/s3-service';
 import { createLogger } from '../core/utils/logger';
-import { validateBody, validateParams, validateQuery } from '../middleware/validation';
+import { validateParams, validateQuery } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
-import { successResponse, notFoundResponse } from '../core/utils/response';
-import { NotFoundError } from '../core/errors';
+import { successResponse } from '../core/utils/response';
+import { NotFoundError, ValidationError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +20,15 @@ const logger = createLogger('AssetRoutes');
 
 // Create a router
 export const assetsRoutes = Router();
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB file size limit
+  },
+});
 
 /**
  * Initialize asset routes with the S3 service
@@ -34,44 +44,45 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
   assetsRoutes.use(authorize([UserRole.PROVIDER, UserRole.CONSUMER]));
 
   /**
-   * Upload an asset
-   * POST /assets
+   * Upload an asset (multipart/form-data)
+   * POST /assets/
    */
   assetsRoutes.post(
     '/',
-    validateBody(z.object({
-      // Only require content (base64 encoded) and filename
-      content: z.string().describe('Base64 encoded file content'),
-      filename: z.string().describe('Filename to use for the asset'),
-      contentType: z.string().optional().describe('Content type of the file')
-    })),
+    authenticate,
+    authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+    upload.single('file'),
     async (req, res, next) => {
       try {
-        const { content, filename, contentType } = req.body;
+        // Check if file was uploaded
+        if (!req.file) {
+          throw new ValidationError('No file uploaded');
+        }
         
-        logger.debug('Uploading asset', { filename });
+        const { originalname, mimetype, buffer } = req.file;
         
-        // Decode base64 content
-        const buffer = Buffer.from(content, 'base64');
+        logger.debug('Uploading asset via multipart/form-data', { filename: originalname, size: buffer.length });
         
         // Generate a unique key for the asset using UUID
-        const key = `${Date.now()}-${uuidv4()}-${filename}`;
+        const key = `${Date.now()}-${uuidv4()}-${originalname}`;
         
-        // Use S3 service to upload the file directly (without multipart)
-        // We'll store assets in a separate folder 'assets/' to keep them distinct from databank files
+        // Use S3 service to upload the file directly
         const fullKey = `assets/${key}`;
         
         // Upload the file directly to S3
-        await s3Service.uploadAsset(fullKey, buffer, contentType);
+        await s3Service.uploadAsset(fullKey, buffer, mimetype);
         
-        logger.debug('Asset uploaded successfully', { key: fullKey });
+        logger.debug('Asset uploaded successfully via multipart/form-data', { key: fullKey });
         
         // Return the key to the client
         return successResponse({
-          key
+          key,
+          originalname,
+          size: buffer.length,
+          contentType: mimetype
         }, res, 201);
       } catch (error) {
-        logger.error('Error uploading asset', error as Error);
+        logger.error('Error uploading asset via multipart/form-data', error as Error);
         next(error);
       }
     }
