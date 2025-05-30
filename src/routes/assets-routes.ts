@@ -2,9 +2,8 @@
  * Asset Routes
  * Defines routes for asset operations
  */
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import multer from 'multer';
 import { S3ServiceInterface } from '../services/s3-service';
 import { createLogger } from '../core/utils/logger';
 import { validateParams, validateQuery } from '../middleware/validation';
@@ -14,21 +13,13 @@ import { NotFoundError, ValidationError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { fileUpload } from '../middleware/file-upload';
 
 // Create a logger for this module
 const logger = createLogger('AssetRoutes');
 
 // Create a router
 export const assetsRoutes = Router();
-
-// Configure multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB file size limit
-  },
-});
 
 /**
  * Initialize asset routes with the S3 service
@@ -42,6 +33,9 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
   
   // Allow both providers and consumers to access assets
   assetsRoutes.use(authorize([UserRole.PROVIDER, UserRole.CONSUMER]));
+  
+  // Apply file upload middleware
+  assetsRoutes.use(fileUpload);
 
   /**
    * Upload an asset (multipart/form-data)
@@ -49,9 +43,6 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
    */
   assetsRoutes.post(
     '/',
-    authenticate,
-    authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-    upload.single('file'),
     async (req, res, next) => {
       try {
         // Check if file was uploaded
