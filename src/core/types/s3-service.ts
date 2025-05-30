@@ -18,7 +18,7 @@ export interface S3ObjectDetails {
 }
 
 // Re-export these types for convenience
-export { MultipartUploadInit, MultipartUploadPart };
+export type { MultipartUploadInit, MultipartUploadPart };
 
 /**
  * Interface for S3 service

@@ -125,7 +125,7 @@ app.use(responseLogger);
 app.use(performanceMonitor);
 
 // Simple health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get('/v1/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -137,7 +137,7 @@ app.get('/health', (req: Request, res: Response) => {
 // No need to import again, already imported above
 
 // API Documentation
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+app.use('/v1/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
 // Mount API routes with versioning
 app.use('/v1', router);

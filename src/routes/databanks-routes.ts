@@ -37,6 +37,7 @@ import {
   listObjectsSchema,
   getObjectSchema,
   filePreviewSchema,
+  fileMetadataSchema,
   initiateUploadSchema,
   completeUploadSchema,
   createProcessingJobSchema,
@@ -112,10 +113,6 @@ databanksRoutes.post(
     const response = buildResponse({
       files: objects.filter(obj => obj.isFile === true),
       directories: objects.filter(obj => obj.isFile === false)
-    }, {
-      prefix: body.prefix || '',
-      count: objects.length,
-      timestamp: new Date().toISOString()
     });
     
     // Send the response
@@ -124,18 +121,17 @@ databanksRoutes.post(
 );
 
 /**
- * POST /databanks/:databankId/files/:key
- * Get/download a file from databank by key
+ * POST /databanks/:databankId/files/download
+ * Get/download a file from databank by key (key in request body)
  */
 databanksRoutes.post(
-  `/:databankId/${ApiPaths.DATABANK_FILES}/:key`,
+  `/:databankId/${ApiPaths.DATABANK_FILES}/download`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   validateBody(getObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
-    const key = req.params.key;
-    const { presigned } = req[VALIDATED_BODY];
+    const { key, presigned } = req[VALIDATED_BODY];
     
     logger.info(`File download request: key=${key}, databankId=${databankId}, presigned=${presigned}`);
     
@@ -209,16 +205,17 @@ databanksRoutes.post(
 );
 
 /**
- * GET /databanks/:databankId/files/:key/metadata
- * Get metadata for a file in the databank
+ * POST /databanks/:databankId/files/metadata
+ * Get metadata for a file in the databank (key in request body)
  */
-databanksRoutes.get(
-  `/:databankId/${ApiPaths.DATABANK_FILES}/:key/metadata`,
+databanksRoutes.post(
+  `/:databankId/${ApiPaths.DATABANK_FILES}/metadata`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  validateBody(fileMetadataSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
-    const key = req.params.key;
+    const { key } = req[VALIDATED_BODY];
     
     logger.info(`File metadata request: key=${key}, databankId=${databankId}`);
     
@@ -266,18 +263,21 @@ databanksRoutes.get(
 );
 
 /**
- * POST /databanks/:databankId/files/:key/preview
- * Generate a preview for a file in the databank
+ * POST /databanks/:databankId/files/preview
+ * Generate a preview for a file in the databank (key in request body)
  */
 databanksRoutes.post(
-  `/:databankId/${ApiPaths.DATABANK_FILES}/:key/preview`,
+  `/:databankId/${ApiPaths.DATABANK_FILES}/preview`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   validateBody(filePreviewSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
-    const key = req.params.key;
-    const { lines, format } = req[VALIDATED_BODY];
+    const { key, maxLines, fileType } = req[VALIDATED_BODY];
+    
+    // For backward compatibility with existing code
+    const lines = maxLines;
+    const format = fileType;
     
     logger.info(`File preview request: key=${key}, databankId=${databankId}, lines=${lines}, format=${format}`);
     

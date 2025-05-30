@@ -212,10 +212,10 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     // 1. Get authorization token from header
     const authHeader = req.header('Authorization');
     
-    // 2. Get databank ID from query params or header
-    const databankId = req.query.databankId?.toString() || req.header('X-Databank-ID') || '';
+    // 2. Get databank ID from path parameters
+    const databankId = req.params?.databankId?.toString() || '';
     if (!databankId) {
-      const error = new Error('Databank ID is required');
+      const error = new Error('Databank ID is required in the URL path');
       (error as any).statusCode = 400;
       throw error;
     }

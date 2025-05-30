@@ -5,6 +5,7 @@
     "rootDir": "./src",
     "moduleResolution": "node16",
     "outDir": "./build",
+    "sourceMap": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,

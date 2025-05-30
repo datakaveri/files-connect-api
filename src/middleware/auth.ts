@@ -3,18 +3,14 @@
  * Provides authentication and authorization for routes
  */
 import { Request, Response, NextFunction } from 'express';
-import { AuthServiceInterface, createAuthService } from '../services/auth-service';
+import { createAuthService } from '../services/auth-service';
 import { AuthenticationError, AuthorizationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
 import { UserRole } from '../core/types/auth';
 import { 
-  extractToken, 
-  decodeToken, 
   checkDatabankAccess, 
-  extractRoles,
   extractUserInfo
 } from '../core/utils/auth-utils';
-import { AuthConstants } from '../config/constants';
 
 // Create a logger for this module
 const logger = createLogger('AuthMiddleware');

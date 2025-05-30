@@ -12,11 +12,11 @@ export const listObjectsSchema = z.object({
   /** Prefix to filter objects by */
   prefix: z.string().optional(),
   
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
-  
   /** Maximum number of keys to return */
   maxKeys: z.number().int().positive().optional(),
+  
+  /** Delimiter for grouping objects */
+  delimiter: z.string().optional(),
 });
 
 /**
@@ -26,11 +26,11 @@ export const getObjectSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
   
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
-  
   /** Expiration time in seconds */
   expiresIn: z.number().int().positive().optional(),
+  
+  /** Whether to return a presigned URL instead of the file content */
+  presigned: z.boolean().optional(),
 });
 
 /**
@@ -38,10 +38,7 @@ export const getObjectSchema = z.object({
  */
 export const createFolderSchema = z.object({
   /** Folder path (must end with slash) */
-  folderPath: z.string().min(1, 'Folder path is required').endsWith('/', 'Folder path must end with a slash'),
-  
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
+  folderPath: z.string().min(1, 'Folder path is required').endsWith('/', 'Folder path must end with a slash')
 });
 
 /**
@@ -50,9 +47,6 @@ export const createFolderSchema = z.object({
 export const deleteObjectSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
-  
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
   
   /** Whether to delete recursively (for folders) */
   recursive: z.boolean().optional().default(false),
@@ -64,9 +58,6 @@ export const deleteObjectSchema = z.object({
 export const folderDeleteSchema = z.object({
   /** Folder key */
   key: z.string().min(1, 'Key is required'),
-  
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
 });
 
 /**
@@ -75,9 +66,6 @@ export const folderDeleteSchema = z.object({
 export const filePreviewSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
-  
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
   
   /** File type for preview */
   fileType: z.enum([
@@ -146,9 +134,6 @@ export const completeUploadSchema = z.object({
   /** Upload ID */
   uploadId: z.string().min(1, 'Upload ID is required'),
   
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
-  
   /** List of uploaded parts */
   parts: z.array(
     z.object({
@@ -179,9 +164,6 @@ export const presignedUrlSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
   
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
-  
   /** Expiration time in seconds */
   expiresIn: z.number().int().positive().optional(),
 });
@@ -200,9 +182,18 @@ export const lambdaTriggerSchema = z.object({
   payload: z.record(z.any()).optional(),
 });
 
+/**
+ * Schema for file metadata request
+ */
+export const fileMetadataSchema = z.object({
+  /** S3 object key */
+  key: z.string().min(1, 'Key is required')
+});
+
 // Export type definitions derived from schemas
 // Note: S3 route types have been moved to core/types/s3-routes.ts
 export type FilePreviewRequest = z.infer<typeof filePreviewSchema>;
+export type FileMetadataRequest = z.infer<typeof fileMetadataSchema>;
 export type InitiateUploadRequest = z.infer<typeof initiateUploadSchema>;
 export type CompleteMultipartUploadRequest = z.infer<typeof completeUploadSchema>;
 export type AbortMultipartUploadRequest = z.infer<typeof abortMultipartUploadSchema>;

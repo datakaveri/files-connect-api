@@ -279,20 +279,20 @@ registry.registerPath({
 // 2. Download a specific file
 registry.registerPath({
   method: 'post',
-  path: '/databanks/{databankId}/files/{key}',
+  path: '/databanks/{databankId}/files/download',
   tags: ['Databanks'],
   summary: 'Download a specific file from a databank',
   description: 'Returns a specific file or generates a presigned URL for download',
   request: {
     params: z.object({
-      databankId: z.string().describe('Databank ID'),
-      key: z.string().describe('File key/path')
+      databankId: z.string().describe('Databank ID')
     }),
     body: {
       content: {
         'application/json': {
           schema: z.object({
-            presigned: z.boolean().optional()
+            key: z.string().describe('File key'),
+            presigned: z.boolean().optional().describe('Whether to return a presigned URL')
           })
         }
       }
@@ -323,16 +323,24 @@ registry.registerPath({
 
 // 3. Get metadata for a specific file
 registry.registerPath({
-  method: 'get',
-  path: '/databanks/{databankId}/files/{key}/metadata',
+  method: 'post',
+  path: '/databanks/{databankId}/files/metadata',
   tags: ['Databanks'],
   summary: 'Get metadata for a specific file in a databank',
   description: 'Returns metadata for a specific file in a databank',
   request: {
     params: z.object({
-      databankId: z.string().describe('Databank ID'),
-      key: z.string().describe('File key/path')
-    })
+      databankId: z.string().describe('Databank ID')
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            key: z.string().describe('File key')
+          })
+        }
+      }
+    }
   },
   responses: {
     '200': {
@@ -357,21 +365,21 @@ registry.registerPath({
 // 4. Generate preview for a specific file
 registry.registerPath({
   method: 'post',
-  path: '/databanks/{databankId}/files/{key}/preview',
+  path: '/databanks/{databankId}/files/preview',
   tags: ['Databanks'],
   summary: 'Generate preview for a specific file in a databank',
   description: 'Returns a preview of a specific file in a databank',
   request: {
     params: z.object({
-      databankId: z.string().describe('Databank ID'),
-      key: z.string().describe('File key/path')
+      databankId: z.string().describe('Databank ID')
     }),
     body: {
       content: {
         'application/json': {
           schema: z.object({
-            lines: z.number().optional(),
-            format: z.string().optional()
+            key: z.string().describe('File key'),
+            maxLines: z.number().optional().describe('Maximum number of lines to return'),
+            fileType: z.string().optional().describe('File type for preview')
           })
         }
       }

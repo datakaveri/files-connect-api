@@ -38,15 +38,12 @@ export function withErrorHandling(
  * Type-safe response builder for consistent JSON responses
  * 
  * @param data The data to include in the response
- * @param metadata Optional metadata for the response
  * @returns A properly formatted response object
  */
-export function buildResponse<T>(data: T, metadata?: Record<string, any>) {
+export function buildResponse<T>(data: T) {
   return {
-    data,
-    metadata: metadata || {
-      timestamp: new Date().toISOString()
-    }
+    success: true,
+    data
   };
 }
 
