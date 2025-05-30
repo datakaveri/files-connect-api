@@ -1,45 +1,31 @@
 /**
  * Routes exports
  * This file exports all routes from the routes directory
+ * Restructured to follow REST practices with all operations under databanks resource
  */
-import { Hono } from 'hono';
-import { s3Routes } from './s3-routes';
-import { filePreviewRoutes } from './file-preview-routes';
-import { multipartUploadRoutes } from './multipart-uploads';
-import { zipDownloadRoutes } from './zip-download';
-import { lambdaTriggerRoutes } from './lambda-trigger';
-import { healthRoutes } from './health-routes';
+import { Router } from 'express';
+import { databanksRoutes } from './databanks-routes';
+import { assetsRoutes, initAssetRoutes } from './assets-routes';
 import { ApiPaths } from '../config/constants';
-import { errorBoundary } from '../middleware/error-handler';
-import { cors } from 'hono/cors';
-import { env } from '../config/environment';
-import { requestContext, requestLogger } from '../middleware/logger';
-import { performanceMonitor } from '../middleware/performance';
+import { createS3Service } from '../services/s3-service';
 
 // Create a main router
-const router = new Hono();
+const router = Router();
 
 // Apply common middleware to all routes
-router.use('*', 
-  cors({
-    origin: env.CORS_ORIGIN,
-  }),
-  requestContext,
-  requestLogger,
-  performanceMonitor,
-  errorBoundary
-);
+// Note: CORS, request context, and other global middleware are applied in app.ts
 
-// Set base path for all routes
-router.basePath("/v1");
+// Initialize services needed for routes
+const s3Service = createS3Service();
 
-// Mount routes
-router.route(ApiPaths.S3, s3Routes);
-router.route(ApiPaths.FILE_PREVIEW, filePreviewRoutes);
-router.route(ApiPaths.UPLOADS, multipartUploadRoutes);
-router.route(ApiPaths.ZIP, zipDownloadRoutes);
-router.route(ApiPaths.LAMBDA, lambdaTriggerRoutes);
-router.route(ApiPaths.HEALTH, healthRoutes);
+// Initialize asset routes
+const assetRoutesWithHandlers = initAssetRoutes(s3Service);
+
+// Mount databanks routes - all other operations are now nested under databanks
+router.use(ApiPaths.DATABANKS, databanksRoutes);
+
+// Mount assets routes
+router.use(ApiPaths.ASSETS, assetRoutesWithHandlers);
 
 // Export the router
 export default router;

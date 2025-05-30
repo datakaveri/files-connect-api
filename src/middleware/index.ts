@@ -7,3 +7,4 @@ export * from './error-handler';
 export * from './validation';
 export * from './auth';
 export * from './logger';
+export * from './performance';

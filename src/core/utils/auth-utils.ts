@@ -7,31 +7,13 @@ import { env } from '../../config/environment';
 import { DecodedToken, UserRole, DatabankAccessResult } from '../types/auth';
 import { AuthConstants } from '../../config/constants';
 import { isDecodedToken } from './type-guards';
-import { Context } from 'hono';
-import { HTTPException } from 'hono/http-exception';
+import { Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
-
-// Import development configuration if available
-let devConfig: { jwt: { secretKey: string } } | undefined;
-let shouldUseMockAuth: () => boolean = () => false;
-
-// Only import development configuration in development mode
-if (process.env.NODE_ENV === 'development') {
-  try {
-    const devModule = require('../../dev/dev-config');
-    devConfig = devModule.devConfig;
-    shouldUseMockAuth = devModule.shouldUseMockAuth;
-    
-    // Log that we're using development configuration
-    const logger = createLogger('AuthUtils');
-    logger.info('Development mode detected, mock authentication is available');
-  } catch (error) {
-    // Development configuration not available, continue with production settings
-  }
-}
 
 // Create a logger for this module
 const logger = createLogger('AuthUtils');
+
+
 
 /**
  * Interface for user information extracted from a request
@@ -80,21 +62,25 @@ export function extractToken(authHeader: string | undefined): string {
  */
 export async function decodeToken(token: string): Promise<DecodedToken> {
   try {
+    // Verify the token with Keycloak's public key/secret
+    // Use proper verification for production environment
     let decoded: jwt.JwtPayload | string | null;
     
-    // Check if we should use mock authentication
-    if (shouldUseMockAuth() && devConfig) {
-      // Verify with the development secret key
-      decoded = jwt.verify(token, devConfig.jwt.secretKey);
-      logger.debug('Using mock authentication for token verification');
-    } else {
-      // In production, we would verify with the real JWT secret or public key
-      // For now, we'll decode without verification for development
-      decoded = jwt.decode(token);
-      
-      // TODO: In production, replace with proper verification:
-      // decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['RS256'] });
+    if (!env.KEYCLOAK_PUBLIC_KEY) {
+      throw new Error('KEYCLOAK_PUBLIC_KEY is not configured');
     }
+    
+    // Format the public key properly (add BEGIN/END lines if needed)
+    const formattedPublicKey = env.KEYCLOAK_PUBLIC_KEY.includes('BEGIN PUBLIC KEY') ?
+      env.KEYCLOAK_PUBLIC_KEY : 
+      `-----BEGIN PUBLIC KEY-----\n${env.KEYCLOAK_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
+    
+    // Verify token with Keycloak's public key
+    decoded = jwt.verify(token, formattedPublicKey, { 
+      algorithms: ['RS256'] // Use appropriate algorithm as configured in Keycloak
+    });
+    
+    logger.debug('Token verified successfully');
     
     if (!decoded || typeof decoded !== 'object') {
       throw new Error('Invalid token format');
@@ -216,19 +202,22 @@ export async function callLambdaFunction(databankId: string): Promise<LambdaFunc
 }
 
 /**
- * Extracts user information from a request context
- * @param c - Hono context
+ * Extracts user information from Express request
+ * @param req - Express request
+ * @param res - Express response
  * @returns Promise resolving to the user information
  */
-export async function extractUserInfo(c: Context): Promise<UserInfo> {
+export async function extractUserInfo(req: Request, res: Response): Promise<UserInfo> {
   try {
     // 1. Get authorization token from header
-    const authHeader = c.req.header('Authorization');
+    const authHeader = req.header('Authorization');
     
-    // 2. Get databank ID from query params or header
-    const databankId = c.req.query('databankId') || c.req.header('X-Databank-ID') || '';
+    // 2. Get databank ID from path parameters
+    const databankId = req.params?.databankId?.toString() || '';
     if (!databankId) {
-      throw new HTTPException(400, { message: 'Databank ID is required' });
+      const error = new Error('Databank ID is required in the URL path');
+      (error as any).statusCode = 400;
+      throw error;
     }
     
     // 3. Extract and decode token
@@ -247,11 +236,14 @@ export async function extractUserInfo(c: Context): Promise<UserInfo> {
       isConsumer
     };
   } catch (error) {
-    if (error instanceof HTTPException) {
+    // Check if error already has a status code
+    if ((error as any).statusCode) {
       throw error;
     }
     
     logger.error('Error extracting user info', error as Error);
-    throw new HTTPException(401, { message: (error as Error).message });
+    const authError = new Error((error as Error).message);
+    (authError as any).statusCode = 401;
+    throw authError;
   }
 }

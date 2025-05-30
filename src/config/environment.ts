@@ -22,10 +22,12 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
   BUCKET_NAME: z.string(),
+  ASSETS_BUCKET_NAME: z.string().optional().default(''),  // Optional, will default to BUCKET_NAME if not specified
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform(val => parseInt(val, 10)),
   
   // Authentication configuration
-  AUTH_API_URL: z.string().url().default('https://api.example.com/auth'),
+  KEYCLOAK_AUTH_URL: z.string().url().default('https://idp.tgdex.telangana.gov.in/auth/realms/tgdex/protocol/openid-connect/token'),
+  KEYCLOAK_CLIENT_ID: z.string().default('angular-tgdex-client'),
   KEYCLOAK_PUBLIC_KEY: z.string().optional(),
   KEYCLOAK_REALM: z.string().optional().default('tgdex'),
   
@@ -39,6 +41,9 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().trim().transform(val => 
     typeof val === 'string' ? val.split(',') : val
   ).default('*'),
+  
+  // API version
+  VERSION: z.string().default('1.0.0'),
 });
 
 // Export type definition

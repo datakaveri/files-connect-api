@@ -72,7 +72,44 @@ export interface FinalizeMultipartUploadResponse {
 /**
  * Service for handling multipart upload operations
  */
-export class MultipartUploadService {
+/**
+ * Interface for the MultipartUploadService
+ */
+export interface MultipartUploadServiceInterface {
+  /**
+   * Initiates a multipart upload process
+   * @param key - The file key
+   * @param databankId - The databank ID 
+   * @param numParts - Number of parts in the upload
+   * @param contentType - Content type of the file
+   * @returns Upload ID and presigned URLs for each part
+   */
+  initiateUpload(
+    key: string,
+    databankId: string, 
+    numParts: number,
+    contentType: string
+  ): Promise<{ uploadId: string; presignedUrls: string[] }>;
+
+  /**
+   * Generates presigned URLs for a multipart upload
+   * @param request - Presigned URL generation request
+   * @returns Promise resolving to presigned URL response
+   */
+  generatePresignedUrls(request: PresignedUrlRequest): Promise<PresignedUrlResponse>;
+
+  /**
+   * Finalizes a multipart upload
+   * @param request - Finalize multipart upload request
+   * @returns Promise resolving to finalize multipart upload response
+   */
+  finalizeMultipartUpload(request: FinalizeMultipartUploadRequest): Promise<FinalizeMultipartUploadResponse>;
+}
+
+/**
+ * Service for handling multipart upload operations
+ */
+export class MultipartUploadService implements MultipartUploadServiceInterface {
   /**
    * Normalizes a file key by combining the databank ID and file name
    * @param fileName - The name of the file
@@ -84,12 +121,47 @@ export class MultipartUploadService {
     // Format: {databankId}/{fileName}
     return `${databankId}/${fileName}`;
   }
+  
   /**
    * Creates a new MultipartUploadService
    * @param s3Service - S3 service for interacting with S3
    */
   constructor(private readonly s3Service: S3ServiceInterface) {
     logger.info('MultipartUploadService initialized');
+  }
+  
+  /**
+   * Initiates a multipart upload process
+   * @param key - The file key
+   * @param databankId - The databank ID 
+   * @param numParts - Number of parts in the upload
+   * @param contentType - Content type of the file
+   * @returns Upload ID and presigned URLs for each part
+   */
+  async initiateUpload(
+    key: string,
+    databankId: string, 
+    numParts: number,
+    contentType: string
+  ): Promise<{ uploadId: string; presignedUrls: string[] }> {
+    logger.info(`Initiating multipart upload: key=${key}, databankId=${databankId}, numParts=${numParts}, contentType=${contentType}`);
+    
+    // Create mock chunk sizes (1MB each for simplicity)
+    // In production, these would be provided by the client based on actual file chunks
+    const chunkSizes = Array(numParts).fill(1024 * 1024); // 1MB chunks
+    
+    // Use the existing method to generate presigned URLs
+    const result = await this.generatePresignedUrls({
+      chunkSizes,
+      fileName: key,
+      mimeType: contentType,
+      databankId
+    });
+    
+    return {
+      uploadId: result.uploadId,
+      presignedUrls: result.signedUrls
+    };
   }
 
   /**

@@ -136,6 +136,23 @@ export interface XLSXPreviewResult {
 }
 
 /**
+ * Interface for Parquet preview result
+ */
+export interface ParquetPreviewResult {
+  /** Parquet data rows */
+  data: Record<string, any>[];
+  
+  /** Column headers */
+  headers: string[];
+  
+  /** Schema information */
+  schema: Record<string, any>;
+  
+  /** Total number of rows */
+  totalRows: number;
+}
+
+/**
  * Interface for multipart upload initialization
  */
 export interface MultipartUploadInit {

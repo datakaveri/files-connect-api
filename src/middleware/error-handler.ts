@@ -2,10 +2,11 @@
  * Error Handler Middleware
  * Provides consistent error handling for all routes
  */
-import { Context, Next } from 'hono';
+import { Request, Response, NextFunction } from 'express';
 import { ApplicationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
-import { ErrorCode } from '../core/types/error';
+import { ErrorCode } from '../core/types/response';
+import { HttpStatusCode } from '../core/types/response';
 import { toApplicationError, createErrorContext } from '../core/utils/error-utils';
 
 // Create a logger for this module
@@ -16,24 +17,31 @@ const logger = createLogger('ErrorHandler');
  * Catches errors and transforms them into standardized API responses
  * 
  * @param err - Error object
- * @param c - Hono context
+ * @param req - Express request
+ * @param res - Express response
+ * @param next - Express next function
  * @returns Response with standardized error format
  */
-export async function errorHandler(err: unknown, c: Context) {
-  // Get request ID from context
-  const requestId = c.get('requestId') || 'unknown';
+export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction) {
+  // Get request ID from locals or generate a new one
+  const requestId = res.locals.requestId || 'unknown';
   
   // Get request-scoped logger if available
-  const reqLogger = c.get('logger') || createLogger('ErrorHandler').setRequestId(requestId);
+  const reqLogger = res.locals.logger || createLogger('ErrorHandler').setRequestId(requestId);
   
   // Create error context with request information
-  const errorContext = createErrorContext(c);
+  const errorContext = {
+    path: req.path,
+    method: req.method,
+    requestId: requestId,
+    userId: res.locals.userId || 'anonymous'
+  };
   
   // Convert to ApplicationError if it's not already one
   const applicationError = toApplicationError(err, 'An unexpected error occurred', errorContext);
   
   // Extract error details
-  const statusCode = applicationError.statusCode;
+  const statusCode = applicationError.statusCode || 500;
   const errorCode = applicationError.code as ErrorCode;
   const message = applicationError.message;
   const details = applicationError.details;
@@ -63,35 +71,53 @@ export async function errorHandler(err: unknown, c: Context) {
     );
   }
   
+  // Map internal error code to standardized API error code
+  const apiErrorCode = mapErrorCode(errorCode);
+  
   // Return standardized error response
-  // Use type assertion to handle the status code type compatibility issue with Hono
-  return c.json(
-    {
-      error: {
-        code: errorCode,
-        message,
-        requestId,
-        ...(details ? { details } : {}),
-      },
-    },
-    statusCode as any
-  );
+  res.status(statusCode).json({
+    error: {
+      message: message,
+      code: apiErrorCode,
+      details: details,
+      requestId: requestId
+    }
+  });
 }
 
+// Note: In Express, we don't need a separate error boundary middleware
+// because Express automatically catches errors in async route handlers
+// when using express-async-errors package and passes them to error handlers
+
 /**
- * Error boundary middleware
- * Wraps route handlers in a try-catch block and passes errors to the error handler
- * 
- * @param c - Hono context
- * @param next - Next function
- * @returns Response from the route handler or error handler
+ * Maps internal error codes to standardized API error codes
+ * @param code The internal error code
+ * @returns Standardized API error code
  */
-export async function errorBoundary(c: Context, next: Next) {
-  try {
-    // Execute the route handler
-    return await next();
-  } catch (err) {
-    // Handle the error
-    return errorHandler(err as Error, c);
+function mapErrorCode(code: string): ErrorCode {
+  // Map internal error codes to our standardized error codes
+  switch (code) {
+    case 'NOT_FOUND':
+      return ErrorCode.RESOURCE_NOT_FOUND;
+    case 'VALIDATION_ERROR':
+      return ErrorCode.VALIDATION_ERROR;
+    case 'UNAUTHORIZED':
+      return ErrorCode.UNAUTHORIZED;
+    case 'FORBIDDEN':
+      return ErrorCode.FORBIDDEN;
+    case 'CONFLICT':
+      return ErrorCode.CONFLICT;
+    case 'FILE_NOT_FOUND':
+      return ErrorCode.FILE_NOT_FOUND;
+    case 'DATABANK_NOT_FOUND':
+      return ErrorCode.DATABANK_NOT_FOUND;
+    case 'UPLOAD_FAILED':
+      return ErrorCode.UPLOAD_FAILED;
+    case 'PROCESSING_FAILED':
+      return ErrorCode.PROCESSING_FAILED;
+    case 'JOB_NOT_FOUND':
+      return ErrorCode.JOB_NOT_FOUND;
+    default:
+      return ErrorCode.UNKNOWN_ERROR;
   }
 }

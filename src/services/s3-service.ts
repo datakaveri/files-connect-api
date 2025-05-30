@@ -8,12 +8,13 @@ import { S3Repository, S3RepositoryInterface } from '../repositories/s3-reposito
 import { createLogger } from '../core/utils/logger';
 import { S3Constants } from '../config/constants';
 import { 
-  FileMetadata, 
-  FolderMetadata, 
   S3Object, 
+  FileMetadata, 
+  FolderMetadata,
   MultipartUploadInit,
   MultipartUploadPart
 } from '../core/types/file';
+import { S3ObjectDetails } from '../core/types/s3-service';
 import { isFolder, getFileExtension } from '../core/utils/helpers';
 import { env } from '../config/environment';
 
@@ -49,6 +50,23 @@ export interface S3ServiceInterface {
   listObjects(prefix: string, databankId: string, maxKeys?: number, delimiter?: string): Promise<S3Object[]>;
   
   /**
+   * Uploads an asset directly to S3 (without multipart)
+   * @param key - The key to store the asset under
+   * @param data - The asset data as a buffer
+   * @param contentType - The content type of the asset
+   * @returns Promise resolving to the key of the uploaded asset
+   */
+  uploadAsset(key: string, data: Buffer, contentType?: string): Promise<string>;
+  
+  /**
+   * Creates a presigned URL for an asset
+   * @param key - The key of the asset
+   * @param expiresIn - The number of seconds until the URL expires
+   * @returns Promise resolving to the presigned URL
+   */
+  createAssetPresignedUrl(key: string, expiresIn?: number): Promise<string>;
+  
+  /**
    * Gets an object from the S3 bucket
    * @param key - The key of the object to get
    * @param databankId - The databank ID for authorization
@@ -68,7 +86,7 @@ export interface S3ServiceInterface {
   /**
    * Gets details about an object in the S3 bucket
    * @param key - The key of the object to get details for
-   * @param databankId - The databank ID for authorization
+   * @param databankId - The databank ID for authorization (can be empty for assets)
    * @returns Promise resolving to the object details
    */
   getObjectDetails(key: string, databankId: string): Promise<S3Object | null>;
@@ -146,14 +164,71 @@ export interface S3ServiceInterface {
  */
 export class S3Service implements S3ServiceInterface {
   private s3Repository: S3RepositoryInterface;
+  private assetsRepository: S3RepositoryInterface;
   
   /**
    * Creates a new S3Service instance
-   * @param s3Repository - The S3 repository to use
+   * @param s3Repository - The S3 repository to use for regular operations
+   * @param assetsRepository - The S3 repository to use for assets operations (optional)
    */
-  constructor(s3Repository: S3RepositoryInterface) {
+  constructor(s3Repository: S3RepositoryInterface, assetsRepository?: S3RepositoryInterface) {
     this.s3Repository = s3Repository;
+    this.assetsRepository = assetsRepository || s3Repository; // Fall back to main repository if no assets repository provided
     logger.info('S3Service initialized');
+  }
+  
+  /**
+   * Uploads an asset directly to S3 (without multipart)
+   * @param key - The key to store the asset under
+   * @param data - The asset data as a buffer
+   * @param contentType - The content type of the asset
+   * @returns Promise resolving to the key of the uploaded asset
+   */
+  async uploadAsset(key: string, data: Buffer, contentType?: string): Promise<string> {
+    logger.debug('Uploading asset', { key, contentType, size: data.length });
+    
+    try {
+      // Use the assets repository specifically for asset operations
+      await this.assetsRepository.putObject(key, data, contentType);
+      
+      logger.debug('Asset uploaded successfully', { key });
+      
+      return key;
+    } catch (error) {
+      logger.error('Error uploading asset', error as Error, { key });
+      throw error;
+    }
+  }
+  
+  /**
+   * Creates a presigned URL for an asset
+   * @param key - The key of the asset
+   * @param expiresIn - The number of seconds until the URL expires
+   * @returns Promise resolving to the presigned URL
+   */
+  async createAssetPresignedUrl(
+    key: string, 
+    expiresIn: number = S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION
+  ): Promise<string> {
+    logger.info('Creating presigned URL for asset', { key, expiresIn });
+    
+    try {
+      // Use the assets repository specifically for asset operations
+      const url = await this.assetsRepository.createPresignedUrl(key, expiresIn);
+      
+      logger.debug('Created presigned URL for asset successfully', { 
+        key,
+        expiresIn
+      });
+      
+      return url;
+    } catch (error) {
+      logger.error('Error creating presigned URL for asset', error as Error, { 
+        key,
+        expiresIn
+      });
+      throw error;
+    }
   }
   
   /**
@@ -789,7 +864,7 @@ export class S3Service implements S3ServiceInterface {
  * @returns S3Service instance
  */
 export function createS3Service(): S3ServiceInterface {
-  // Create the S3 repository with retry logic
+  // Create the main S3 repository with retry logic
   const s3Repository = new S3Repository({
     region: env.S3_REGION,
     bucketName: env.BUCKET_NAME,
@@ -801,10 +876,33 @@ export function createS3Service(): S3ServiceInterface {
     }
   });
   
-  // Create the base S3 service
-  const s3Service: S3ServiceInterface = new S3Service(s3Repository);
+  // Determine assets bucket - use dedicated bucket if specified, otherwise fall back to main bucket
+  const assetsBucketName = env.ASSETS_BUCKET_NAME || env.BUCKET_NAME;
   
-  logger.info('S3 service created');
+  // Create a separate repository for assets if using a different bucket
+  let assetsRepository: S3Repository | undefined;
+  if (assetsBucketName !== env.BUCKET_NAME) {
+    assetsRepository = new S3Repository({
+      region: env.S3_REGION,
+      bucketName: assetsBucketName,
+      retryOptions: {
+        maxRetries: 3,
+        baseDelayMs: 100,
+        maxDelayMs: 5000,
+        useExponentialBackoff: true
+      }
+    });
+    logger.info('Created separate assets repository', { assetsBucketName });
+  }
+  
+  // Create the base S3 service with both repositories
+  const s3Service: S3ServiceInterface = new S3Service(s3Repository, assetsRepository);
+  
+  logger.info('S3 service created', { 
+    mainBucket: env.BUCKET_NAME, 
+    assetsBucket: assetsBucketName,
+    usingDedicatedAssetsBucket: assetsBucketName !== env.BUCKET_NAME 
+  });
   
   return s3Service;
 }

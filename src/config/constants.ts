@@ -42,18 +42,27 @@ export const FileTypes = {
   JSON: 'json',
   XML: 'xml',
   XLSX: 'xlsx',
+  PARQUET: 'parquet',
 } as const;
 
 /**
  * API paths for different endpoints
+ * Organized by functionality and following REST practices
+ * All endpoints are now organized under databanks for better resource hierarchy
  */
 export const ApiPaths = {
-  S3: '/s3',
-  FILE_PREVIEW: '/file',
-  MULTIPART_UPLOAD: '/uploads',
-  LAMBDA_TRIGGER: '/lambda',
-  UPLOADS: '/uploads',  // Alias for MULTIPART_UPLOAD
-  ZIP: '/zip',          // Path for zip download routes
-  LAMBDA: '/lambda',    // Alias for LAMBDA_TRIGGER
-  HEALTH: '/health'     // Path for health check routes
+  // Health check routes
+  HEALTH: '/health',
+  
+  // Databank operations (main resource)
+  DATABANKS: '/databanks',
+  
+  // Asset operations (separate from databanks)
+  ASSETS: '/assets',
+  
+  // Sub-resources (accessed through databanks/{databankId}/...)
+  DATABANK_FILES: 'files',          // For file operations within a databank
+  DATABANK_UPLOADS: 'uploads',      // For upload operations within a databank
+  DATABANK_PROCESS: 'process',      // For processing jobs within a databank
+  DATABANK_DOWNLOAD: 'download'     // For downloading databank as zip
 } as const;

@@ -1,13 +1,21 @@
 {
   "compilerOptions": {
     "target": "es6",
-    "module": "commonjs",
+    "module": "Node16",
     "rootDir": "./src",
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "outDir": "./build",
+    "sourceMap": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true
-  }
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "isolatedModules": true
+  },
+  "exclude": [
+    "node_modules",
+    "migration-plan",
+    "build"
+  ]
 }
