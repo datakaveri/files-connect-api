@@ -22,7 +22,7 @@ The API has been restructured to follow REST best practices, with all resources 
 
 | Endpoint | Method | Description | Auth Required | Roles |
 |----------|--------|-------------|--------------|-------|
-| `/v1/databanks/:databankId/files` | POST | List files in a databank directory | Yes | Provider, Consumer |
+| `/v1/databanks/:databankId/files` | POST | List files in a databank directory (supports recursive listing of all files in subdirectories) | Yes | Provider, Consumer |
 | `/v1/databanks/:databankId/files/:key` | POST | Download a specific file | Yes | Provider, Consumer |
 | `/v1/databanks/:databankId/files/:key/metadata` | GET | Get metadata for a specific file | Yes | Provider, Consumer |
 | `/v1/databanks/:databankId/files/delete` | POST | Delete a specific file from S3 | Yes | Provider, Consumer |

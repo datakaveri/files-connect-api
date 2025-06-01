@@ -78,6 +78,16 @@ export interface S3RepositoryInterface {
   listObjects(prefix: string, maxKeys?: number, delimiter?: string): Promise<ListObjectsV2CommandOutput>;
   
   /**
+   * Lists objects in the S3 bucket with the given prefix and continuation token
+   * @param prefix - The prefix to filter objects by
+   * @param maxKeys - Maximum number of keys to return
+   * @param delimiter - The delimiter for grouping objects
+   * @param continuationToken - Token for pagination
+   * @returns Promise resolving to the list objects command output
+   */
+  listObjectsWithToken(prefix: string, maxKeys?: number, delimiter?: string, continuationToken?: string): Promise<ListObjectsV2CommandOutput>;
+  
+  /**
    * Gets an object from the S3 bucket
    * @param key - The key of the object to get
    * @returns Promise resolving to the get object command output
@@ -225,13 +235,36 @@ export class S3Repository implements S3RepositoryInterface {
    * @throws {Error} If the S3 operation fails after retries
    */
   async listObjects(prefix: string, maxKeys: number = S3Constants.MAX_KEYS, delimiter: string = '/'): Promise<ListObjectsV2CommandOutput> {
-    logger.debug('Listing objects', { prefix, maxKeys, delimiter });
+    return this.listObjectsWithToken(prefix, maxKeys, delimiter);
+  }
+  
+  /**
+   * Lists objects in the S3 bucket with the given prefix and continuation token
+   * @param prefix - The prefix to filter objects by
+   * @param maxKeys - Maximum number of keys to return
+   * @param delimiter - The delimiter for grouping objects
+   * @param continuationToken - Token for pagination
+   * @returns Promise resolving to the list objects command output
+   */
+  async listObjectsWithToken(
+    prefix: string, 
+    maxKeys: number = S3Constants.MAX_KEYS, 
+    delimiter: string = '/',
+    continuationToken?: string
+  ): Promise<ListObjectsV2CommandOutput> {
+    logger.debug('Listing objects with token', { 
+      prefix, 
+      maxKeys, 
+      delimiter,
+      continuationToken: continuationToken || 'none'
+    });
     
     const command = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: prefix,
       MaxKeys: maxKeys,
       Delimiter: delimiter,
+      ContinuationToken: continuationToken
     });
     
     return withRetry(
@@ -242,12 +275,19 @@ export class S3Repository implements S3RepositoryInterface {
           maxKeys,
           delimiter,
           contentCount: response.Contents?.length || 0,
-          prefixCount: response.CommonPrefixes?.length || 0 
+          prefixCount: response.CommonPrefixes?.length || 0,
+          hasMoreContent: !!response.NextContinuationToken
         });
         return response;
       },
       this.retryOptions,
-      { operation: 'listObjects', prefix, maxKeys, delimiter }
+      { 
+        operation: 'listObjectsWithToken', 
+        prefix, 
+        maxKeys, 
+        delimiter,
+        continuationToken: continuationToken || 'none'
+      }
     );
   }
   

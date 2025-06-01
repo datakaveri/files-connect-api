@@ -17,6 +17,9 @@ export const listObjectsSchema = z.object({
   
   /** Delimiter for grouping objects */
   delimiter: z.string().optional(),
+  
+  /** Whether to get files recursively (including nested directories) */
+  recursive: z.boolean().optional().default(false),
 });
 
 /**

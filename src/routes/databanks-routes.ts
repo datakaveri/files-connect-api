@@ -92,7 +92,10 @@ databanksRoutes.post(
     logger.info(`Listing files: prefix=${body.prefix}, databankId=${databankId}`);
     
     // Get the delimiter from the request or use the default
-    const delimiter = body.delimiter || '/';
+    // Get the recursive flag from the request
+    const recursive = body.recursive === true;
+    // If recursive is true, we don't use a delimiter to get all nested files
+    const delimiter = recursive ? '' : (body.delimiter || '/');
     
     // Validate the databankId parameter
     if (!databankId) {
@@ -108,13 +111,14 @@ databanksRoutes.post(
       prefix,
       databankId,
       maxKeys,
-      delimiter
+      delimiter,
+      recursive
     );
     
     // Process the objects and format the response following REST standards
     const response = buildResponse({
       files: objects.filter(obj => obj.isFile === true),
-      directories: objects.filter(obj => obj.isFile === false)
+      directories: recursive ? [] : objects.filter(obj => obj.isFile === false)
     });
     
     // Send the response

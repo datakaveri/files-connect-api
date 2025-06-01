@@ -45,9 +45,10 @@ export interface S3ServiceInterface {
    * @param databankId - The databank ID for authorization
    * @param maxKeys - Maximum number of keys to return
    * @param delimiter - The delimiter for grouping objects
+   * @param recursive - Whether to list objects recursively (including nested directories)
    * @returns Promise resolving to an array of S3 objects
    */
-  listObjects(prefix: string, databankId: string, maxKeys?: number, delimiter?: string): Promise<S3Object[]>;
+  listObjects(prefix: string, databankId: string, maxKeys?: number, delimiter?: string, recursive?: boolean): Promise<S3Object[]>;
   
   /**
    * Uploads an asset directly to S3 (without multipart)
@@ -261,6 +262,109 @@ export class S3Service implements S3ServiceInterface {
   }
   
   /**
+   * Lists all objects recursively, including those in subdirectories
+   * @param prefix - The prefix to filter objects by
+   * @param databankId - The databank ID
+   * @param maxKeys - Maximum number of keys to return in each request
+   * @param processedPaths - Set of paths already processed (to avoid recursion loops)
+   * @returns Promise resolving to an array of S3 objects
+   */
+  private async listObjectsRecursively(
+    prefix: string, 
+    databankId: string, 
+    maxKeys: number = 1000,
+    processedPaths: Set<string> = new Set()
+  ): Promise<S3Object[]> {
+    // Track which paths we've already processed to avoid infinite recursion
+    if (processedPaths.has(prefix)) {
+      logger.warn('Avoiding recursion loop - path already processed', { prefix });
+      return [];
+    }
+    
+    // Add this path to the set of processed paths
+    processedPaths.add(prefix);
+    
+    logger.info('Listing objects recursively', { prefix, databankId, maxKeys });
+    const allObjects: S3Object[] = [];
+    
+    try {
+      // First, list the current directory with delimiter to separate files and directories
+      const response = await this.s3Repository.listObjects(
+        prefix,
+        maxKeys,
+        '/' // Use delimiter to separate files and directories
+      );
+      
+      // Convert the S3 objects to our internal model
+      const s3Objects = this.convertToS3Objects(
+        response.Contents || [], 
+        response.CommonPrefixes || [],
+        prefix
+      );
+      
+      // Add all files from the current directory
+      const files = s3Objects.filter(obj => obj.isFile);
+      allObjects.push(...files);
+      
+      // Process directories recursively
+      const directories = s3Objects.filter(obj => !obj.isFile);
+      
+      for (const dir of directories) {
+        // Calculate the full prefix for the subdirectory
+        // The key from convertToS3Objects is already normalized, so we need to rebuild the full path
+        // The subdirectory prefix must end with a slash for S3
+        const dirFullPrefix = dir.key.endsWith('/') 
+          ? `${prefix}${dir.key}` 
+          : `${prefix}${dir.key}/`;
+        
+        logger.debug('Processing directory recursively', {
+          directory: dir.key,
+          fullPrefix: dirFullPrefix,
+          databankId
+        });
+        
+        // Recursively process this directory
+        const subDirObjects = await this.listObjectsRecursively(
+          dirFullPrefix,
+          databankId,
+          maxKeys,
+          processedPaths
+        );
+        
+        // Now we need to modify the keys to include the parent directory
+        const subDirFilesWithPath = subDirObjects.map(obj => {
+          return {
+            ...obj,
+            // Ensure the key includes the directory path
+            key: dir.key.endsWith('/') 
+              ? `${dir.key}${obj.key}` 
+              : `${dir.key}/${obj.key}`
+          };
+        });
+        
+        // Add the files from this subdirectory
+        allObjects.push(...subDirFilesWithPath);
+        
+        logger.debug('Processed subdirectory', {
+          directory: dir.key,
+          filesFound: subDirFilesWithPath.length
+        });
+      }
+      
+      logger.info('Completed processing directory', {
+        prefix,
+        databankId,
+        filesFound: allObjects.length
+      });
+      
+      return allObjects;
+    } catch (error) {
+      logger.error('Error in recursive listing', error as Error, { prefix, databankId });
+      throw error;
+    }
+  }
+  
+  /**
    * Converts AWS S3 objects to our S3Object model
    * @param contents - The contents from AWS S3
    * @param commonPrefixes - The common prefixes from AWS S3
@@ -386,7 +490,7 @@ export class S3Service implements S3ServiceInterface {
    * @param delimiter - The delimiter for grouping objects (default: '/')
    * @returns Promise resolving to an array of S3 objects
    */
-  async listObjects(prefix: string, databankId: string, maxKeys: number = 1000, delimiter: string = '/'): Promise<S3Object[]> {
+  async listObjects(prefix: string, databankId: string, maxKeys: number = 1000, delimiter: string = '/', recursive: boolean = false): Promise<S3Object[]> {
     // Normalize prefix with databank ID
     let normalizedPrefix = '';
     
@@ -406,7 +510,12 @@ export class S3Service implements S3ServiceInterface {
     });
     
     try {
-      // Pass the delimiter to the listObjects method
+      // If recursive is true, use a different approach to get all objects
+      if (recursive) {
+        return await this.listObjectsRecursively(normalizedPrefix, databankId, maxKeys);
+      }
+      
+      // Standard non-recursive listing
       const response = await this.s3Repository.listObjects(normalizedPrefix, maxKeys, delimiter);
       
       logger.debug('Listed objects successfully', { 
