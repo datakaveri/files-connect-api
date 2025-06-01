@@ -81,26 +81,22 @@ export function authorize(allowedRoles: UserRole[]) {
     try {
       // Check if user is already authenticated
       const userId = res.locals.userId;
-      const databankId = res.locals.databankId;
       const isProvider = res.locals.isProvider;
       const isConsumer = res.locals.isConsumer;
       
+      // Determine if this is an asset route by checking the originalUrl
+      // This is more reliable than req.path which might be '/' in some middleware contexts
+      const originalUrl = req.originalUrl || '';
+      const isAssetRoute = originalUrl.includes('/assets');
+      
       // If not authenticated, try to authenticate
-      if (!userId || !databankId) {
+      if (!userId) {
         try {
           // Extract user information from request
-          const databankId = req.query.databankId?.toString() || req.params.databankId;
-          if (!databankId) {
-            // No databank ID provided
-            return res.status(400).json({ error: 'Databank ID is required' });
-          }
-          
-          // Call the databankAccess service
           const userInfo = await extractUserInfo(req, res);
           
           // Store user information in response locals
           res.locals.userId = userInfo.userId;
-          res.locals.databankId = userInfo.databankId;
           res.locals.userRoles = userInfo.roles;
           res.locals.isProvider = userInfo.isProvider;
           res.locals.isConsumer = userInfo.isConsumer;
@@ -108,6 +104,22 @@ export function authorize(allowedRoles: UserRole[]) {
             id: userInfo.userId,
             role: userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER
           };
+          
+          // For asset routes, we don't need a databank ID
+          if (isAssetRoute) {
+            res.locals.databankId = 'assets'; // Use a placeholder value
+            logger.debug('Asset route detected, skipping databank ID validation', { path: originalUrl });
+          } else {
+            // For non-asset routes, get the databank ID from params or query
+            const databankId = req.params.databankId || req.query.databankId?.toString();
+            
+            if (!databankId) {
+              logger.warn('Databank ID required but not provided', { path: originalUrl });
+              return res.status(400).json({ error: 'Databank ID is required in the URL path' });
+            }
+            
+            res.locals.databankId = databankId;
+          }
         } catch (authErr) {
           return next(new AuthenticationError('Authentication required'));
         }
@@ -129,24 +141,34 @@ export function authorize(allowedRoles: UserRole[]) {
         return next(new AuthorizationError('Required role not found'));
       }
       
-      // Check if user has access to the databank
-      const accessResult = await checkDatabankAccess(
-        userId as string, 
-        databankId as string, 
-        roleForAccess
-      );
+      // Get the databank ID from locals
+      const currentDatabankId = res.locals.databankId;
       
-      if (!accessResult.hasAccess) {
-        return next(new AuthorizationError(
-          accessResult.error || 'No access to databank'
-        ));
+      // Check if user has access to the databank
+      // Skip databank access check for asset routes
+      // We already determined if this is an asset route above, but check again here
+      // in case the route path has changed during middleware execution
+      const skipDatabankCheck = (req.originalUrl || '').includes('/assets');
+      
+      if (!skipDatabankCheck) {
+        const accessResult = await checkDatabankAccess(
+          userId as string, 
+          currentDatabankId as string, 
+          roleForAccess
+        );
+        
+        if (!accessResult.hasAccess) {
+          return next(new AuthorizationError(
+            accessResult.error || 'No access to databank'
+          ));
+        }
       }
       
       // Set role for access in locals
       res.locals.roleForAccess = roleForAccess;
       
       // Log successful authorization
-      logger.info(`Authorization successful: userId=${userId}, databankId=${databankId}, role=${roleForAccess}`);
+      logger.info(`Authorization successful: userId=${userId}, role=${roleForAccess}`);
       
       // Continue to next middleware or route handler
       next();

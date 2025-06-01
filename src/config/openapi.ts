@@ -549,18 +549,22 @@ registry.registerPath({
 
 // 3. Get a presigned URL for an asset
 registry.registerPath({
-  method: 'get',
-  path: '/assets/{key}',
+  method: 'post',
+  path: '/assets/download',
   tags: ['Assets'],
   summary: 'Get a presigned URL for an asset',
   description: 'Returns a presigned URL for downloading an asset',
   request: {
-    params: z.object({
-      key: z.string().describe('Asset key')
-    }),
-    query: z.object({
-      expiresIn: z.number().optional().describe('Expiration time in seconds')
-    })
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            key: z.string().describe('Asset key'),
+            expiresIn: z.number().optional().describe('Expiration time in seconds')
+          })
+        }
+      }
+    }
   },
   responses: {
     '200': {
