@@ -52,6 +52,26 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
         
         const { originalname, mimetype, buffer } = req.file;
         
+        // Define allowed file types (as a backup validation)
+        const allowedFileTypes = [
+          // PDF
+          'application/pdf',
+          // Images
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/svg+xml',
+          'image/tiff',
+          'image/bmp'
+        ];
+        
+        // Double-check file type validation
+        if (!allowedFileTypes.includes(mimetype)) {
+          logger.warn('Invalid file type detected', { mimetype, filename: originalname });
+          throw new ValidationError('File type not allowed. Only PDF and image files are accepted.');
+        }
+        
         logger.debug('Uploading asset via multipart/form-data', { filename: originalname, size: buffer.length });
         
         // Generate a unique key for the asset using UUID

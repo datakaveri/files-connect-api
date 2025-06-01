@@ -13,6 +13,7 @@ import { createLogger } from "../core/utils/logger";
 import { ValidationError, S3Error } from "../core/errors";
 import { env } from "../config/environment";
 import { MultipartUploadPart } from "../core/types/file";
+import { validateDatabankFileType } from "../core/utils/file-validation";
 
 // Create a logger for this module
 const logger = createLogger('MultipartUploadService');
@@ -144,6 +145,29 @@ export class MultipartUploadService implements MultipartUploadServiceInterface {
     numParts: number,
     contentType: string
   ): Promise<{ uploadId: string; presignedUrls: string[] }> {
+    try {
+      // Validate inputs
+      if (!key) {
+        throw new ValidationError('Key is required');
+      }
+      if (!databankId) {
+        throw new ValidationError('Databank ID is required');
+      }
+      if (!numParts || numParts <= 0) {
+        throw new ValidationError('Number of parts must be a positive integer');
+      }
+      
+      // Validate file type
+      const fileTypeValidation = validateDatabankFileType(key);
+      if (!fileTypeValidation.isValid) {
+        logger.warn(`File type validation failed for key: ${key}`, { reason: fileTypeValidation.reason });
+        throw new ValidationError(fileTypeValidation.reason || 'File type not allowed');
+      }
+    } catch (error: unknown) {
+      logger.error('Error in initiateUpload validation', error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+    
     logger.info(`Initiating multipart upload: key=${key}, databankId=${databankId}, numParts=${numParts}, contentType=${contentType}`);
     
     // Create mock chunk sizes (1MB each for simplicity)

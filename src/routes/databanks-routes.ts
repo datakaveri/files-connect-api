@@ -391,7 +391,20 @@ databanksRoutes.post(
       
       res.json(response);
     } catch (error) {
-      throw error; // Let the global error handler catch it
+      // Handle validation errors specifically for file type validation
+      if (error instanceof ValidationError && 
+          (error.message.includes('File type not allowed') || 
+           error.message.includes('Executable files'))) {
+        logger.warn(`File type validation failed: ${error.message}`);
+        return res.status(415).json({
+          success: false,
+          error: {
+            message: error.message,
+            code: 'UNSUPPORTED_MEDIA_TYPE'
+          }
+        });
+      }
+      throw error; // Let the global error handler catch it for other errors
     }
   })
 );
