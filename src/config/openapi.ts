@@ -510,7 +510,7 @@ registry.registerPath({
   path: '/assets',
   tags: ['Assets'],
   summary: 'Upload an asset (multipart/form-data)',
-  description: 'Uploads an asset using multipart/form-data and returns a unique key for future reference',
+  description: 'Uploads an asset using multipart/form-data and returns a unique key for future reference. Only PDF and image files are allowed (JPEG, PNG, GIF, WebP, SVG, TIFF, BMP).',
   request: {
     body: {
       content: {

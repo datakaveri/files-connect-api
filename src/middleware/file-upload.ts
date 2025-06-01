@@ -9,6 +9,20 @@ import { createLogger } from '../core/utils/logger';
 // Create a logger for this module
 const logger = createLogger('FileUploadMiddleware');
 
+// Define allowed file types
+const ALLOWED_FILE_TYPES = [
+  // PDF
+  'application/pdf',
+  // Images
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'image/tiff',
+  'image/bmp'
+];
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -16,6 +30,16 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB file size limit
   },
+  fileFilter: (req, file, cb) => {
+    // Check if the file type is allowed
+    if (ALLOWED_FILE_TYPES.includes(file.mimetype)) {
+      // Accept the file
+      cb(null, true);
+    } else {
+      // Reject the file
+      cb(new Error(`File type not allowed. Allowed types: PDF and images`));
+    }
+  }
 });
 
 /**
@@ -45,6 +69,18 @@ export const fileUpload = (req: Request, res: Response, next: NextFunction) => {
             error: {
               code: 'FILE_TOO_LARGE',
               message: 'File size exceeds the 10MB limit'
+            }
+          });
+        }
+        
+        // Check if it's a file type error (from our fileFilter)
+        if (err.message && err.message.includes('File type not allowed')) {
+          return res.status(415).json({
+            success: false,
+            error: {
+              code: 'UNSUPPORTED_FILE_TYPE',
+              message: 'File type not allowed. Only PDF and image files are accepted.',
+              allowedTypes: ALLOWED_FILE_TYPES
             }
           });
         }
