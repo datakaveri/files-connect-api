@@ -109,15 +109,6 @@ export interface S3ServiceInterface {
   deleteObject(key: string, databankId: string, recursive?: boolean): Promise<void>;
   
   /**
-   * Initializes a multipart upload
-   * @param key - The key to store the object under
-   * @param databankId - The databank ID for authorization
-   * @param contentType - The content type of the object
-   * @returns Promise resolving to the multipart upload initialization data
-   */
-  initMultipartUpload(key: string, databankId: string, contentType?: string): Promise<MultipartUploadInit>;
-  
-  /**
    * Completes a multipart upload
    * @param key - The key of the object
    * @param uploadId - The upload ID
@@ -673,55 +664,6 @@ export class S3Service implements S3ServiceInterface {
       logger.error('Error deleting object', error as Error, { 
         key: normalizedKey, 
         recursive, 
-        databankId 
-      });
-      throw error;
-    }
-  }
-  
-  /**
-   * Initializes a multipart upload
-   * @param key - The key to store the object under
-   * @param databankId - The databank ID for authorization
-   * @param contentType - The content type of the object
-   * @returns Promise resolving to the multipart upload initialization data
-   */
-  async initMultipartUpload(key: string, databankId: string, contentType?: string): Promise<MultipartUploadInit> {
-    // Normalize key with databank ID
-    const normalizedKey = this.normalizeKey(key, databankId);
-    
-    // Determine content type if not provided
-    if (!contentType) {
-      contentType = this.getContentTypeFromKey(key);
-    }
-    
-    logger.debug('Initializing multipart upload', { 
-      key: normalizedKey, 
-      contentType, 
-      databankId 
-    });
-    
-    try {
-      const response = await this.s3Repository.createMultipartUpload(normalizedKey, contentType);
-      
-      logger.debug('Initialized multipart upload successfully', { 
-        key: normalizedKey, 
-        contentType, 
-        databankId 
-      });
-      
-      if (!response.UploadId) {
-        throw new Error('Failed to get upload ID');
-      }
-      
-      return {
-        key: normalizedKey,
-        uploadId: response.UploadId
-      };
-    } catch (error) {
-      logger.error('Error initializing multipart upload', error as Error, { 
-        key: normalizedKey, 
-        contentType, 
         databankId 
       });
       throw error;

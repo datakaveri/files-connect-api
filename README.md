@@ -112,8 +112,7 @@ docker run -p 3000:3000 --env-file .env files-connect-api
 ### Interactive Documentation
 
 Once the server is running, you can access the interactive API documentation at:
-- Swagger UI: http://localhost:3000/api-docs
-- OpenAPI JSON: http://localhost:3000/openapi.json
+- Swagger UI: http://localhost:3000/v1/docs
 
 ### Key Endpoints
 

@@ -109,24 +109,6 @@ export interface S3RepositoryInterface {
   deleteObject(key: string): Promise<DeleteObjectCommandOutput>;
   
   /**
-   * Creates a multipart upload
-   * @param key - The key to store the object under
-   * @param contentType - The content type of the object
-   * @returns Promise resolving to the create multipart upload command output
-   */
-  createMultipartUpload(key: string, contentType?: string): Promise<CreateMultipartUploadCommandOutput>;
-  
-  /**
-   * Uploads a part of a multipart upload
-   * @param key - The key of the object
-   * @param uploadId - The upload ID
-   * @param partNumber - The part number
-   * @param body - The part data
-   * @returns Promise resolving to the upload part command output
-   */
-  uploadPart(key: string, uploadId: string, partNumber: number, body: Buffer | Uint8Array | string | Readable): Promise<UploadPartCommandOutput>;
-  
-  /**
    * Completes a multipart upload
    * @param key - The key of the object
    * @param uploadId - The upload ID
@@ -372,70 +354,6 @@ export class S3Repository implements S3RepositoryInterface {
       },
       this.retryOptions,
       { operation: 'deleteObject', key }
-    );
-  }
-  
-  /**
-   * Creates a multipart upload
-   * @param key - The key to store the object under
-   * @param contentType - The content type of the object
-   * @returns Promise resolving to the create multipart upload command output
-   */
-  async createMultipartUpload(
-    key: string, 
-    contentType?: string
-  ): Promise<CreateMultipartUploadCommandOutput> {
-    logger.debug('Creating multipart upload', { key, contentType });
-    
-    const command = new CreateMultipartUploadCommand({
-      Bucket: this.bucketName,
-      Key: key,
-      ContentType: contentType,
-    });
-    
-    return withRetry(
-      async () => {
-        const response = await this.s3Client.send(command);
-        logger.debug('Created multipart upload successfully', { key, uploadId: response.UploadId });
-        return response;
-      },
-      this.retryOptions,
-      { operation: 'createMultipartUpload', key, contentType }
-    );
-  }
-  
-  /**
-   * Uploads a part of a multipart upload
-   * @param key - The key of the object
-   * @param uploadId - The upload ID
-   * @param partNumber - The part number
-   * @param body - The part data
-   * @returns Promise resolving to the upload part command output
-   */
-  async uploadPart(
-    key: string, 
-    uploadId: string, 
-    partNumber: number, 
-    body: Buffer | Uint8Array | string | Readable
-  ): Promise<UploadPartCommandOutput> {
-    logger.debug('Uploading part', { key, uploadId, partNumber });
-    
-    const command = new UploadPartCommand({
-      Bucket: this.bucketName,
-      Key: key,
-      UploadId: uploadId,
-      PartNumber: partNumber,
-      Body: body,
-    });
-    
-    return withRetry(
-      async () => {
-        const response = await this.s3Client.send(command);
-        logger.debug('Uploaded part successfully', { key, uploadId, partNumber, etag: response.ETag });
-        return response;
-      },
-      this.retryOptions,
-      { operation: 'uploadPart', key, uploadId, partNumber }
     );
   }
   

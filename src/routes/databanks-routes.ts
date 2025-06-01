@@ -42,7 +42,9 @@ import {
   completeUploadSchema,
   createProcessingJobSchema,
   updateProcessingJobStatusSchema,
-  lambdaTriggerSchema
+  lambdaTriggerSchema,
+  deleteObjectSchema,
+  abortMultipartUploadSchema
 } from "../core/validators/schemas";
 import {
   FileListingResponse,
@@ -263,6 +265,57 @@ databanksRoutes.post(
 );
 
 /**
+ * POST /databanks/:databankId/files/delete
+ * Delete a file from the databank (key in request body)
+ */
+databanksRoutes.post(
+  `/:databankId/${ApiPaths.DATABANK_FILES}/delete`,
+  authenticate,
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  validateBody(deleteObjectSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const databankId = req.params.databankId;
+    const { key } = req[VALIDATED_BODY];
+    
+    logger.info(`File delete request: key=${key}, databankId=${databankId}`);
+    
+    // Validate the databankId parameter
+    if (!databankId) {
+      throw new ValidationError('Databank ID is required');
+    }
+    
+    try {
+      // Ensure key is a valid string
+      if (!key) {
+        throw new ValidationError('Key is required');
+      }
+      
+      // Delete the object from S3
+      await s3Service.deleteObject(key, databankId);
+      
+      // Send success response
+      const response = buildResponse({
+        message: `File deleted successfully: ${key}`
+      });
+      
+      res.json(response);
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        res.status(404).json({
+          success: false,
+          error: {
+            message: `File not found: ${key}`,
+            code: 'RESOURCE_NOT_FOUND'
+          }
+        });
+      } else {
+        throw error; // Let the global error handler catch it
+      }
+    }
+  })
+);
+
+/**
  * POST /databanks/:databankId/files/preview
  * Generate a preview for a file in the databank (key in request body)
  */
@@ -440,12 +493,18 @@ databanksRoutes.put(
         throw new ValidationError('Upload ID is required');
       }
       
+      // Normalize parts to ensure they use PascalCase property names expected by S3
+      const normalizedParts = parts.map((part: { PartNumber?: number; partNumber?: number; ETag?: string; eTag?: string }) => ({
+        PartNumber: part.PartNumber || part.partNumber,
+        ETag: part.ETag || part.eTag
+      }));
+      
       // Complete the multipart upload using the correct interface
       const uploadKey = await s3Service.completeMultipartUpload(
         key!, 
         uploadId!, 
         databankId, 
-        parts
+        normalizedParts
       );
       
       const result = {
@@ -462,6 +521,48 @@ databanksRoutes.put(
       res.json(response);
     } catch (error) {
       throw error; // Let the global error handler catch it
+    }
+  })
+);
+
+/**
+ * POST /databanks/:databankId/uploads/:uploadId/cancel
+ * Cancel a multipart upload
+ */
+databanksRoutes.post(
+  `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId/cancel`,
+  authenticate,
+  authorize([UserRole.PROVIDER]),
+  validateBody(abortMultipartUploadSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const databankId = req.params.databankId as string;
+    const uploadId = req.params.uploadId as string;
+    const { key } = req[VALIDATED_BODY];
+    
+    logger.debug('Canceling multipart upload', { key, uploadId, databankId });
+    
+    try {
+      // Abort the multipart upload
+      await s3Service.abortMultipartUpload(key, uploadId, databankId);
+      
+      logger.info('Multipart upload canceled successfully', { key, uploadId, databankId });
+      
+      // Return success response
+      res.json(buildResponse({ 
+        message: `Multipart upload canceled successfully`, 
+        key,
+        uploadId
+      }));
+    } catch (error) {
+      logger.error('Error canceling multipart upload', error as Error, { key, uploadId, databankId });
+      
+      // Handle specific errors
+      if (error instanceof NotFoundError) {
+        throw new NotFoundError('Upload', uploadId);
+      }
+      
+      // Re-throw other errors
+      throw error;
     }
   })
 );

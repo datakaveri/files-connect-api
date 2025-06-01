@@ -86,4 +86,45 @@ describe("Databanks Routes", () => {
     });
   });
   // For now, we've verified that the routes exist and require authentication
+
+  // Test multipart upload operations
+  describe("Multipart Upload Operations", () => {
+    const testDatabankId = "test-databank";
+    const testUploadId = "test-upload-id";
+    const testKey = "test-file.csv";
+
+    it("should require authentication for canceling multipart upload", async () => {
+      const response = await context.request
+        .post(`/databanks/${testDatabankId}/${ApiPaths.DATABANK_UPLOADS}/${testUploadId}/cancel`)
+        .send({ key: testKey });
+
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty("error");
+    });
+
+    it("should require provider role for canceling multipart upload", async () => {
+      // Using consumer token instead of provider token
+      const response = await context.request
+        .post(`/databanks/${testDatabankId}/${ApiPaths.DATABANK_UPLOADS}/${testUploadId}/cancel`)
+        .set("Authorization", `Bearer ${context.consumerToken}`)
+        .send({ key: testKey });
+
+      expect(response.status).toBe(403); // Forbidden due to insufficient role
+      expect(response.body).toHaveProperty("error");
+    });
+
+    it("should validate request body for canceling multipart upload", async () => {
+      // Missing required 'key' field
+      const response = await context.request
+        .post(`/databanks/${testDatabankId}/${ApiPaths.DATABANK_UPLOADS}/${testUploadId}/cancel`)
+        .set("Authorization", `Bearer ${context.providerToken}`)
+        .send({});
+
+      expect(response.status).toBe(400); // Bad request due to validation failure
+      expect(response.body).toHaveProperty("error");
+    });
+
+    // Note: We can't easily test the actual cancellation without mocking the S3 service
+    // This would require more setup in the test environment
+  });
 });

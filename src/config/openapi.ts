@@ -362,7 +362,50 @@ registry.registerPath({
   }
 });
 
-// 4. Generate preview for a specific file
+// 4. Delete a specific file
+registry.registerPath({
+  method: 'post',
+  path: '/databanks/{databankId}/files/delete',
+  tags: ['Databanks'],
+  summary: 'Delete a specific file from a databank',
+  description: 'Deletes a specific file from a databank by key',
+  request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID')
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            key: z.string().describe('S3 object key to delete')
+          })
+        }
+      }
+    }
+  },
+  responses: {
+    '200': {
+      description: 'File deleted successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            message: z.string()
+          }))
+        }
+      }
+    },
+    '404': {
+      description: 'File not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+// 5. Generate preview for a specific file
 registry.registerPath({
   method: 'post',
   path: '/databanks/{databankId}/files/preview',
@@ -497,6 +540,60 @@ registry.registerPath({
       content: {
         'application/json': {
           schema: SuccessResponseSchema(UploadCompletionSchema)
+        }
+      }
+    },
+    '400': {
+      description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    }
+  }
+});
+
+// 3. Cancel a multipart upload
+registry.registerPath({
+  method: 'post',
+  path: '/databanks/{databankId}/uploads/{uploadId}/cancel',
+  tags: ['Databanks'],
+  summary: 'Cancel a multipart upload',
+  description: 'Cancels an in-progress multipart upload and removes any uploaded parts',
+  request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID'),
+      uploadId: z.string().describe('Upload ID')
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            key: z.string().describe('S3 object key')
+          })
+        }
+      }
+    }
+  },
+  responses: {
+    '200': {
+      description: 'Multipart upload canceled successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(z.object({
+            message: z.string(),
+            key: z.string(),
+            uploadId: z.string()
+          }))
+        }
+      }
+    },
+    '404': {
+      description: 'Upload not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
         }
       }
     },
