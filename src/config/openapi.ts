@@ -242,7 +242,8 @@ registry.registerPath({
           schema: z.object({
             prefix: z.string().optional(),
             delimiter: z.string().optional(),
-            maxKeys: z.number().optional()
+            maxKeys: z.number().optional(),
+            recursive: z.boolean().optional().describe('When true, returns all files recursively including those in subdirectories')
           })
         }
       }
