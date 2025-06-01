@@ -420,7 +420,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/uploads',
   tags: ['Databanks'],
   summary: 'Initiate a multipart upload to a databank',
-  description: 'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts',
+  description: 'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID')
@@ -448,6 +448,14 @@ registry.registerPath({
     },
     '400': {
       description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema
+        }
+      }
+    },
+    '415': {
+      description: 'Unsupported file type',
       content: {
         'application/json': {
           schema: ErrorResponseSchema

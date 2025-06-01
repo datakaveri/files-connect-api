@@ -43,6 +43,17 @@ export const FileTypes = {
   XML: 'xml',
   XLSX: 'xlsx',
   PARQUET: 'parquet',
+  TXT: 'txt',
+  ZIP: 'zip'
+} as const;
+
+// Allowed file types for different upload types
+export const AllowedFileTypes = {
+  // For asset uploads (PDF and images)
+  ASSETS: ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'tiff', 'bmp'],
+  
+  // For databank uploads (data files only)
+  DATABANK: ['csv', 'json', 'txt', 'parquet', 'xlsx', 'zip']
 } as const;
 
 /**
