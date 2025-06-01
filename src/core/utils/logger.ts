@@ -6,8 +6,8 @@ import pino from 'pino';
 // Define log levels
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
-// Create a pino logger instance
-export const logger = pino({
+// Create a base logger instance with configuration based on environment
+const loggerConfig: pino.LoggerOptions = {
   level: process.env.LOG_LEVEL || 'info',
   // Redact sensitive information
   redact: [
@@ -29,7 +29,20 @@ export const logger = pino({
     env: process.env.NODE_ENV || 'development',
     service: 'files-connect-api',
   },
-});
+};
+
+// Only use pino-pretty in development mode
+if (process.env.NODE_ENV === 'development') {
+  loggerConfig.transport = {
+    target: 'pino-pretty',
+    options: {
+      colorize: true
+    }
+  };
+}
+
+// Create the base logger instance
+const baseLogger = pino(loggerConfig);
 
 /**
  * Logger interface for consistent logging throughout the application
@@ -55,7 +68,7 @@ export interface Logger {
  * @returns Logger instance
  */
 export function createLogger(context: string): Logger {
-  let contextLogger = logger.child({ context });
+  let contextLogger = baseLogger.child({ context });
   let requestId: string | undefined;
   
   const loggerInstance = {

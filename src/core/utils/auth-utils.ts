@@ -212,12 +212,23 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     // 1. Get authorization token from header
     const authHeader = req.header('Authorization');
     
-    // 2. Get databank ID from path parameters
-    const databankId = req.params?.databankId?.toString() || '';
-    if (!databankId) {
+    // 2. Get databank ID from path parameters or determine if it's an asset route
+    const originalUrl = req.originalUrl || '';
+    const isAssetRoute = originalUrl.includes('/assets');
+    
+    // For asset routes, we don't need a databank ID
+    let databankId = req.params?.databankId?.toString() || '';
+    
+    // Only require databankId for non-asset routes
+    if (!databankId && !isAssetRoute) {
       const error = new Error('Databank ID is required in the URL path');
       (error as any).statusCode = 400;
       throw error;
+    }
+    
+    // Use a placeholder value for asset routes
+    if (isAssetRoute && !databankId) {
+      databankId = 'assets';
     }
     
     // 3. Extract and decode token

@@ -2,11 +2,11 @@
  * Asset Routes
  * Defines routes for asset operations
  */
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
 import { S3ServiceInterface } from '../services/s3-service';
 import { createLogger } from '../core/utils/logger';
-import { validateParams, validateQuery } from '../middleware/validation';
+import { validateBody } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
 import { successResponse } from '../core/utils/response';
 import { NotFoundError, ValidationError } from '../core/errors';
@@ -81,22 +81,19 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
 
   /**
    * Get a presigned URL for an asset
-   * GET /assets/:key
+   * POST /assets/download
    */
-  assetsRoutes.get(
-    '/:key',
-    validateParams(z.object({
-      key: z.string().describe('Asset key')
-    })),
-    validateQuery(z.object({
-      expiresIn: z.string().optional().transform(Number).describe('Expiration time in seconds')
+  assetsRoutes.post(
+    '/download',
+    validateBody(z.object({
+      key: z.string().describe('Asset key'),
+      expiresIn: z.number().optional().describe('Expiration time in seconds')
     })),
     async (req, res, next) => {
       try {
-        const { key } = req.params;
-        // Parse expiresIn from query params, defaulting to the constant if not provided
-        const expiresInParam = req.query.expiresIn;
-        const expiresIn = typeof expiresInParam === 'string' ? parseInt(expiresInParam, 10) : S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION;
+        const { key, expiresIn: expiresInParam } = req.body;
+        // Use the provided expiresIn or default to the constant
+        const expiresIn = expiresInParam || S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION;
         
         logger.debug('Getting presigned URL for asset', { key, expiresIn });
         

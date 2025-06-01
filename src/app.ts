@@ -50,17 +50,23 @@ if (process.env.NODE_ENV === 'test') {
   
   httpLogger = (req: any, res: any, next: any) => next();
 } else {
-  // Production/development logger with pino-pretty
-  logger = pino({ 
+  // Production/development logger
+  const loggerConfig: any = { 
     name: 'App',
-    level: 'info',
-    transport: {
+    level: 'info'
+  };
+  
+  // Only use pino-pretty in development mode
+  if (process.env.NODE_ENV === 'development') {
+    loggerConfig.transport = {
       target: 'pino-pretty',
       options: {
         colorize: true
       }
-    }
-  });
+    };
+  }
+  
+  logger = pino(loggerConfig);
   
   httpLogger = pinoHttp({ 
     logger,
