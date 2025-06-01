@@ -211,3 +211,22 @@ The API enforces strict file type validation for databank uploads:
 - **Blocked file types**: Executable files (.exe, .dll, .bat, .cmd, .sh, .js, .py, .php)
 
 Validation occurs during multipart upload initiation and returns a 415 Unsupported Media Type status code for disallowed file types.
+
+### Kubernetes Deployment
+Create docker image:
+```bash
+docker build -t ghcr.io/datakaveri/tgdex-file-connect-api:latest -f ./infra/Dockerfile .
+```
+Push docker image:
+```bash
+docker push ghcr.io/datakaveri/tgdex-file-connect-api:latest
+```
+
+To create the secret:
+```bash
+kubectl apply -f ./infra/secret.yaml
+```      
+Deploy the application:
+```bash
+kubectl apply -f ./infra/manifest.yaml
+```

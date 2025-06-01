@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: files-connect-api-config
+  namespace: sandbox
+data:
+  PORT: "3000"
+  NODE_ENV: "production"
+  S3_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"
+  S3_REGION: "ap-south-1"
+  BUCKET_NAME: "s3-ap-south-1-test-tgdex"
+  ASSET_BUCKET_NAME: "s3-ap-south-1-tgdex-assets"
+  MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: "1000"
+  CORS_ORIGIN: "*"
+  LOG_LEVEL: "debug"
+  KEYCLOAK_URL: "https://idp.tgdex.telangana.gov.in/auth/realms/tgdex-pilot"
+  KEYCLOAK_REALM: "tgdex-pilot"
+  KEYCLOAK_CLIENT_ID: "angular-client"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: files-connect-api
+  namespace: sandbox
+  labels:
+    app: files-connect-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: files-connect-api
+  template:
+    metadata:
+      labels:
+        app: files-connect-api
+    spec:
+      imagePullSecrets:
+      - name: tgdex-registry-cred
+      containers:
+      - name: files-connect-api
+        image: ghcr.io/datakaveri/tgdex-file-connect-api:latest
+        ports:
+        - containerPort: 3000
+        livenessProbe:
+          httpGet:
+            path: /v1/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /v1/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+        envFrom:
+        - configMapRef:
+            name: files-connect-api-config
+        - secretRef:
+            name: files-connect-api-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: files-connect-api-service
+  namespace: sandbox
+spec:
+  selector:
+    app: files-connect-api
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: files-connect-api-ingress
+  namespace: sandbox
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: files.tgdex.telangana.gov.in
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: files-connect-api-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - files.tgdex.telangana.gov.in
+    secretName: filesconnect-api-tls
