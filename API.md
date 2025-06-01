@@ -25,6 +25,7 @@ The API has been restructured to follow REST best practices, with all resources 
 | `/v1/databanks/:databankId/files` | POST | List files in a databank directory | Yes | Provider, Consumer |
 | `/v1/databanks/:databankId/files/:key` | POST | Download a specific file | Yes | Provider, Consumer |
 | `/v1/databanks/:databankId/files/:key/metadata` | GET | Get metadata for a specific file | Yes | Provider, Consumer |
+| `/v1/databanks/:databankId/files/delete` | POST | Delete a specific file from S3 | Yes | Provider, Consumer |
 | `/v1/databanks/:databankId/files/:key/preview` | POST | Generate preview for a specific file | Yes | Provider, Consumer |
 
 ### Upload Operations APIs
@@ -33,6 +34,7 @@ The API has been restructured to follow REST best practices, with all resources 
 |----------|--------|-------------|--------------|-------|
 | `/v1/databanks/:databankId/uploads` | POST | Initiate a multipart upload and get presigned URLs (CSV, JSON, TXT, Parquet, XLSX, ZIP files only) | Yes | Provider |
 | `/v1/databanks/:databankId/uploads/:uploadId` | PUT | Finalize a multipart upload | Yes | Provider |
+| `/v1/databanks/:databankId/uploads/:uploadId/cancel` | POST | Cancel a multipart upload | Yes | Provider |
 
 ### Processing Operations APIs
 

@@ -3,7 +3,6 @@
  * Handles business logic for multipart upload operations
  */
 import { 
-  CompleteMultipartUploadCommand, 
   CreateMultipartUploadCommand, 
   UploadPartCommand 
 } from "@aws-sdk/client-s3";
@@ -12,7 +11,6 @@ import { S3ServiceInterface } from "./s3-service";
 import { createLogger } from "../core/utils/logger";
 import { ValidationError, S3Error } from "../core/errors";
 import { env } from "../config/environment";
-import { MultipartUploadPart } from "../core/types/file";
 import { validateDatabankFileType } from "../core/utils/file-validation";
 
 // Create a logger for this module
@@ -42,33 +40,7 @@ export interface PresignedUrlResponse {
   uploadId: string;
 }
 
-/**
- * Interface for multipart upload finalization request
- */
-export interface FinalizeMultipartUploadRequest {
-  /** Upload ID from the initiation step */
-  uploadId: string;
-  /** File key (path in S3) */
-  fileKey?: string;
-  /** File name (if fileKey is not provided) */
-  fileName?: string;
-  /** Array of parts with ETags and part numbers */
-  parts: MultipartUploadPart[];
-  /** Databank ID for authorization */
-  databankId: string;
-}
-
-/**
- * Interface for multipart upload finalization response
- */
-export interface FinalizeMultipartUploadResponse {
-  /** Success message */
-  message: string;
-  /** S3 location of the uploaded file */
-  location?: string;
-  /** ETag of the completed upload */
-  etag?: string;
-}
+// Removed unused interfaces
 
 /**
  * Service for handling multipart upload operations
@@ -99,12 +71,7 @@ export interface MultipartUploadServiceInterface {
    */
   generatePresignedUrls(request: PresignedUrlRequest): Promise<PresignedUrlResponse>;
 
-  /**
-   * Finalizes a multipart upload
-   * @param request - Finalize multipart upload request
-   * @returns Promise resolving to finalize multipart upload response
-   */
-  finalizeMultipartUpload(request: FinalizeMultipartUploadRequest): Promise<FinalizeMultipartUploadResponse>;
+  // Removed unused finalizeMultipartUpload method
 }
 
 /**
@@ -260,7 +227,7 @@ export class MultipartUploadService implements MultipartUploadServiceInterface {
           Key: multipartUpload.Key,
           UploadId: uploadId,
           PartNumber: partNumber,
-          ContentLength: partSize,
+          // ContentLength: partSize,
         });
         promises.push(getSignedUrl(s3Client, command, { expiresIn: 60 * 60 * 3 }));
       }
@@ -305,120 +272,6 @@ export class MultipartUploadService implements MultipartUploadServiceInterface {
       throw new S3Error(
         'Failed to initiate multipart upload',
         'CreateMultipartUpload',
-        { cause: error }
-      );
-    }
-  }
-
-  /**
-   * Finalizes a multipart upload
-   * @param request - Finalize multipart upload request
-   * @returns Promise resolving to finalize multipart upload response
-   * @throws S3Error if S3 operations fail
-   */
-  async finalizeMultipartUpload(request: FinalizeMultipartUploadRequest): Promise<FinalizeMultipartUploadResponse> {
-    const { uploadId, fileKey, fileName, parts, databankId } = request;
-    
-    logger.info(`Finalizing multipart upload: uploadId=${uploadId}, parts=${parts.length}, databankId=${databankId}`);
-    
-    try {
-      // Determine which field to use (fileKey or fileName)
-      if (!fileKey && !fileName) {
-        throw new ValidationError('Either fileKey or fileName must be provided');
-      }
-      
-      // If fileKey is not provided, normalize the file name with the databank ID
-      // If fileKey is provided, ensure it has the databank prefix
-      const normalizedFileKey = fileKey ? 
-        (fileKey.startsWith(`${databankId}/`) ? fileKey : `${databankId}/${fileKey}`) : 
-        this.normalizeFileKey(fileName as string, databankId);
-      
-      logger.info(`Original fileKey: ${fileKey}, normalized key: ${normalizedFileKey}`);
-      
-      logger.info(`Multipart upload finalization details: uploadId=${uploadId}, fileKey=${normalizedFileKey}, providedField=${fileKey ? 'fileKey' : 'fileName'}, partsCount=${parts.length}`);
-      
-      // Sort parts by part number to ensure correct order
-      const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
-      
-      // Log part details for debugging
-      sortedParts.forEach((part, index) => {
-        logger.debug(`Part details: index=${index}, partNumber=${part.PartNumber}, etag=${part.ETag}`);
-      });
-      
-      // Log the complete request for debugging
-      logger.info(`Complete request details: uploadId=${uploadId}, fileKey=${fileKey}, fileName=${fileName}, partsCount=${parts.length}`);
-      logger.info(`Sorted parts: ${JSON.stringify(sortedParts)}`);
-      
-      // Verify that the upload ID is in the correct format
-      if (!uploadId || typeof uploadId !== 'string' || uploadId.trim() === '') {
-        logger.error(`Invalid upload ID: ${uploadId}`);
-        throw new ValidationError('Invalid upload ID');
-      }
-      
-      logger.info(`Verifying upload ID format: ${uploadId}`);
-      
-      // Use the exact same key format as in the initiation
-      const fullKey = normalizedFileKey;
-      const bucketName = env.BUCKET_NAME;
-      
-      logger.info(`Completing multipart upload: key=${fullKey}, bucket=${bucketName}, uploadId=${uploadId}`);
-      
-      const command = new CompleteMultipartUploadCommand({
-        Bucket: bucketName,
-        Key: fullKey,
-        UploadId: uploadId,
-        MultipartUpload: {
-          Parts: sortedParts,
-        },
-      });
-      
-      // Add additional logging for the command
-      logger.info(`CompleteMultipartUploadCommand details: bucket=${env.BUCKET_NAME}, key=${fullKey}, uploadId=${uploadId}, partsCount=${sortedParts.length}`);
-      
-      const startTime = Date.now();
-      logger.info('Sending complete multipart upload command to S3');
-      
-      // Get S3 client from the service
-      const s3Client = this.s3Service.getS3Client();
-      const result = await s3Client.send(command);
-      const duration = Date.now() - startTime;
-      
-      logger.info(`Multipart upload completed successfully: duration=${duration}ms, location=${result.Location}, etag=${result.ETag}, key=${fullKey}`);
-      
-      return { 
-        message: "Upload completed successfully",
-        location: result.Location,
-        etag: result.ETag
-      };
-    } catch (error) {
-      logger.error('Error in finalizing multipart upload', error instanceof Error ? error : new Error(String(error)));
-      
-      // Log more details about the error
-      if (error instanceof Error) {
-        logger.error(`Error type: ${error.name}, message: ${error.message}`);
-        if ('$metadata' in error) {
-          logger.error(`AWS error metadata: ${JSON.stringify((error as any).$metadata)}`);
-        }
-      }
-      
-      // Convert to S3Error if it's related to S3 operations
-      if (error instanceof Error && (error.message.includes('S3') || error.name.includes('S3'))) {
-        throw new S3Error(
-          'Failed to complete multipart upload',
-          'CompleteMultipartUpload',
-          { cause: error }
-        );
-      }
-      
-      // Re-throw ValidationError
-      if (error instanceof ValidationError) {
-        throw error;
-      }
-      
-      // For other errors, throw a generic S3Error
-      throw new S3Error(
-        'Failed to complete multipart upload',
-        'CompleteMultipartUpload',
         { cause: error }
       );
     }

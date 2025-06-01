@@ -131,30 +131,34 @@ export const completeUploadSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
   
-  /** Upload ID */
-  uploadId: z.string().min(1, 'Upload ID is required'),
-  
   /** List of uploaded parts */
   parts: z.array(
     z.object({
-      PartNumber: z.number().int().positive(),
-      ETag: z.string().min(1),
+      // Accept both camelCase and PascalCase property names
+      PartNumber: z.number().int().positive().optional(),
+      partNumber: z.number().int().positive().optional(),
+      ETag: z.string().min(1).optional(),
+      eTag: z.string().min(1).optional(),
+    })
+    // Ensure at least one of each property exists
+    .refine(data => data.PartNumber !== undefined || data.partNumber !== undefined, {
+      message: 'PartNumber is required',
+      path: ['PartNumber']
+    })
+    .refine(data => data.ETag !== undefined || data.eTag !== undefined, {
+      message: 'ETag is required',
+      path: ['ETag']
     })
   ).min(1, 'At least one part is required'),
 });
 
 /**
  * Schema for multipart upload abort request
+ * Note: uploadId and databankId are provided as route parameters
  */
 export const abortMultipartUploadSchema = z.object({
   /** S3 object key */
   key: z.string().min(1, 'Key is required'),
-  
-  /** Upload ID */
-  uploadId: z.string().min(1, 'Upload ID is required'),
-  
-  /** Databank ID for authorization */
-  databankId: z.string().min(1, 'Databank ID is required'),
 });
 
 /**
