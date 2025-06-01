@@ -1,6 +1,6 @@
-# Files Connect API
+# TGDEX Files Connect API
 
-A TypeScript-based API service for secure file operations with databank support. This service provides a RESTful API for managing files in S3 buckets with features like multipart uploads, presigned URLs, file previews, and ZIP downloads, with built-in security and validation.
+A TypeScript-based API service for secure file operations with databank support. This service is part of the TGDEX platform and provides a RESTful API for managing files in S3 buckets with features like multipart uploads, presigned URLs, file previews, and ZIP downloads.
 
 ## Features
 
@@ -28,8 +28,8 @@ A TypeScript-based API service for secure file operations with databank support.
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/your-organization/multipartupload-middleware.git
-cd multipartupload-middleware
+git clone https://github.com/datakaveri/files-connect-api.git
+cd files-connect-api
 ```
 
 2. Install dependencies using pnpm:
@@ -38,13 +38,7 @@ cd multipartupload-middleware
 pnpm install
 ```
 
-3. Create a `.env` file based on the `.env.example` template:
-
-```bash
-cp .env.example .env
-```
-
-4. Update the `.env` file with your configuration:
+3. Configure environment variables in `.env` file:
 
 ```
 PORT=3000
@@ -54,19 +48,15 @@ S3_REGION=us-east-1
 S3_ACCESS_KEY=your-access-key
 S3_SECRET_KEY=your-secret-key
 BUCKET_NAME=your-bucket-name
-MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=5
-CORS_ORIGIN=*
-LOG_LEVEL=info
-# Keycloak Configuration (set ENABLE_AUTH=false to disable in development)
-ENABLE_AUTH=true
-KEYCLOAK_URL=https://your-keycloak-url/auth
+MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=1000
+CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
+LOG_LEVEL=debug
+
+# Keycloak Configuration
+KEYCLOAK_URL=https://your-keycloak-url/auth/realms/your-realm
 KEYCLOAK_REALM=your-realm
 KEYCLOAK_CLIENT_ID=your-client-id
-KEYCLOAK_PUBLIC_KEY=your-public-key
-# Allowed file types (comma-separated)
-ALLOWED_FILE_EXTENSIONS=.csv,.json,.txt,.parquet,.xlsx,.zip
-# Blocked file extensions (executables)
-BLOCKED_FILE_EXTENSIONS=.exe,.dll,.bat,.cmd,.sh,.js,.py,.php
+KEYCLOAK_PUBLIC_KEY="your-public-key"
 ```
 
 ## Development
@@ -108,27 +98,13 @@ pnpm openapi
 1. Build the Docker image:
 
 ```bash
-docker build -t multipartupload-middleware .
+docker build -t files-connect-api .
 ```
 
 2. Run the Docker container:
 
 ```bash
-docker run -p 3000:3000 --env-file .env multipartupload-middleware
-```
-
-### AWS Deployment
-
-1. Build the project:
-
-```bash
-pnpm build
-```
-
-2. Deploy to AWS using the provided scripts:
-
-```bash
-pnpm run deploy:aws
+docker run -p 3000:3000 --env-file .env files-connect-api
 ```
 
 ## API Documentation
@@ -142,14 +118,15 @@ Once the server is running, you can access the interactive API documentation at:
 ### Key Endpoints
 
 - **Databank Operations**:
-  - `POST /v1/databanks/{databankId}/uploads` - Initiate multipart upload
+  - `POST /v1/databanks/{databankId}/uploads` - Initiate multipart upload (CSV, JSON, TXT, Parquet, XLSX, ZIP only)
   - `PUT /v1/databanks/{databankId}/uploads/{uploadId}` - Complete multipart upload
-  - `GET /v1/databanks/{databankId}/files` - List files in databank
+  - `POST /v1/databanks/{databankId}/files` - List files in databank
   - `POST /v1/databanks/{databankId}/files/download` - Download files
+  - `POST /v1/databanks/{databankId}/process` - Create processing job
 
-- **File Type Support**:
-  - Allowed: CSV, JSON, TXT, Parquet, XLSX, ZIP
-  - Blocked: Executable files (.exe, .dll, .bat, etc.)
+- **Asset Operations**:
+  - `POST /v1/assets` - Upload asset files
+  - `POST /v1/assets/download` - Download asset files
 
 For detailed API documentation, see the [API.md](./API.md) file.
 
@@ -191,42 +168,23 @@ The application follows a clean architecture with clear separation of concerns:
 1. **Authentication**: JWT-based authentication with Keycloak
 2. **Authorization**: Role-based access control (Provider/Consumer roles)
 3. **File Validation**: Strict file type validation to prevent upload of malicious files
-4. **Input Sanitization**: Protection against injection attacks
-5. **Secure Headers**: Security headers for HTTP responses
-6. **Rate Limiting**: Protection against brute force attacks
-
-## Performance Optimizations
-
-1. **Streaming**: Efficient file streaming for uploads/downloads
-2. **Concurrent Processing**: Parallel processing of file operations
-3. **Connection Pooling**: Optimized database and S3 connections
-4. **Caching**: In-memory caching for frequently accessed resources
+4. **Input Validation**: Request validation using Zod schemas
 
 ## Development Workflow
 
-1. Install development dependencies:
-   ```bash
-   pnpm install
-   ```
-
-2. Start development server with hot-reload:
+1. Start development server with hot-reload:
    ```bash
    pnpm dev
    ```
 
-3. Run linter:
-   ```bash
-   pnpm lint
-   ```
-
-4. Run tests:
-   ```bash
-   pnpm test
-   ```
-
-5. Build for production:
+2. Build the project:
    ```bash
    pnpm build
+   ```
+
+3. Start the production server:
+   ```bash
+   pnpm start
    ```
 
 ## Contributing
@@ -237,50 +195,19 @@ The application follows a clean architecture with clear separation of concerns:
 4. Push to the branch: `git push origin feature/your-feature-name`
 5. Submit a pull request with a clear description of changes
 
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
 ## Acknowledgements
 
-- [Hono](https://github.com/honojs/hono) - Fast, lightweight web framework
+- [Express](https://github.com/expressjs/express) - Fast, unopinionated, minimalist web framework for Node.js
 - [AWS SDK for JavaScript](https://github.com/aws/aws-sdk-js-v3) - AWS SDK for JavaScript
 - [Zod](https://github.com/colinhacks/zod) - TypeScript-first schema validation
 - [Keycloak](https://www.keycloak.org/) - Open Source Identity and Access Management
 - [OpenAPI](https://www.openapis.org/) - OpenAPI Specification
 
-## Development Utilities
+## File Type Validation
 
-### Generate Test JWT Token
+The API enforces strict file type validation for databank uploads:
 
-For development and testing, you can generate a JWT token with the provider role:
+- **Allowed file types**: CSV, JSON, TXT, Parquet, XLSX, ZIP
+- **Blocked file types**: Executable files (.exe, .dll, .bat, .cmd, .sh, .js, .py, .php)
 
-```bash
-node -e "const jwt = require('jsonwebtoken'); 
-const token = jwt.sign({ 
-  sub: 'provider-123', 
-  roles: ['provider'], 
-  realm_access: { roles: ['provider'] }, 
-  iat: Math.floor(Date.now() / 1000), 
-  exp: Math.floor(Date.now() / 1000) + 3600 
-}, 'development-secret-key-do-not-use-in-production'); 
-console.log('Bearer ' + token);"
-```
-
-### Environment Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|:--------:|
-| `PORT` | Port to run the server on | `3000` | No |
-| `NODE_ENV` | Node environment | `development` | No |
-| `S3_REGION` | AWS S3 region | - | Yes |
-| `S3_ACCESS_KEY` | AWS access key | - | Yes |
-| `S3_SECRET_KEY` | AWS secret key | - | Yes |
-| `BUCKET_NAME` | S3 bucket name | - | Yes |
-| `MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB` | Max file size for uploads | `5` | No |
-| `LOG_LEVEL` | Logging level | `info` | No |
-| `ENABLE_AUTH` | Enable Keycloak authentication | `true` | No |
-| `KEYCLOAK_URL` | Keycloak server URL | - | If auth enabled |
-| `KEYCLOAK_REALM` | Keycloak realm | - | If auth enabled |
-| `KEYCLOAK_CLIENT_ID` | Keycloak client ID | - | If auth enabled |
-| `KEYCLOAK_PUBLIC_KEY` | Keycloak public key | - | If auth enabled |
+Validation occurs during multipart upload initiation and returns a 415 Unsupported Media Type status code for disallowed file types.
