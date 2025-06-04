@@ -94,7 +94,7 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Request-ID"
     nginx.ingress.kubernetes.io/cors-expose-headers: "X-Request-ID, X-Execution-Time"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-
+    nginx.ingress.kubernetes.io/enable-modsecurity: "false"
 spec:
   rules:
   - host: files.tgdex.telangana.gov.in
