@@ -44,6 +44,9 @@ const envSchema = z.object({
   
   // API version
   VERSION: z.string().default('1.0.0'),
+  
+  // ACL API configuration
+  ACL_APD_API_URL: z.string().url().default('https://api.acl-apd-tgdex.telangana.gov.in/dx/apd/acl/v1'),
 });
 
 // Export type definition
