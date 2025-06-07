@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: files-connect-api-ingress
+  namespace: sandbox
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:8080,http://localhost:5173,http://localhost:5174,http://localhost:4200,http://localhost:4007,https://catalogue.tgdex.iudx.io,https://staging.catalogue.tgdex.iudx.io,https://tgdex.telangana.gov.in"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Request-ID"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "X-Request-ID, X-Execution-Time"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/enable-modsecurity: "false"
+    nginx.ingress.kubernetes.io/server-snippet: add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self';" always;
+spec:
+  rules:
+  - host: files.tgdex.telangana.gov.in
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: files-connect-api-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - files.tgdex.telangana.gov.in
+    secretName: filesconnect-api-tls

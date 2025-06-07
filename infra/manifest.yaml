@@ -1,22 +1,3 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: files-connect-api-config
-  namespace: sandbox
-data:
-  PORT: "3000"
-  NODE_ENV: "production"
-  S3_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"
-  S3_REGION: "ap-south-1"
-  BUCKET_NAME: "s3-ap-south-1-test-tgdex"
-  ASSET_BUCKET_NAME: "s3-ap-south-1-tgdex-assets"
-  MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: "1000"
-  CORS_ORIGIN: "*"
-  LOG_LEVEL: "debug"
-  KEYCLOAK_URL: "https://idp.tgdex.telangana.gov.in/auth/realms/tgdex-pilot"
-  KEYCLOAK_REALM: "tgdex-pilot"
-  KEYCLOAK_CLIENT_ID: "angular-client"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -79,35 +60,3 @@ spec:
   - port: 80
     targetPort: 3000
   type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: files-connect-api-ingress
-  namespace: sandbox
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:8080,http://localhost:5173,http://localhost:5174,http://localhost:4200,http://localhost:4007,https://catalogue.tgdex.iudx.io,https://staging.catalogue.tgdex.iudx.io"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Request-ID"
-    nginx.ingress.kubernetes.io/cors-expose-headers: "X-Request-ID, X-Execution-Time"
-    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-    nginx.ingress.kubernetes.io/enable-modsecurity: "false"
-spec:
-  rules:
-  - host: files.tgdex.telangana.gov.in
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: files-connect-api-service
-            port:
-              number: 80
-  tls:
-  - hosts:
-    - files.tgdex.telangana.gov.in
-    secretName: filesconnect-api-tls
