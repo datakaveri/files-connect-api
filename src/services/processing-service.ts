@@ -10,6 +10,16 @@ import {
   ValidationError,
 } from "../core/errors/application-errors";
 import { env } from "../config/environment";
+import axios, { AxiosRequestConfig, Method, AxiosRequestHeaders } from "axios";
+import { SignatureV4 } from "@aws-sdk/signature-v4";
+import { Sha256 } from "@aws-crypto/sha256-js";
+import { HttpRequest } from "@aws-sdk/types";
+
+// Interface for the status of a Lambda invocation attempt
+interface LambdaInvocationStatus {
+  success: boolean; // True if the request was successfully initiated
+  message: string;  // Message about the initiation
+}
 
 // Create a logger for this module
 const logger = createLogger("ProcessingService");
@@ -73,7 +83,6 @@ export interface ProcessingServiceInterface {
   createJob(
     type: string,
     databankId: string,
-    prefix?: string,
     options?: any
   ): Promise<ProcessingJob>;
 
@@ -113,7 +122,6 @@ export interface ProcessingServiceInterface {
    */
   triggerFunction(
     functionName: string,
-    payload: Record<string, unknown>,
     databankId: string
   ): Promise<LambdaFunctionResult>;
 }
@@ -125,15 +133,21 @@ export interface ProcessingServiceInterface {
  */
 class ProcessingServiceImpl implements ProcessingServiceInterface {
   private jobs: Map<string, ProcessingJob> = new Map();
-  private lambdaUrl: string;
+  private zipLambdaUrl: string;
+  private reportsLambdaUrl: string;
 
   /**
    * Creates a new ProcessingService instance
-   * @param lambdaUrl - The URL of the Lambda function
+   * @param zipLambdaUrl - The URL of the Lambda function
+   * @param reportsLambdaUrl - The URL of the Lambda function
    */
-  constructor(lambdaUrl: string) {
-    this.lambdaUrl = lambdaUrl;
-    logger.info("ProcessingService initialized", { lambdaUrl });
+  constructor(zipLambdaUrl: string, reportsLambdaUrl: string) {
+    this.zipLambdaUrl = zipLambdaUrl;
+    this.reportsLambdaUrl = reportsLambdaUrl;
+    logger.info("ProcessingService initialized", {
+      zipLambdaUrl,
+      reportsLambdaUrl,
+    });
   }
 
   /**
@@ -147,7 +161,6 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
   async createJob(
     type: string,
     databankId: string,
-    prefix?: string,
     options?: any
   ): Promise<ProcessingJob> {
     // Validate job type
@@ -163,7 +176,6 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
       type: jobType,
       status: ProcessingJobStatus.PENDING,
       databankId,
-      prefix,
       createdAt: new Date(),
       progress: 0,
       options,
@@ -182,22 +194,13 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
 
     // Trigger the Lambda function for processing
     try {
-      // Prepare payload for the Lambda function
-      const payload: Record<string, unknown> = {
-        jobId,
-        type: jobType,
-        databankId,
-        prefix: prefix || "",
-        options: options || {},
-      };
-
       // Trigger the Lambda function using the function name based on job type
       // Use the job type as the function name
       logger.info(`Triggering Lambda function for job: ${jobId}`, {
         jobId,
         functionName: jobType,
       });
-      await this.triggerFunction(jobType, payload, databankId);
+      await this.triggerFunction(jobType, databankId);
 
       // Update job status to PROCESSING
       job.status = ProcessingJobStatus.PROCESSING;
@@ -304,60 +307,199 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
    * @returns Promise resolving to the function response
    */
   async triggerFunction(
-    functionName: string,
-    payload: Record<string, unknown>,
+    functionName: "zip" | "report",
     databankId: string
-  ): Promise<LambdaFunctionResult> {
+  ): Promise<LambdaInvocationStatus> {
     logger.debug("Triggering Lambda function", {
       functionName,
       databankId,
-      payloadKeys: Object.keys(payload),
     });
 
     // Check if Lambda URL is configured
-    if (!this.lambdaUrl) {
+    if (!this.zipLambdaUrl && !this.reportsLambdaUrl) {
       throw new Error("Lambda URL not configured");
     }
 
     try {
-      // Add databank ID to payload
       const enhancedPayload = {
-        ...payload,
         databankId,
         functionName,
       };
+      const body = JSON.stringify(enhancedPayload);
 
-      // Call Lambda function
-      const response = await fetch(this.lambdaUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(enhancedPayload),
-      });
+      // Determine the correct Lambda URL based on functionName
+      const targetLambdaUrl =
+        functionName === "zip" ? this.zipLambdaUrl : this.reportsLambdaUrl;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Lambda function returned error: ${response.status} ${errorText}`
-        );
+      if (!targetLambdaUrl) {
+        logger.error("Lambda URL not configured for function", undefined, {
+          functionName,
+          databankId,
+        });
+        throw new Error(`Lambda URL for ${functionName} not configured`);
       }
 
-      const result = (await response.json()) as LambdaFunctionResult;
+      if (
+        !env.LAMBDA_ACCESS_KEY ||
+        !env.LAMBDA_SECRET_KEY ||
+        !env.LAMBDA_REGION
+      ) {
+        logger.error(
+          "AWS Lambda credentials or region not configured in environment variables",
+          undefined,
+          { functionName, databankId }
+        );
+        throw new Error("AWS Lambda credentials or region not configured.");
+      }
 
-      logger.debug("Lambda function triggered successfully", {
-        functionName,
-        databankId,
-        statusCode: response.status,
+      const { hostname, pathname, protocol, search } = new URL(targetLambdaUrl);
+
+      const request: HttpRequest = {
+        method: "POST",
+        protocol: protocol.slice(0, -1), // Remove trailing ':' e.g. 'https:' -> 'https'
+        hostname: hostname,
+        path: pathname,
+        query: Object.fromEntries(new URLSearchParams(search)),
+        headers: {
+          "Content-Type": "application/json",
+          host: hostname,
+        },
+        body: body,
+      };
+
+      const signer = new SignatureV4({
+        credentials: {
+          accessKeyId: env.LAMBDA_ACCESS_KEY,
+          secretAccessKey: env.LAMBDA_SECRET_KEY,
+        },
+        region: env.LAMBDA_REGION,
+        service: "lambda",
+        sha256: Sha256,
       });
 
-      return result;
-    } catch (error) {
-      logger.error("Error triggering Lambda function", error as Error, {
+      const signedRequest = await signer.sign(request);
+
+      const axiosConfig: AxiosRequestConfig = {
+        method: signedRequest.method as Method,
+        url: targetLambdaUrl,
+        headers: signedRequest.headers as AxiosRequestHeaders,
+        data: signedRequest.body,
+        maxBodyLength: Infinity,
+      };
+      // Send the request but don't wait for the Lambda to complete
+      axios.request(axiosConfig)
+        .then(axiosResponse => {
+          const result = axiosResponse.data as LambdaFunctionResult;
+          if (
+            axiosResponse.status < 200 ||
+            axiosResponse.status >= 300 ||
+            (result && result.success === false)
+          ) {
+            const errorDetails = result?.error
+              ? JSON.stringify(result.error)
+              : result?.message || "No additional error details";
+            logger.error("Async Lambda function execution finished with an error", undefined, {
+              functionName,
+              databankId,
+              statusCode: axiosResponse.status,
+              responseData: result,
+              errorDetails,
+              async: true
+            });
+          } else {
+            logger.debug("Async Lambda function execution completed successfully", {
+              functionName,
+              databankId,
+              statusCode: axiosResponse.status,
+              responseData: result,
+              async: true
+            });
+          }
+        })
+        .catch(asyncError => {
+          let logMessage = "Error during asynchronous Lambda execution";
+          const errorContext: any = { functionName, databankId, async: true };
+          if (axios.isAxiosError(asyncError)) {
+            logMessage = `Axios error during async Lambda execution: ${asyncError.message}`;
+            errorContext.axiosError = {
+              message: asyncError.message,
+              code: asyncError.code,
+              config: asyncError.config ? { url: asyncError.config.url, method: asyncError.config.method } : undefined,
+            };
+            if (asyncError.response) {
+              logMessage += ` - Lambda Response (${asyncError.response.status})`;
+              errorContext.axiosError.response = {
+                status: asyncError.response.status,
+                data: asyncError.response.data,
+              };
+            }
+          } else if (asyncError instanceof Error) {
+            logMessage = `Error during async Lambda execution: ${asyncError.message}`;
+            errorContext.genericError = { name: asyncError.name, message: asyncError.message };
+          } else {
+            errorContext.unknownError = asyncError;
+          }
+          logger.error(logMessage, asyncError instanceof Error ? asyncError : new Error(String(asyncError)), errorContext);
+        });
+
+      logger.info("Lambda function trigger initiated successfully via AWS Signature", {
         functionName,
         databankId,
       });
-      throw error;
+
+      return { success: true, message: "Lambda function trigger initiated." };
+    } catch (error: any) {
+      let errorMessage = "Error triggering Lambda function";
+      let errorDetailsToLog: any = { functionName, databankId };
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = `Axios error triggering Lambda: ${error.message}`;
+        errorDetailsToLog.axiosError = {
+          message: error.message,
+          code: error.code,
+          config: error.config
+            ? {
+                url: error.config.url,
+                method: error.config.method,
+                headers: error.config.headers,
+              }
+            : undefined,
+        };
+        if (error.response) {
+          const lambdaError =
+            error.response.data?.error ||
+            error.response.data?.message ||
+            JSON.stringify(error.response.data);
+          errorMessage += ` - Lambda Response (${error.response.status}): ${lambdaError}`;
+          errorDetailsToLog.axiosError.response = {
+            status: error.response.status,
+            data: error.response.data,
+            headers: error.response.headers,
+          };
+        } else if (error.request) {
+          errorMessage += ` - No response received.`;
+          errorDetailsToLog.axiosError.request = "No response received";
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message || "Unknown error during Lambda trigger";
+        errorDetailsToLog.genericError = {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        };
+      } else {
+        errorMessage = "An unknown error occurred during Lambda trigger.";
+        errorDetailsToLog.unknownError = error;
+      }
+
+      logger.error(
+        "Error triggering Lambda function",
+        error instanceof Error ? error : new Error(String(error)),
+        errorDetailsToLog
+      );
+      // Log the synchronous error and return a failure status for the initiation
+      // The logger.error call is already made just before this in the original code
+      return { success: false, message: errorMessage };
     }
   }
 }
@@ -367,13 +509,14 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
  * @returns A processing service instance
  */
 export function createProcessingService(): ProcessingServiceInterface {
-  const lambdaUrl = env.LAMBDA_URL || "";
+  const zipLambdaUrl = env.ZIP_LAMBDA_URL || "";
+  const reportsLambdaUrl = env.REPORTS_LAMBDA_URL || "";
 
-  if (!lambdaUrl) {
+  if (!zipLambdaUrl || !reportsLambdaUrl) {
     logger.warn(
       "Lambda URL not configured, Lambda function triggers will not work"
     );
   }
 
-  return new ProcessingServiceImpl(lambdaUrl);
+  return new ProcessingServiceImpl(zipLambdaUrl, reportsLambdaUrl);
 }

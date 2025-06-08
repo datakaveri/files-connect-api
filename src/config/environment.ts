@@ -22,17 +22,14 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string(),
   S3_SECRET_KEY: z.string(),
   BUCKET_NAME: z.string(),
-  ASSETS_BUCKET_NAME: z.string().optional().default(''),  // Optional, will default to BUCKET_NAME if not specified
+  ASSETS_BUCKET_NAME: z.string(),
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform(val => parseInt(val, 10)),
   
   // Authentication configuration
-  KEYCLOAK_AUTH_URL: z.string().url().default('https://idp.tgdex.telangana.gov.in/auth/realms/tgdex/protocol/openid-connect/token'),
-  KEYCLOAK_CLIENT_ID: z.string().default('angular-tgdex-client'),
-  KEYCLOAK_PUBLIC_KEY: z.string().optional(),
-  KEYCLOAK_REALM: z.string().optional().default('tgdex'),
-  
-  // Lambda configuration
-  LAMBDA_URL: z.string().url().optional().default('https://lambda.example.com'),
+  KEYCLOAK_AUTH_URL: z.string().url(),
+  KEYCLOAK_CLIENT_ID: z.string(),
+  KEYCLOAK_PUBLIC_KEY: z.string(),
+  KEYCLOAK_REALM: z.string(),
   
   // Logging configuration
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
@@ -46,7 +43,14 @@ const envSchema = z.object({
   VERSION: z.string().default('1.0.0'),
   
   // ACL API configuration
-  ACL_APD_API_URL: z.string().url().default('https://api.acl-apd-tgdex.telangana.gov.in/dx/apd/acl/v1'),
+  ACL_APD_API_URL: z.string().url(),
+
+  //Lambda Configs
+  ZIP_LAMBDA_URL: z.string().url(),
+  REPORTS_LAMBDA_URL: z.string().url(),
+  LAMBDA_ACCESS_KEY: z.string(),
+  LAMBDA_SECRET_KEY: z.string(),
+  LAMBDA_REGION: z.string(),
 });
 
 // Export type definition
