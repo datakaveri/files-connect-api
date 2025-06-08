@@ -7,6 +7,28 @@ import * as XLSX from 'xlsx';
 // Use any type for papaparse to avoid type errors
 import * as Papa from 'papaparse';
 import { XMLParser } from 'fast-xml-parser';
+
+// Define types for file preview results
+export interface FilePreviewDataSuccess {
+  previewSupported: true;
+  data: Record<string, any>[];
+  headers: string[];
+  totalRows: number;
+  sheets?: string[]; // Optional: for XLSX
+}
+
+export interface FilePreviewNotSupported {
+  previewSupported: false;
+  message: string;
+}
+
+export type FilePreviewResult = FilePreviewDataSuccess | FilePreviewNotSupported;
+
+// Existing type definitions (assuming they are here or imported elsewhere)
+// For example, if CSVPreviewResult, XLSXPreviewResult, ParquetPreviewResult were defined here:
+// export interface CSVPreviewResult { data: Record<string, any>[]; headers: string[]; totalRows: number; }
+// export interface XLSXPreviewResult { data: Record<string, any>[]; headers: string[]; sheets: string[]; totalRows: number; }
+// export interface ParquetPreviewResult { data: Record<string, any>[]; headers: string[]; totalRows: number; }
 import { readParquet } from 'parquet-wasm';
 import { S3ServiceInterface } from './s3-service';
 import { createLogger } from '../core/utils/logger';
@@ -208,7 +230,7 @@ export class FileService implements FileServiceInterface {
       try {
         // Estimate bytes needed based on file type and max lines
         // This is a rough estimate - adjust as needed based on your data characteristics
-        let estimatedBytesPerLine = 200; // Default estimate
+        let estimatedBytesPerLine = 500; // Default estimate
         
         if (String(fileType) === 'csv') {
           estimatedBytesPerLine = 100; // CSV tends to be smaller per line
@@ -238,19 +260,26 @@ export class FileService implements FileServiceInterface {
         
         switch (fileType) {
           case FileTypes.CSV as SupportedFileType:
-            result = await this.processCSV(stream, maxLines);
+            const csvResult = await this.processCSV(stream, maxLines);
+            result = { ...csvResult, previewSupported: true };
             break;
           case FileTypes.XLSX as SupportedFileType:
-            result = await this.processXLSX(stream, maxLines);
+            const xlsxResult = await this.processXLSX(stream, maxLines);
+            result = { ...xlsxResult, previewSupported: true };
             break;
           case FileTypes.JSON as SupportedFileType:
-            result = await this.processJSON(stream);
+            result = await this.processJSON(stream, maxLines);
             break;
           case FileTypes.XML as SupportedFileType:
-            result = await this.processXML(stream);
+            const xmlData = await this.processXML(stream);
+            // For XML, we'll consider preview not supported in the structured format by default
+            // Or, if a specific array-like structure is expected, that logic could be added here.
+            logger.info('XML data processed, but structured preview is not supported by default.', xmlData);
+            result = { previewSupported: false, message: 'Preview not supported for XML files in a structured table format.' };
             break;
           case FileTypes.PARQUET as SupportedFileType:
-            result = await this.processParquet(stream, maxLines);
+            const parquetResult = await this.processParquet(stream, maxLines);
+            result = { ...parquetResult, previewSupported: true };
             break;
           default:
             throw new Error(`Unsupported file type: ${fileType}`);
@@ -460,16 +489,56 @@ export class FileService implements FileServiceInterface {
    * @param stream - The JSON file stream
    * @returns Promise resolving to the parsed JSON data
    */
-  private async processJSON(stream: Readable): Promise<Record<string, unknown>> {
+  private async processJSON(stream: Readable, maxLines: number): Promise<FilePreviewResult> {
     logger.debug('Processing JSON file');
     
     try {
       const buffer = await this.streamToBuffer(stream);
       const jsonData = JSON.parse(buffer.toString('utf-8'));
-      return jsonData;
+
+      if (Array.isArray(jsonData) && jsonData.length > 0 && typeof jsonData[0] === 'object' && jsonData[0] !== null) {
+        const firstItem = jsonData[0] as Record<string, any>;
+        const headers = Object.keys(firstItem);
+        const data = jsonData.slice(0, maxLines).map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return item as Record<string, any>;
+          }
+          // Handle cases where some array items might not be objects, though ideally the array is homogeneous
+          const placeholder: Record<string, any> = {};
+          headers.forEach(h => placeholder[h] = null); // or some other placeholder value
+          return placeholder; 
+        });
+
+        return {
+          previewSupported: true,
+          data,
+          headers,
+          totalRows: jsonData.length,
+        };
+      } else if (typeof jsonData === 'object' && jsonData !== null && !Array.isArray(jsonData)){
+        // Handle single JSON object by wrapping it in an array
+        const dataArray = [jsonData as Record<string, any>];
+        const headers = Object.keys(jsonData);
+        return {
+            previewSupported: true,
+            data: dataArray.slice(0, maxLines),
+            headers,
+            totalRows: 1
+        };
+      } else {
+        logger.warn('JSON data is not an array of objects or a single object, preview not supported as structured data.');
+        return {
+          previewSupported: false,
+          message: 'Preview is supported for an array of JSON objects or a single JSON object. The provided JSON structure is not supported for tabular preview.',
+        };
+      }
     } catch (err) {
       logger.error('Error processing JSON file', err instanceof Error ? err : new Error(String(err)));
-      throw err;
+      // For parsing errors, also return preview not supported
+      return {
+        previewSupported: false,
+        message: `Error parsing JSON file: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
   }
   
