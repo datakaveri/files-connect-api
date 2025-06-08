@@ -6,9 +6,8 @@
  * - Processing (creating processing jobs and updating status)
  * - Downloads (downloading databank as zip)
  */
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 import { Readable } from 'stream';
-import { z } from "zod";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createS3Service, S3ServiceInterface } from "../services/s3-service";
@@ -21,7 +20,7 @@ import { ApiPaths, FileTypes } from "../config/constants";
 import { 
   authenticate, 
   authorize,
-  databankAccess 
+  databankAccess,
 } from "../middleware/auth";
 import { validateBody, VALIDATED_BODY } from "../middleware/validation";
 import { asyncHandler } from "../middleware/async-handler";
@@ -29,7 +28,6 @@ import { UserRole } from "../core/types/auth";
 import { FileType } from "../core/types/file";
 import { buildResponse } from "../core/utils/route-utils";
 import {
-  ApplicationError,
   NotFoundError,
   ValidationError
 } from "../core/errors/application-errors";
@@ -42,18 +40,9 @@ import {
   completeUploadSchema,
   createProcessingJobSchema,
   updateProcessingJobStatusSchema,
-  lambdaTriggerSchema,
   deleteObjectSchema,
   abortMultipartUploadSchema
 } from "../core/validators/schemas";
-import {
-  FileListingResponse,
-  FileMetadataResponse,
-  FilePreviewResponse,
-  UploadInitiationResponse,
-  UploadCompletionResponse,
-  ProcessingJobResponse
-} from "../core/types/api-response";
 
 // Create a logger for this module
 const logger = createLogger('DatabanksRoutes');
@@ -134,6 +123,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/download`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  databankAccess,
   validateBody(getObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -276,6 +266,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/delete`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  databankAccess,
   validateBody(deleteObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -588,9 +579,9 @@ databanksRoutes.post(
   validateBody(createProcessingJobSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
-    const { type, prefix, options } = req[VALIDATED_BODY];
+    const { type, options } = req[VALIDATED_BODY];
     
-    logger.info(`Create processing job request: type=${type}, databankId=${databankId}, prefix=${prefix}`);
+    logger.info(`Create processing job request: type=${type}, databankId=${databankId}`);
     
     // Validate the databankId parameter
     if (!databankId) {
@@ -604,7 +595,7 @@ databanksRoutes.post(
         throw new ValidationError('Job type is required');
       }
       
-      const job = await processingService.createJob(type, databankId, prefix || undefined, options || undefined);
+      const job = await processingService.createJob(type, databankId, options || undefined);
       
       const response = buildResponse({
         jobId: job.jobId,
@@ -701,6 +692,7 @@ databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_DOWNLOAD}`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  databankAccess,
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     

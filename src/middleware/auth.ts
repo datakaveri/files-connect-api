@@ -7,6 +7,8 @@ import { createAuthService } from '../services/auth-service';
 import { AuthenticationError, AuthorizationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
 import { UserRole } from '../core/types/auth';
+import axios from 'axios';
+import { env } from '../config/environment';
 import { 
   checkDatabankAccess, 
   extractUserInfo
@@ -219,41 +221,102 @@ export function authorizeConsumer(req: Request, res: Response, next: NextFunctio
  * @param res - Express response
  * @param next - Next function
  */
-export function databankAccess(req: Request, res: Response, next: NextFunction) {
-  // Get databank ID from request (can be in params, query, or body)
-  const requestedDatabankId = 
-    req.params.databankId || 
-    (req.query.databankId as string) || 
-    (req.body && req.body.databankId);
-  
-  // If no databank ID is requested, skip this check
-  if (!requestedDatabankId) {
-    return next();
-  }
-  
-  // Get user's databank ID from authentication
-  const userDatabankId = res.locals.databankId;
-  
-  // Admin users (providers) can access any databank
-  if (res.locals.isProvider) {
-    return next();
-  }
-  
-  // Regular users can only access their own databank
-  if (userDatabankId !== requestedDatabankId) {
-    logger.warn('Databank access denied', {
-      userId: res.locals.userId,
-      userDatabankId,
-      requestedDatabankId
-    });
+export async function databankAccess(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Get databank ID from request (can be in params, query, or body)
+    const requestedDatabankId = 
+      req.params.databankId || 
+      (req.query.databankId as string) || 
+      (req.body && req.body.databankId);
     
-    return next(
-      new AuthorizationError('You do not have permission to access this databank')
-    );
+    // If no databank ID is requested, skip this check
+    if (!requestedDatabankId) {
+      return next();
+    }
+    
+    // Get user's databank ID from authentication
+    const userDatabankId = res.locals.databankId;
+    
+    // Admin users (providers) can access any databank
+    if (res.locals.isProvider) {
+      return next();
+    }
+    
+    // Get the authorization token from the request
+    const authHeader = req.header('Authorization');
+    if (!authHeader) {
+      logger.warn('Missing authorization header for databank access check');
+      return next(new AuthenticationError('Authorization token required'));
+    }
+    
+    // Check access using the ACL API
+    try {
+      const aclApiUrl = `${env.ACL_APD_API_URL}/access_request/has_access`;
+      
+      logger.debug('Checking databank access with ACL API', {
+        url: aclApiUrl,
+        databankId: requestedDatabankId
+      });
+      
+      const response = await axios.post(
+        aclApiUrl,
+        { itemId: requestedDatabankId },
+        { headers: { Authorization: authHeader } }
+      );
+      
+      const responseData = response.data;
+      
+      logger.debug('ACL API response', { responseData });
+      
+      // Check response type to determine access
+      if (responseData.type === 'urn:dx:acl:success') {
+        // User has access, continue to next middleware
+        logger.info('Databank access granted via ACL API', {
+          userId: res.locals.userId,
+          databankId: requestedDatabankId
+        });
+        return next();
+      } else {
+        // User does not have access
+        logger.warn('Databank access denied by ACL API', {
+          userId: res.locals.userId,
+          databankId: requestedDatabankId,
+          responseType: responseData.type,
+          responseDetail: responseData.detail
+        });
+        
+        return next(
+          new AuthorizationError(responseData.detail || 'You do not have permission to access this databank')
+        );
+      }
+    } catch (error) {
+      // Handle API call errors
+      logger.error('Error calling ACL API', error as Error, {
+        userId: res.locals.userId,
+        databankId: requestedDatabankId
+      });
+      
+      // Fallback to the original check if ACL API fails
+      if (userDatabankId !== requestedDatabankId) {
+        logger.warn('Databank access denied (fallback check)', {
+          userId: res.locals.userId,
+          userDatabankId,
+          requestedDatabankId
+        });
+        
+        return next(
+          new AuthorizationError('You do not have permission to access this databank')
+        );
+      }
+      
+      // Continue to next middleware or route handler if fallback check passes
+      next();
+    }
+  } catch (err) {
+    // Handle any unexpected errors
+    logger.error('Unexpected error in databankAccess middleware', err as Error);
+    return next(new AuthorizationError('Error checking databank access'));
   }
-  
-  // Continue to next middleware or route handler
-  next();
 }
 
 /**
