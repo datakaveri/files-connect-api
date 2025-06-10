@@ -33,6 +33,7 @@ import { readParquet } from 'parquet-wasm';
 import { S3ServiceInterface } from './s3-service';
 import { createLogger } from '../core/utils/logger';
 import { FileTypes, S3Constants } from '../config/constants';
+import { DuckDBS3 } from '../repositories/duckdb';
 import { 
   FilePreviewOptions, 
   CSVPreviewResult, 
@@ -278,7 +279,7 @@ export class FileService implements FileServiceInterface {
             result = { previewSupported: false, message: 'Preview not supported for XML files in a structured table format.' };
             break;
           case FileTypes.PARQUET as SupportedFileType:
-            const parquetResult = await this.processParquet(stream, maxLines);
+            const parquetResult = await this.processParquet(key, maxLines);
             result = { ...parquetResult, previewSupported: true };
             break;
           default:
@@ -567,13 +568,14 @@ export class FileService implements FileServiceInterface {
    * @param maxLines - Maximum number of rows to return
    * @returns Promise resolving to the Parquet preview result
    */
-  private async processParquet(stream: Readable, maxLines: number): Promise<ParquetPreviewResult> {
+  private async processParquet(key: string, maxLines: number): Promise<ParquetPreviewResult> {
     logger.debug('Processing Parquet file', { maxLines });
     
     try {
-      const buffer = await this.streamToBuffer(stream);
-      return await new Promise((resolve, reject) => {
-        this.processParquetBuffer(buffer, maxLines, resolve, reject);
+      const duckdb = new DuckDBS3();
+      await duckdb.createInstance(); 
+      return await new Promise(async (resolve, reject) => {
+        await duckdb.getParquetPreview(key, maxLines, resolve, reject);
       });
     } catch (err) {
       logger.error('Error processing Parquet file', err instanceof Error ? err : new Error(String(err)));
