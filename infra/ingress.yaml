@@ -12,7 +12,6 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Request-ID"
     nginx.ingress.kubernetes.io/cors-expose-headers: "X-Request-ID, X-Execution-Time"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-    nginx.ingress.kubernetes.io/enable-modsecurity: "false"
     nginx.ingress.kubernetes.io/server-snippet: add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self';" always;
 spec:
   rules:

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: files-connect-api-config
+  namespace: sandbox
+data:
+  PORT: "3000"
+  NODE_ENV: "production"
+  S3_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"
+  S3_REGION: "ap-south-1"
+  BUCKET_NAME: "s3-ap-south-1-tgdex-production"
+  ASSETS_BUCKET_NAME: "s3-ap-south-1-tgdex-assets"
+  MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: "1000"
+  CORS_ORIGIN: "*"
+  LOG_LEVEL: "debug"
+  KEYCLOAK_AUTH_URL: "https://idp.tgdex.telangana.gov.in/auth/realms/tgdex"
+  KEYCLOAK_REALM: "tgdex"
+  KEYCLOAK_CLIENT_ID: "angular-tgdex-client"
+  ACL_APD_API_URL: "https://acl-apd.tgdex.telangana.gov.in/dx/apd/acl/v1/"
+  ZIP_LAMBDA_URL: "https://gl6qmqp7ii5emmcdtqcxy2lihu0ddmjp.lambda-url.ap-south-1.on.aws/"
+  REPORTS_LAMBDA_URL: "https://lambda.example.com/reports"
+  LAMBDA_REGION: "ap-south-1"
