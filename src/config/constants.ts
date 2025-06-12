@@ -24,6 +24,7 @@ export const AuthConstants = {
   ROLES: {
     PROVIDER: 'provider',
     CONSUMER: 'consumer',
+    ADMIN: 'cos_admin',
   },
   
   // Token related constants

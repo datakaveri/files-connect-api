@@ -45,6 +45,9 @@ const envSchema = z.object({
   // ACL API configuration
   ACL_APD_API_URL: z.string().url(),
 
+  // Catalogue API configuration
+  CAT_API_URL: z.string().url(),
+
   //Lambda Configs
   ZIP_LAMBDA_URL: z.string().url(),
   REPORTS_LAMBDA_URL: z.string().url(),

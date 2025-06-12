@@ -9,7 +9,7 @@ import { createLogger } from '../core/utils/logger';
 import { validateBody } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
 import { successResponse } from '../core/utils/response';
-import { NotFoundError, ValidationError } from '../core/errors';
+import { AuthorizationError, NotFoundError, ValidationError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -31,9 +31,6 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
   // Apply authentication middleware to all routes
   assetsRoutes.use(authenticate);
   
-  // Allow both providers and consumers to access assets
-  assetsRoutes.use(authorize([UserRole.PROVIDER, UserRole.CONSUMER]));
-  
   // Apply file upload middleware
   assetsRoutes.use(fileUpload);
 
@@ -43,6 +40,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
    */
   assetsRoutes.post(
     '/',
+    authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN]),
     async (req, res, next) => {
       try {
         // Check if file was uploaded
@@ -78,7 +76,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
         const key = `${Date.now()}-${uuidv4()}-${originalname}`;
         
         // Use S3 service to upload the file directly
-        const fullKey = `assets/${key}`;
+        const fullKey = `assets/${res.locals.userId}/${key}`;
         
         // Upload the file directly to S3
         await s3Service.uploadAsset(fullKey, buffer, mimetype);
@@ -87,7 +85,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
         
         // Return the key to the client
         return successResponse({
-          key,
+          key: `${res.locals.userId}/${key}`,
           originalname,
           size: buffer.length,
           contentType: mimetype
@@ -105,6 +103,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
    */
   assetsRoutes.post(
     '/download',
+    authorize([UserRole.PROVIDER, UserRole.ADMIN]),
     validateBody(z.object({
       key: z.string().describe('Asset key'),
       expiresIn: z.number().optional().describe('Expiration time in seconds')
@@ -118,7 +117,13 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
         logger.debug('Getting presigned URL for asset', { key, expiresIn });
         
         // The key provided by the client doesn't include the 'assets/' prefix, so add it
-        const fullKey = `assets/${key}`;
+        const fullKey = `assets/${res.locals.userId}/${key}`;
+
+        if (!res.locals.isAdmin) {
+          if (res.locals.userId !== key.split('/')[0]) {
+            throw new AuthorizationError('You are not authorized to access this asset');
+          }
+        }
         
         // Check if the asset exists first
         try {

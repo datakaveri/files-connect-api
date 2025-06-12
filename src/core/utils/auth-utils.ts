@@ -29,6 +29,8 @@ export interface UserInfo {
   isProvider: boolean;
   /** Whether the user has the Consumer role */
   isConsumer: boolean;
+  /** Whether the user has the Admin role */
+  isAdmin: boolean;
 }
 
 /**
@@ -156,15 +158,18 @@ export function extractRoles(decodedToken: DecodedToken): {
   roles: string[];
   isProvider: boolean;
   isConsumer: boolean;
+  isAdmin: boolean;
 } {
   const roles = decodedToken.realm_access?.roles || [];
   const isProvider = roles.includes(AuthConstants.ROLES.PROVIDER);
   const isConsumer = roles.includes(AuthConstants.ROLES.CONSUMER);
+  const isAdmin = roles.includes(AuthConstants.ROLES.ADMIN);
   
   return {
     roles,
     isProvider,
-    isConsumer
+    isConsumer,
+    isAdmin
   };
 }
 
@@ -237,14 +242,15 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     const userId = decodedToken.sub ?? '';
     
     // 4. Extract roles
-    const { roles, isProvider, isConsumer } = extractRoles(decodedToken);
+    const { roles, isProvider, isConsumer, isAdmin } = extractRoles(decodedToken);
     
     return {
       userId,
       databankId,
       roles,
       isProvider,
-      isConsumer
+      isConsumer,
+      isAdmin
     };
   } catch (error) {
     // Check if error already has a status code

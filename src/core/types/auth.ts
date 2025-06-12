@@ -8,7 +8,7 @@
 export enum UserRole {
   PROVIDER = 'provider',
   CONSUMER = 'consumer',
-  ADMIN = 'admin',
+  ADMIN = 'cos_admin',
 }
 
 /**
