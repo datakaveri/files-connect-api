@@ -18,5 +18,6 @@ data:
   KEYCLOAK_CLIENT_ID: "angular-tgdex-client"
   ACL_APD_API_URL: "https://acl-apd.tgdex.telangana.gov.in/dx/apd/acl/v1/"
   ZIP_LAMBDA_URL: "https://gl6qmqp7ii5emmcdtqcxy2lihu0ddmjp.lambda-url.ap-south-1.on.aws/"
-  REPORTS_LAMBDA_URL: "https://lambda.example.com/reports"
   LAMBDA_REGION: "ap-south-1"
+  CAT_API_URL: "https://dx.tgdex.telangana.gov.in/tgdex/cat/v1"
+  REPORTS_LAMBDA_URL: "https://a6tttymcoyytfod7umoabkxsc40blzhi.lambda-url.ap-south-1.on.aws/"
