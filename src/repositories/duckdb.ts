@@ -82,7 +82,10 @@ export class DuckDBS3 {
       assert(schema_objects instanceof Array);
       const schema: Record<string, string> = {};
       for (const field of schema_objects) {
-        schema[field["name"] as string] = field.type;
+        // Ensure that field name and type are strings before assignment
+        if (field && typeof field.name === 'string' && typeof field.type === 'string') {
+          schema[field.name] = field.type;
+        }
       }
       if (schema_objects.length === 0) {
         new Error("Schema is empty");
