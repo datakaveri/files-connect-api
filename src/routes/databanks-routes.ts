@@ -20,7 +20,8 @@ import { ApiPaths, FileTypes } from "../config/constants";
 import { 
   authenticate, 
   authorize,
-  databankAccess,
+  databankAccess, // Keep for other routes that might still use it directly
+  checkPublicOrOwnerAccess // Import new middleware
 } from "../middleware/auth";
 import { validateBody, VALIDATED_BODY } from "../middleware/validation";
 import { asyncHandler } from "../middleware/async-handler";
@@ -123,7 +124,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/download`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  databankAccess,
+  checkPublicOrOwnerAccess, // Use new middleware here
   validateBody(getObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -692,7 +693,7 @@ databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_DOWNLOAD}`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  databankAccess,
+  checkPublicOrOwnerAccess, // Use new middleware here
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     
