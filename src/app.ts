@@ -3,8 +3,6 @@
  * Main application setup and middleware configuration
  */
 import express, { Express, Request, Response, NextFunction } from 'express';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
 // Import directly without type checking to avoid TypeScript errors
 // since we already have the packages installed in package.json
 const helmet = require('helmet');
