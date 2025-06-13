@@ -322,7 +322,7 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
 
     try {
       const enhancedPayload = {
-        folder_name: databankId,
+        folder_key: databankId,
       };
       const body = JSON.stringify(enhancedPayload);
 
