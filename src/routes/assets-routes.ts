@@ -117,7 +117,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
         logger.debug('Getting presigned URL for asset', { key, expiresIn });
         
         // The key provided by the client doesn't include the 'assets/' prefix, so add it
-        const fullKey = `assets/${res.locals.userId}/${key}`;
+        const fullKey = `assets/${key}`;
 
         if (!res.locals.isAdmin) {
           if (res.locals.userId !== key.split('/')[0]) {
