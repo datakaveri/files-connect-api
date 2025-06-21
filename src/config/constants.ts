@@ -54,7 +54,13 @@ export const AllowedFileTypes = {
   ASSETS: ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'tiff', 'bmp'],
   
   // For databank uploads (data files only)
-  DATABANK: ['csv', 'json', 'txt', 'parquet', 'xlsx', 'zip']
+  DATABANK: [
+    'csv', 'json', 'txt', 'parquet', 'zip', 'md', 'arrow',
+    'ckpt', 'hdf5', 'h5', 'hdf', 'h5', 'pb', 'pt', 'pth',
+    'onnx', 'mlmodel', 'pmml', 'xml', 'npy', 'tflite',
+    'engine', 'safetensors', 'gguf', 'yaml', 'yml', 'ini',
+    'toml', 'cfg', 'conf', 'aiconfig', 'ggml', 'bin'
+  ]
 } as const;
 
 /**
