@@ -315,8 +315,9 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
         );
       }
       
-      // Continue to next middleware or route handler if fallback check passes
-      next();
+      return next(
+        new AuthorizationError('You do not have permission to access this databank')
+      );
     }
   } catch (err) {
     // Handle any unexpected errors
