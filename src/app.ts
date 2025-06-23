@@ -11,7 +11,7 @@ const cors = require('cors');
 const { rateLimit } = require('express-rate-limit');
 // Note: We're using a custom async error handler middleware instead of express-async-errors
 // because express-async-errors is not compatible with Express 5
-const swaggerUi = require('swagger-ui-express');
+// const swaggerUi = require('swagger-ui-express');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
 
@@ -27,7 +27,7 @@ import router from './routes';
 import { env } from './config/environment';
 
 // Import OpenAPI document
-import { openApiDocument } from './config/openapi';
+// import { openApiDocument } from './config/openapi';
 
 // Create the Express application
 const app: Express = express();
@@ -147,7 +147,7 @@ app.get('/v1/health', (req: Request, res: Response) => {
 // No need to import again, already imported above
 
 // API Documentation
-app.use('/v1/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+// app.use('/v1/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
 // Mount API routes with versioning
 app.use('/v1', router);
