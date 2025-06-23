@@ -13,6 +13,12 @@ metadata:
     nginx.ingress.kubernetes.io/cors-expose-headers: "X-Request-ID, X-Execution-Time"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
     nginx.ingress.kubernetes.io/server-snippet: add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self';" always;
+    nginx.ingress.kubernetes.io/global-rate-limit: "5000"
+    nginx.ingress.kubernetes.io/global-rate-limit-key: $server_name
+    nginx.ingress.kubernetes.io/global-rate-limit-window: 1s
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "1"
+    nginx.ingress.kubernetes.io/limit-connections: "500"
+    nginx.ingress.kubernetes.io/limit-rps: "500"
 spec:
   rules:
   - host: files.tgdex.telangana.gov.in

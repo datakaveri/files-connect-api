@@ -6,7 +6,7 @@ metadata:
   labels:
     app: files-connect-api
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: files-connect-api
