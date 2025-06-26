@@ -407,4 +407,75 @@ export function flexibleAuthMiddleware(allowedRoles: UserRole[]) {
   return authorize(allowedRoles);
 }
 
+/**
+ * Middleware to check if the user is the owner of a databank.
+ * It queries the catalog API to get the databank's owner and compares it with the user's ID.
+ * 
+ * @param req Express request object, with `databankId` in `req.params`.
+ * @param res Express response object, with `userId` in `res.locals`.
+ * @param next Express next function.
+ */
+export async function checkIsOwner(req: Request, res: Response, next: NextFunction) {
+  const { databankId } = req.params;
+  const userId = res.locals.userId;
+
+  logger.debug(`[checkIsOwner] Checking ownership for databankId: ${databankId} by userId: ${userId}`);
+
+  if (!databankId) {
+    logger.warn('[checkIsOwner] Databank ID not found in request parameters.');
+    return next(new ValidationError('Databank ID is required in path parameters.'));
+  }
+
+  if (!userId) {
+    logger.warn('[checkIsOwner] User ID not found in request context. Authentication might be missing.');
+    return next(new AuthenticationError('User not authenticated.'));
+  }
+
+  try {
+    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    logger.info(`[checkIsOwner] Calling Catalogue API: ${catalogApiUrl}`);
+    const response = await axios.get(catalogApiUrl);
+
+    if (response.status !== 200) {
+      logger.warn(`[checkIsOwner] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Received status ${response.status} while fetching databank details.`,
+        databankId,
+      }));
+    }
+
+    const catalogData = response.data;
+    if (catalogData && catalogData.results && catalogData.results.length > 0) {
+      const ownerId = catalogData.results[0].owner;
+      logger.info(`[checkIsOwner] Databank ${databankId} owner is: ${ownerId}`);
+
+      if (ownerId === userId) {
+        logger.info(`[checkIsOwner] User ${userId} is the owner of databank ${databankId}. Granting access.`);
+        return next();
+      } else {
+        logger.warn(`[checkIsOwner] User ${userId} is not the owner of databank ${databankId}. Denying access.`);
+        return next(new AuthorizationError('You are not the owner of this databank.'));
+      }
+    } else {
+      logger.warn(`[checkIsOwner] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
+      return next(new AuthorizationError('Could not verify databank ownership due to a catalog issue.'));
+    }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      logger.error(`[checkIsOwner] Axios error calling Catalogue API for databankId: ${databankId}`, error);
+      let detail = 'Failed to connect to Catalogue API.';
+      if (error.response) {
+        detail = `Catalogue API responded with status ${error.response.status} (${error.response.statusText}).`;
+      }
+      return next(new ServiceUnavailableError('Catalogue API', { detail, databankId }));
+    }
+    logger.error(`[checkIsOwner] Unexpected error while checking ownership for databankId: ${databankId}`, error as Error);
+    return next(new ServiceUnavailableError('Catalogue API', { 
+      detail: 'An unexpected error occurred while verifying databank ownership.',
+      originalError: (error as Error).message,
+      databankId 
+    }));
+  }
+}
+
 

@@ -21,7 +21,8 @@ import {
   authenticate, 
   authorize,
   databankAccess, // Keep for other routes that might still use it directly
-  checkPublicOrOwnerAccess // Import new middleware
+  checkPublicOrOwnerAccess, // Import new middleware
+  checkIsOwner
 } from "../middleware/auth";
 import { validateBody, VALIDATED_BODY } from "../middleware/validation";
 import { asyncHandler } from "../middleware/async-handler";
@@ -267,7 +268,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/delete`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  databankAccess,
+  checkIsOwner,
   validateBody(deleteObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
