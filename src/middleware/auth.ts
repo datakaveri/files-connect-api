@@ -446,7 +446,7 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
 
     const catalogData = response.data;
     if (catalogData && catalogData.results && catalogData.results.length > 0) {
-      const ownerId = catalogData.results[0].owner;
+      const ownerId = catalogData.results[0].ownerUserId;
       logger.info(`[checkIsOwner] Databank ${databankId} owner is: ${ownerId}`);
 
       if (ownerId === userId) {

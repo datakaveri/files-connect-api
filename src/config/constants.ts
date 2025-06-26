@@ -60,7 +60,7 @@ export const AllowedFileTypes = {
     'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'nc',
     'nemo', 'npy', 'npz', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
     'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'txt', 'xml', 'yaml',
-    'yml', 'zip'
+    'yml'
   ]
 } as const;
 
