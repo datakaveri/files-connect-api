@@ -9,7 +9,7 @@ export const S3Constants = {
   MAX_KEYS: 1000,
   
   // Default expiration time for presigned URLs (in seconds)
-  DEFAULT_PRESIGNED_URL_EXPIRATION: 3600,
+  DEFAULT_PRESIGNED_URL_EXPIRATION: 300, // 5 minutes
   
   // Maximum file size for preview (in bytes)
   MAX_PREVIEW_FILE_SIZE: 10 * 1024 * 1024, // 10MB

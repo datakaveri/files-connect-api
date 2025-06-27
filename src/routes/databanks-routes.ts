@@ -148,7 +148,7 @@ databanksRoutes.post(
       
       const response = buildResponse({
         presignedUrl,
-        expiresAt: new Date(Date.now() + 3600 * 1000).toISOString() // URL expires in 1 hour
+        expiresAt: new Date(Date.now() + 300 * 1000).toISOString() // URL expires in 5 minutes
       });
       
       res.json(response);
@@ -715,14 +715,14 @@ databanksRoutes.get(
       
       // Generate a presigned URL for downloading the zip
       const presignedUrl = await getSignedUrl(s3Client, command, {
-        expiresIn: 3600 // URL expires in 1 hour
+        expiresIn: 300 // URL expires in 5 minutes
       });
       
       logger.info(`Successfully generated download URL for key: ${zipKey}`);
       
       const response = buildResponse({
         downloadUrl: presignedUrl,
-        expiresAt: new Date(Date.now() + 3600 * 1000).toISOString()
+        expiresAt: new Date(Date.now() + 300 * 1000).toISOString() // URL expires in 5 minutes
       });
       
       res.json(response);
