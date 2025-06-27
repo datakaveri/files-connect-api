@@ -290,10 +290,8 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
           responseType: responseData.type,
           responseDetail: responseData.detail
         });
-        
-        return next(
-          new AuthorizationError(responseData.detail || 'You do not have permission to access this databank')
-        );
+
+        return checkIsOwner(req, res, next);
       }
     } catch (error) {
       // Handle API call errors
@@ -310,14 +308,9 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
           requestedDatabankId
         });
         
-        return next(
-          new AuthorizationError('You do not have permission to access this databank')
-        );
+        return checkIsOwner(req, res, next);
       }
-      
-      return next(
-        new AuthorizationError('You do not have permission to access this databank')
-      );
+      return checkIsOwner(req, res, next);
     }
   } catch (err) {
     // Handle any unexpected errors
@@ -454,11 +447,11 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
         return next();
       } else {
         logger.warn(`[checkIsOwner] User ${userId} is not the owner of databank ${databankId}. Denying access.`);
-        return next(new AuthorizationError('You are not the owner of this databank.'));
+        return next(new AuthorizationError('You do not have permission to access this databank'));
       }
     } else {
       logger.warn(`[checkIsOwner] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
-      return next(new AuthorizationError('Could not verify databank ownership due to a catalog issue.'));
+      return next(new AuthorizationError('You do not have permission to access this databank'));
     }
   } catch (error) {
     if (axios.isAxiosError(error)) {

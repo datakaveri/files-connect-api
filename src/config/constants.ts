@@ -59,8 +59,8 @@ export const AllowedFileTypes = {
     'crfsuite', 'csv', 'dict', 'elki', 'emb', 'engine', 'ggml', 'gguf', 'gpickle', 'h5',
     'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'nc',
     'nemo', 'npy', 'npz', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
-    'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'txt', 'xml', 'yaml',
-    'yml'
+    'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'tsv', 'txt', 'xml', 'yaml',
+    'yml', 'xlsx', 'xls', 'pdf', 'mp3', 'jpeg', 'png', 'tiff', 'dcm', 'tif'
   ]
 } as const;
 
