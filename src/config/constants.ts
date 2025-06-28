@@ -42,6 +42,7 @@ export const FileTypes = {
   CSV: 'csv',
   JSON: 'json',
   XML: 'xml',
+  TSV: 'tsv',
   XLSX: 'xlsx',
   PARQUET: 'parquet',
   TXT: 'txt',

@@ -42,6 +42,7 @@ import {
   ParquetPreviewResult,
   SupportedFileType,
   FileType,
+  TSVPreviewResult,
 } from "../core/types/file";
 import { getFileExtension } from "../core/utils/helpers";
 import assert from "assert";
@@ -171,7 +172,7 @@ export class FileService implements FileServiceInterface {
     maxLines?: number;
     databankId: string;
   }): Promise<PreviewResult> {
-    const { key, fileType, maxLines = 100, databankId } = options;
+    const { key, fileType, maxLines = 10, databankId } = options;
 
     logger.debug("Generating file preview", {
       key,
@@ -240,6 +241,7 @@ export class FileService implements FileServiceInterface {
     | CSVPreviewResult
     | XLSXPreviewResult
     | ParquetPreviewResult
+    | TSVPreviewResult
     | Record<string, unknown>
     | string
   > {
@@ -263,8 +265,8 @@ export class FileService implements FileServiceInterface {
         // This is a rough estimate - adjust as needed based on your data characteristics
         let estimatedBytesPerLine = 500; // Default estimate
 
-        if (String(fileType) === "csv") {
-          estimatedBytesPerLine = 100; // CSV tends to be smaller per line
+        if (String(fileType) === "csv" || String(fileType) === "tsv") {
+          estimatedBytesPerLine = 100; // CSV/TSV tends to be smaller per line
         } else if (String(fileType) === "xlsx") {
           // For XLSX, we need to get the whole file since it's binary
           estimatedBytesPerLine = 0; // Will use getObject instead of getPartialObject
@@ -304,6 +306,10 @@ export class FileService implements FileServiceInterface {
           case FileTypes.CSV as SupportedFileType:
             const csvResult = await this.processCSV(stream, maxLines);
             result = { ...csvResult, previewSupported: true };
+            break;
+          case FileTypes.TSV as SupportedFileType:
+            const tsvResult = await this.processTSV(stream, maxLines);
+            result = { ...tsvResult, previewSupported: true };
             break;
           case FileTypes.XLSX as SupportedFileType:
             const xlsxResult = await this.processXLSX(stream, maxLines);
@@ -679,6 +685,47 @@ export class FileService implements FileServiceInterface {
     } catch (err) {
       logger.error(
         "Error processing Parquet file",
+        err instanceof Error ? err : new Error(String(err)),
+      );
+      throw err;
+    }
+  }
+
+  /**
+   * Processes a TSV file stream
+   * @param stream - The TSV file stream
+   * @param maxLines - Maximum number of lines to return
+   * @returns Promise resolving to the TSV preview result
+   */
+  private async processTSV(
+    stream: Readable,
+    maxLines: number,
+  ): Promise<TSVPreviewResult> {
+    logger.debug("Processing TSV file", { maxLines });
+
+    try {
+      const buffer = await this.streamToBuffer(stream);
+      const content = buffer.toString("utf-8");
+
+      // Parse TSV using papaparse with delimiter set to tab
+      const result = Papa.parse(content, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: '\t', // Tab delimiter for TSV
+      } as Papa.ParseConfig);
+
+      if (result.errors && result.errors.length > 0) {
+        logger.warn("TSV parsing warnings", { errors: result.errors });
+      }
+
+      return {
+        data: result.data.slice(0, maxLines) as Record<string, any>[],
+        headers: result.meta.fields || [],
+        totalRows: result.data.length,
+      };
+    } catch (err) {
+      logger.error(
+        "Error processing TSV file",
         err instanceof Error ? err : new Error(String(err)),
       );
       throw err;

@@ -153,6 +153,20 @@ export interface ParquetPreviewResult {
 }
 
 /**
+ * Interface for TSV preview result
+ */
+export interface TSVPreviewResult {
+  /** TSV data rows */
+  data: Record<string, any>[];
+  
+  /** TSV headers */
+  headers: string[];
+  
+  /** Total number of rows */
+  totalRows: number;
+}
+
+/**
  * Interface for multipart upload initialization
  */
 export interface MultipartUploadInit {

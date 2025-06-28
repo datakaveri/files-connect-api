@@ -75,12 +75,10 @@ export const filePreviewSchema = z.object({
     FileTypes.CSV, 
     FileTypes.JSON, 
     FileTypes.XML, 
+    FileTypes.TSV,
     FileTypes.XLSX,
     FileTypes.PARQUET
   ] as const).optional(),
-  
-  /** Maximum number of lines to return */
-  maxLines: z.number().int().positive().optional(),
 });
 
 /**

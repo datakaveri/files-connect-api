@@ -323,13 +323,12 @@ databanksRoutes.post(
   validateBody(filePreviewSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
-    const { key, maxLines, fileType } = req[VALIDATED_BODY];
+    const { key, fileType } = req[VALIDATED_BODY];
     
     // For backward compatibility with existing code
-    const lines = maxLines;
     const format = fileType;
     
-    logger.info(`File preview request: key=${key}, databankId=${databankId}, lines=${lines}, format=${format}`);
+    logger.info(`File preview request: key=${key}, databankId=${databankId}, format=${format}`);
     
     // Validate the databankId parameter
     if (!databankId) {
@@ -353,7 +352,7 @@ databanksRoutes.post(
         key: key!,
         databankId: databankId!,
         fileType: fileType as FileType,
-        maxLines: lines || 100
+        maxLines: 10
       });
       
       const response = buildResponse({
