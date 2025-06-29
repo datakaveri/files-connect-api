@@ -432,7 +432,13 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
   try {
     const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
     logger.info(`[checkIsOwner] Calling Catalogue API: ${catalogApiUrl}`);
-    const response = await axios.get(catalogApiUrl);
+    
+    // Forward the authorization token from the original request
+    const authHeader = req.headers.authorization;
+    const headers = authHeader ? { Authorization: authHeader } : {};
+    logger.debug(`[checkIsOwner] Forwarding authorization token to Catalogue API`);
+    
+    const response = await axios.get(catalogApiUrl, { headers });
 
     if (response.status !== 200) {
       logger.warn(`[checkIsOwner] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
