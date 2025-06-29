@@ -334,22 +334,28 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
  * @param res Express response object.
  * @param next Express next function.
  */
-export async function checkPublicOrOwnerAccess(req: Request, res: Response, next: NextFunction) {
+export async function checkItemAccess(req: Request, res: Response, next: NextFunction) {
   const { databankId } = req.params;
-  logger.debug(`[checkPublicOrOwnerAccess] Checking access for databankId: ${databankId}`);
+  logger.debug(`[checkItemAccess] Checking access for databankId: ${databankId}`);
 
   if (!databankId) {
-    logger.warn('[checkPublicOrOwnerAccess] Databank ID not found in request parameters.');
+    logger.warn('[checkItemAccess] Databank ID not found in request parameters.');
     return next(new ValidationError('Databank ID is required in path parameters.'));
   }
 
   try {
     const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
-    logger.info(`[checkPublicOrOwnerAccess] Calling Catalogue API: ${catalogApiUrl}`);
-    const response = await axios.get(catalogApiUrl);
+    logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
+    
+    // Forward the authorization token from the original request
+    const authHeader = req.headers.authorization;
+    const headers = authHeader ? { Authorization: authHeader } : {};
+    logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
+    
+    const response = await axios.get(catalogApiUrl, { headers });
 
     if (response.status !== 200) {
-      logger.warn(`[checkPublicOrOwnerAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
+      logger.warn(`[checkItemAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
       return next(new ServiceUnavailableError('Catalogue API', {
         detail: `Received status ${response.status} while fetching databank details.`,
         databankId,
@@ -359,35 +365,34 @@ export async function checkPublicOrOwnerAccess(req: Request, res: Response, next
     const catalogData = response.data;
     if (catalogData && catalogData.results && catalogData.results.length > 0) {
       const accessPolicy = catalogData.results[0].accessPolicy;
-      logger.info(`[checkPublicOrOwnerAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
+      logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
       if (accessPolicy === 'OPEN') {
-        logger.info(`[checkPublicOrOwnerAccess] Databank ${databankId} is public. Granting access.`);
+        logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
+        return next();
+      } else if (accessPolicy === 'PRIVATE') {
         return next();
       } else {
-        logger.info(`[checkPublicOrOwnerAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
+        logger.info(`[checkItemAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
         // Not public, delegate to existing databankAccess middleware
-        return databankAccess(req, res, next);
+        return next();
       }
     } else {
-      logger.warn(`[checkPublicOrOwnerAccess] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
-      // Treat as non-public and proceed to owner check, or could be an error depending on desired behavior for malformed catalog entries
-      // For now, let's assume if we don't get a clear 'OPEN', we must verify ownership.
-      // Alternatively, if a missing/malformed entry means it *cannot* be public, this is correct.
-      // If it means the catalog is down/erroring for this item, ServiceUnavailableError might be better before databankAccess.
-      // Given the current databankAccess also has fallbacks, this seems reasonable.
-      logger.info(`[checkPublicOrOwnerAccess] Assuming non-public due to catalog response structure for ${databankId}. Proceeding to owner/ACL check.`);
-      return databankAccess(req, res, next);
+      logger.warn(`[checkItemAccess] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Received status ${response.status} while fetching databank details.`,
+        databankId,
+      }));
     }
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      logger.error(`[checkPublicOrOwnerAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
+      logger.error(`[checkItemAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
       let detail = 'Failed to connect to Catalogue API.';
       if (error.response) {
         detail = `Catalogue API responded with status ${error.response.status} (${error.response.statusText}).`;
       }
       return next(new ServiceUnavailableError('Catalogue API', { detail, databankId }));
     }
-    logger.error(`[checkPublicOrOwnerAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
+    logger.error(`[checkItemAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
     return next(new ServiceUnavailableError('Catalogue API', { 
       detail: 'An unexpected error occurred while verifying databank public access.',
       originalError: (error as Error).message,
