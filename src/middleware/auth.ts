@@ -401,6 +401,73 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
   }
 }
 
+export async function checkItemAccessWithDatabankAccess(req: Request, res: Response, next: NextFunction) {
+  const { databankId } = req.params;
+  logger.debug(`[checkItemAccess] Checking access for databankId: ${databankId}`);
+
+  if (!databankId) {
+    logger.warn('[checkItemAccess] Databank ID not found in request parameters.');
+    return next(new ValidationError('Databank ID is required in path parameters.'));
+  }
+
+  try {
+    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
+    
+    // Forward the authorization token from the original request
+    const authHeader = req.headers.authorization;
+    const headers = authHeader ? { Authorization: authHeader } : {};
+    logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
+    
+    const response = await axios.get(catalogApiUrl, { headers });
+
+    if (response.status !== 200) {
+      logger.warn(`[checkItemAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Received status ${response.status} while fetching databank details.`,
+        databankId,
+      }));
+    }
+
+    const catalogData = response.data;
+    if (catalogData && catalogData.results && catalogData.results.length > 0) {
+      const accessPolicy = catalogData.results[0].accessPolicy;
+      logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
+      if (accessPolicy === 'OPEN') {
+        logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
+        return next();
+      } else if (accessPolicy === 'PRIVATE') {
+        return next();
+      } else {
+        logger.info(`[checkItemAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
+        // Not public, delegate to existing databankAccess middleware
+        return databankAccess(req, res, next);
+      }
+    } else {
+      logger.warn(`[checkItemAccess] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Received status ${response.status} while fetching databank details.`,
+        databankId,
+      }));
+    }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      logger.error(`[checkItemAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
+      let detail = 'Failed to connect to Catalogue API.';
+      if (error.response) {
+        detail = `Catalogue API responded with status ${error.response.status} (${error.response.statusText}).`;
+      }
+      return next(new ServiceUnavailableError('Catalogue API', { detail, databankId }));
+    }
+    logger.error(`[checkItemAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
+    return next(new ServiceUnavailableError('Catalogue API', { 
+      detail: 'An unexpected error occurred while verifying databank public access.',
+      originalError: (error as Error).message,
+      databankId 
+    }));
+  }
+}
+
 export function flexibleAuthMiddleware(allowedRoles: UserRole[]) {
   return authorize(allowedRoles);
 }

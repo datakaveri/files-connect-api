@@ -21,6 +21,7 @@ import {
   authenticate, 
   authorize,
   databankAccess,
+  checkItemAccessWithDatabankAccess,
   checkItemAccess, // Import new middleware
   checkIsOwner
 } from "../middleware/auth";
@@ -126,8 +127,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/download`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  checkItemAccess, // Use new middleware 
-  databankAccess,
+  checkItemAccessWithDatabankAccess, // Use new middleware 
   validateBody(getObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -696,8 +696,7 @@ databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_DOWNLOAD}`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  checkItemAccess, // Use new middleware here
-  databankAccess,
+  checkItemAccessWithDatabankAccess, // Use new middleware here
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     
