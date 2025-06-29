@@ -5,6 +5,7 @@ metadata:
   namespace: sandbox
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "5m"
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:8080,http://localhost:5173,http://localhost:5174,http://localhost:4200,http://localhost:4007,https://catalogue.tgdex.iudx.io,https://staging.catalogue.tgdex.iudx.io,https://tgdex.telangana.gov.in"
