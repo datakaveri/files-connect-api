@@ -12,15 +12,6 @@ const logger = createLogger('FileValidation');
 // Define allowed file extensions for databank uploads
 export const ALLOWED_DATABANK_FILE_EXTENSIONS = AllowedFileTypes.DATABANK.map(ext => `.${ext}`);
 
-// Define known executable extensions that should be blocked
-export const BLOCKED_EXECUTABLE_EXTENSIONS = [
-  '.exe', '.dll', '.bat', '.cmd', '.sh', '.com',
-  '.js', '.py', '.php', '.pl', '.rb', '.ps1', '.msi',
-  '.jar', '.war', '.ear', '.class', '.vbs', '.wsf',
-  '.app', '.dmg', '.deb', '.rpm', '.apk', '.xlsx', '.xls',
-  '.pdf', '.doc', '.docx', '.ppt', '.pptx'
-];
-
 /**
  * Validates if a file is allowed for databank upload based on its key/filename
  * @param key - The file key or filename
@@ -32,15 +23,6 @@ export function validateDatabankFileType(key: string): { isValid: boolean; reaso
   }
 
   const extension = path.extname(key).toLowerCase();
-  
-  // Check if the file extension is in the blocked list
-  if (BLOCKED_EXECUTABLE_EXTENSIONS.includes(extension)) {
-    logger.warn(`Blocked executable file upload attempt: ${key}`);
-    return { 
-      isValid: false, 
-      reason: `File type not allowed: ${extension}. Executable files are not permitted.` 
-    };
-  }
 
   // Check if the file extension is in the allowed list
   if (!ALLOWED_DATABANK_FILE_EXTENSIONS.includes(extension)) {

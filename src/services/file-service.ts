@@ -263,7 +263,7 @@ export class FileService implements FileServiceInterface {
       try {
         // Estimate bytes needed based on file type and max lines
         // This is a rough estimate - adjust as needed based on your data characteristics
-        let estimatedBytesPerLine = 500; // Default estimate
+        let estimatedBytesPerLine = 3000; // Default estimate
 
         if (String(fileType) === "csv" || String(fileType) === "tsv") {
           estimatedBytesPerLine = 100; // CSV/TSV tends to be smaller per line
