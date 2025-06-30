@@ -47,6 +47,8 @@ spec:
             name: files-connect-api-config
         - secretRef:
             name: files-connect-api-secrets
+        - secretRef:
+            name: rabbitmq-secrets
 ---
 apiVersion: v1
 kind: Service
