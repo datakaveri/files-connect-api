@@ -48,6 +48,15 @@ const envSchema = z.object({
   // Catalogue API configuration
   CAT_API_URL: z.string().url(),
 
+  // RabbitMQ configuration
+  RABBITMQ_HOST: z.string(),
+  RABBITMQ_PORT: z.string().transform(val => parseInt(val, 10)),
+  RABBITMQ_VHOST: z.string(),
+  RABBITMQ_USERNAME: z.string(),
+  RABBITMQ_PASSWORD: z.string(),
+  RABBITMQ_EXCHANGE: z.string(),
+  RABBITMQ_ROUTING_KEY: z.string(),
+
   //Lambda Configs
   ZIP_LAMBDA_URL: z.string().url(),
   REPORTS_LAMBDA_URL: z.string().url(),

@@ -19,12 +19,17 @@ const pinoHttp = require('pino-http');
 import { errorHandler } from './middleware/error-handler';
 import { requestContext, responseLogger } from './middleware/logger';
 import { performanceMonitor } from './middleware/performance';
+import { createAuditMiddleware } from './middleware/audit-middleware';
 
 // Import routes
 import router from './routes';
 
 // Import config
 import { env } from './config/environment';
+
+// Import services
+import { createRabbitMQService } from './services/rabbitmq-service';
+import { createAuditService } from './services/audit-service';
 
 // Import OpenAPI document
 // import { openApiDocument } from './config/openapi';
@@ -133,6 +138,18 @@ app.use(requestContext);
 app.use(httpLogger);
 app.use(responseLogger);
 app.use(performanceMonitor);
+
+// Initialize audit services (only if not in test mode to avoid connection issues)
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    const rabbitmqService = createRabbitMQService();
+    const auditService = createAuditService(rabbitmqService);
+    app.use(createAuditMiddleware(auditService));
+    logger.info('Audit middleware initialized successfully');
+  } catch (error) {
+    logger.warn('Failed to initialize audit middleware', error);
+  }
+}
 
 // Simple health check endpoint
 app.get('/v1/health', (req: Request, res: Response) => {

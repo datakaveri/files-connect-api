@@ -31,6 +31,10 @@ export interface UserInfo {
   isConsumer: boolean;
   /** Whether the user has the Admin role */
   isAdmin: boolean;
+  /** Organization ID from the token */
+  orgId?: string;
+  /** Organization name from the token */
+  orgName?: string;
 }
 
 /**
@@ -250,7 +254,9 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
       roles,
       isProvider,
       isConsumer,
-      isAdmin
+      isAdmin,
+      orgId: decodedToken.organisation_id,
+      orgName: decodedToken.organisation_name
     };
   } catch (error) {
     // Check if error already has a status code

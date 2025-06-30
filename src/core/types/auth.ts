@@ -60,6 +60,12 @@ export interface DecodedToken {
     roles: string[];
   }>;
   
+  /** Organization ID from token */
+  organisation_id?: string;
+  
+  /** Organization name from token */
+  organisation_name?: string;
+  
   /** Additional claims */
   [key: string]: any;
 }
