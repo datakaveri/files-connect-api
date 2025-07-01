@@ -94,7 +94,7 @@ export class RabbitMQService implements RabbitMQServiceInterface {
       this.channel = await this.connection.createChannel();
 
       // Ensure the exchange exists (using 'direct' type to match existing exchange)
-      await this.channel.assertExchange(env.RABBITMQ_EXCHANGE, "direct", { durable: true });
+      // await this.channel.assertExchange(env.RABBITMQ_EXCHANGE, "direct", { durable: true });
 
       this.isConnected = true;
       logger.info("Connected to RabbitMQ successfully");
