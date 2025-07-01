@@ -93,19 +93,7 @@ pnpm openapi
 
 ## Deployment
 
-### Docker Deployment
-
-1. Build the Docker image:
-
-```bash
-docker build -t files-connect-api .
-```
-
-2. Run the Docker container:
-
-```bash
-docker run -p 3000:3000 --env-file .env files-connect-api
-```
+For deployment instructions, please refer to the [Infrastructure Guide](./infra/README.md).
 
 ## API Documentation
 
