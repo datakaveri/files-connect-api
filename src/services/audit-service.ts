@@ -20,7 +20,7 @@ export interface AuditMessage {
   created_at: string;
   user_id: string;
   role: string;
-  operation: "Upload" | "Download" | "Delete" | "View";
+  operation: "Upload" | "Download" | "File Delete" | "View";
   short_description: string;
   myactivity_enabled: boolean;
   id: string;
@@ -35,7 +35,7 @@ export interface AuditContext {
   method: string;
   userId: string;
   role: string;
-  operation: "Upload" | "Download" | "Delete" | "View";
+  operation: "Upload" | "Download" | "File Delete" | "View";
   authToken?: string;
   orgId?: string;
   orgName?: string;

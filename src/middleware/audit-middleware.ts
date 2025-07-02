@@ -19,7 +19,7 @@ const AUDITED_ENDPOINTS = {
   // Download ZIP - matches /:databankId/download on databanks router
   'GET_/:databankId/download': 'Download',
   // Delete files - matches /:databankId/files/delete on databanks router
-  'POST_/:databankId/files/delete': 'Delete'
+  'POST_/:databankId/files/delete': 'File Delete'
 } as const;
 
 type AuditOperation = typeof AUDITED_ENDPOINTS[keyof typeof AUDITED_ENDPOINTS];
