@@ -47,7 +47,7 @@
     "joi": "^17.12.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "multer": "^2.0.1",
+    "multer": "^2.0.2",
     "papaparse": "^5.4.1",
     "parquet-wasm": "^0.6.1",
     "pino": "^9.6.1",
