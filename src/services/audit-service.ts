@@ -45,7 +45,7 @@ export interface CatalogueApiResponse {
   type: string;
   title: string;
   totalHits: number;
-  results: Array<{
+  result: Array<{
     id: string;
     label: string;
     shortDescription: string;
@@ -197,8 +197,8 @@ export class AuditService implements AuditServiceInterface {
         headers,
       });
 
-      if (response.data.results && response.data.results.length > 0) {
-        const result = response.data.results[0];
+      if (response.data.result && response.data.result.length > 0) {
+        const result = response.data.result[0];
         if (result) {
           let assetType: string | undefined;
           if (Array.isArray(result.type)) {

@@ -53,7 +53,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     };
     
     // Log successful authentication
-    logger.info(`Authentication successful: userId=${userInfo.userId}, databankId=${userInfo.databankId}, roles=${userInfo.roles.join(',')}, isProvider=${userInfo.isProvider}, isConsumer=${userInfo.isConsumer}`);
+    logger.info(`Authentication successful: userId=${userInfo.userId}, databankId=${userInfo.databankId}, roles=${userInfo.roles.join(',')}, isProvider=${userInfo.isProvider}, isConsumer=${userInfo.isConsumer}, isAdmin=${userInfo.isAdmin}`);
     
     // Continue to next middleware or route handler
     next();
@@ -180,7 +180,7 @@ export function authorize(allowedRoles: UserRole[]) {
       res.locals.roleForAccess = roleForAccess;
       
       // Log successful authorization
-      logger.info(`Authorization successful: userId=${userId}, role=${roleForAccess}`);
+      logger.info(`Authorization successful: userId=${userId}, role=${roleForAccess}, isAdmin=${isAdmin}`);
       
       // Continue to next middleware or route handler
       next();
@@ -367,8 +367,8 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
     }
 
     const catalogData = response.data;
-    if (catalogData && catalogData.results && catalogData.results.length > 0) {
-      const accessPolicy = catalogData.results[0].accessPolicy;
+    if (catalogData && catalogData.result && catalogData.result.length > 0) {
+      const accessPolicy = catalogData.result[0].accessPolicy;
       logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
       if (accessPolicy === 'OPEN') {
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
@@ -434,8 +434,8 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
     }
 
     const catalogData = response.data;
-    if (catalogData && catalogData.results && catalogData.results.length > 0) {
-      const accessPolicy = catalogData.results[0].accessPolicy;
+    if (catalogData && catalogData.result && catalogData.result.length > 0) {
+      const accessPolicy = catalogData.result[0].accessPolicy;
       logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
       if (accessPolicy === 'OPEN') {
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
@@ -520,8 +520,8 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
     }
 
     const catalogData = response.data;
-    if (catalogData && catalogData.results && catalogData.results.length > 0) {
-      const ownerId = catalogData.results[0].ownerUserId;
+    if (catalogData && catalogData.result && catalogData.result.length > 0) {
+      const ownerId = catalogData.result[0].ownerUserId;
       logger.info(`[checkIsOwner] Databank ${databankId} owner is: ${ownerId}`);
 
       if (ownerId === userId) {
