@@ -45,6 +45,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     res.locals.userRoles = userInfo.roles;
     res.locals.isProvider = userInfo.isProvider;
     res.locals.isConsumer = userInfo.isConsumer;
+    res.locals.isAdmin = userInfo.isAdmin;
     res.locals.orgId = userInfo.orgId;
     res.locals.orgName = userInfo.orgName;
     res.locals.user = {
