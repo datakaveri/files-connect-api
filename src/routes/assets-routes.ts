@@ -56,6 +56,7 @@ export function initAssetRoutes(s3Service: S3ServiceInterface) {
           'application/pdf',
           // Images
           'image/jpeg',
+          'image/jpg',
           'image/png',
           'image/gif',
           'image/webp',

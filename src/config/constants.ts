@@ -61,7 +61,7 @@ export const AllowedFileTypes = {
     'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'nc',
     'nemo', 'npy', 'npz', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
     'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'tsv', 'txt', 'xml', 'yaml',
-    'yml', 'xlsx', 'xls', 'pdf', 'mp3', 'jpeg', 'png', 'tiff', 'dcm', 'tif'
+    'yml', 'xlsx', 'xls', 'pdf', 'mp3', 'jpeg', 'png', 'tiff', 'dcm', 'tif', 'jpg'
   ]
 } as const;
 
