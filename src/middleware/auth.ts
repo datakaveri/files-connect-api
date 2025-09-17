@@ -280,7 +280,7 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       logger.debug('ACL API response', { responseData });
       
       // Check response type to determine access
-      if (responseData.type === 'urn:dx:acl:success') {
+      if (responseData.type === 'urn:dx:apdServerPanel:success') {
         // User has access, continue to next middleware
         logger.info('Databank access granted via ACL API', {
           userId: res.locals.userId,
