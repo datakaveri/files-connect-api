@@ -2,12 +2,13 @@
  * Multipart Upload Service
  * Handles business logic for multipart upload operations
  */
-import { 
-  CreateMultipartUploadCommand, 
-  UploadPartCommand 
+import {
+  CreateMultipartUploadCommand,
+  UploadPartCommand
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { S3ServiceInterface } from "./s3-service";
+import { StorageServiceInterface } from "./storage-service";
+import { StorageRepositoryInterface } from "../core/types/storage";
 import { createLogger } from "../core/utils/logger";
 import { ValidationError, S3Error } from "../core/errors";
 import { env } from "../config/environment";
@@ -92,9 +93,13 @@ export class MultipartUploadService implements MultipartUploadServiceInterface {
   
   /**
    * Creates a new MultipartUploadService
-   * @param s3Service - S3 service for interacting with S3
+   * @param storageService - Storage service for interacting with storage provider
+   * @param storageRepository - Storage repository for direct storage operations
    */
-  constructor(private readonly s3Service: S3ServiceInterface) {
+  constructor(
+    private readonly storageService: StorageServiceInterface,
+    private readonly storageRepository: StorageRepositoryInterface
+  ) {
     logger.info('MultipartUploadService initialized');
   }
   
@@ -184,7 +189,7 @@ export class MultipartUploadService implements MultipartUploadServiceInterface {
       logger.info('Creating multipart upload in S3');
       
       // Get S3 client from the service
-      const s3Client = this.s3Service.getS3Client();
+      const s3Client = this.storageRepository.getClient();
       const multipartUpload = await s3Client.send(command);
       
       logger.info(`Multipart upload created: uploadId=${multipartUpload.UploadId}, bucket=${env.BUCKET_NAME}, key=${multipartUpload.Key}`);
@@ -283,6 +288,6 @@ export class MultipartUploadService implements MultipartUploadServiceInterface {
  * @param s3Service - S3 service instance
  * @returns MultipartUploadService instance
  */
-export function createMultipartUploadService(s3Service: S3ServiceInterface): MultipartUploadService {
-  return new MultipartUploadService(s3Service);
+export function createMultipartUploadService(storageService: StorageServiceInterface, storageRepository: StorageRepositoryInterface): MultipartUploadService {
+  return new MultipartUploadService(storageService, storageRepository);
 }

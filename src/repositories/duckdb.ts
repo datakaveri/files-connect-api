@@ -3,11 +3,11 @@ import { env } from "../config/environment";
 import assert from "assert";
 import { ParquetPreviewResult } from "../core/types/file";
 
-const S3_CONFIG = {
-  s3_region: env.S3_REGION,
-  s3_access_key_id: env.S3_ACCESS_KEY,
-  s3_secret_access_key: env.S3_SECRET_KEY,
-};
+const S3_CONFIG: Record<string, string | boolean> = {};
+
+if (env.S3_REGION) S3_CONFIG.s3_region = env.S3_REGION;
+if (env.S3_ACCESS_KEY) S3_CONFIG.s3_access_key_id = env.S3_ACCESS_KEY;
+if (env.S3_SECRET_KEY) S3_CONFIG.s3_secret_access_key = env.S3_SECRET_KEY;
 
 export class DuckDBS3 {
   private s3_config: Record<string, string | boolean>;

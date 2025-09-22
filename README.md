@@ -19,9 +19,37 @@ A TypeScript-based API service for secure file operations with databank support.
 - Node.js (v18 or later)
 - TypeScript (v5.0 or later)
 - pnpm (package manager)
-- AWS Account with S3 access
+- Storage backend: AWS S3 or MinIO
 - Keycloak server for authentication (optional, can be disabled in development)
 - Docker (optional, for containerized deployment)
+
+## Storage Providers
+
+This API supports multiple storage backends through a unified interface:
+
+### AWS S3 (Production)
+- Set `STORAGE_PROVIDER=s3` in environment variables
+- Requires AWS credentials and S3 bucket access
+
+### MinIO (Development/Local)
+- Set `STORAGE_PROVIDER=minio` in environment variables
+- Lightweight S3-compatible object storage
+- Perfect for local development and testing
+
+### Docker Development Setup
+
+For local development with MinIO, use the provided Docker Compose setup:
+
+1. Start the services:
+```bash
+docker-compose up -d
+```
+
+2. Access MinIO Console at: http://localhost:9001
+   - Username: `minioadmin`
+   - Password: `minioadmin`
+
+3. The API will automatically connect to MinIO with the provided configuration.
 
 ## Installation
 
@@ -38,25 +66,64 @@ cd files-connect-api
 pnpm install
 ```
 
-3. Configure environment variables in `.env` file:
+3. Configure environment variables in `.env` file (see `.env.example` for all options):
 
+### Basic Configuration
 ```
 PORT=3000
 NODE_ENV=development
-S3_ENDPOINT=https://s3.amazonaws.com
-S3_REGION=us-east-1
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-BUCKET_NAME=your-bucket-name
-MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=1000
-CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
 LOG_LEVEL=debug
+CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
+```
 
-# Keycloak Configuration
-KEYCLOAK_URL=https://your-keycloak-url/auth/realms/your-realm
+### Storage Configuration
+```
+# Choose storage provider: 's3' or 'minio'
+STORAGE_PROVIDER=minio
+
+# MinIO (for local development)
+STORAGE_ENDPOINT=http://localhost:9000
+STORAGE_ACCESS_KEY=minioadmin
+STORAGE_SECRET_KEY=minioadmin
+STORAGE_FORCE_PATH_STYLE=true
+STORAGE_USE_SSL=false
+
+# AWS S3 (for production)
+# STORAGE_PROVIDER=s3
+# STORAGE_ENDPOINT=https://s3.amazonaws.com
+# STORAGE_REGION=us-east-1
+# STORAGE_ACCESS_KEY=your-aws-access-key
+# STORAGE_SECRET_KEY=your-aws-secret-key
+
+# Bucket configuration
+BUCKET_NAME=your-bucket-name
+ASSETS_BUCKET_NAME=your-assets-bucket
+MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=5
+```
+
+### Authentication Configuration
+```
+KEYCLOAK_AUTH_URL=https://your-keycloak-url
 KEYCLOAK_REALM=your-realm
 KEYCLOAK_CLIENT_ID=your-client-id
 KEYCLOAK_PUBLIC_KEY="your-public-key"
+```
+
+### Other Services
+```
+# ACL and Catalogue APIs
+ACL_APD_API_URL=http://localhost:8081
+CAT_API_URL=http://localhost:8082
+
+# RabbitMQ (for async processing)
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=guest
+RABBITMQ_PASSWORD=guest
+
+# Lambda functions (optional)
+ZIP_LAMBDA_URL=http://localhost:8083
+REPORTS_LAMBDA_URL=http://localhost:8084
 ```
 
 ## Development
