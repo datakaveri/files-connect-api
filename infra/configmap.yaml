@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: files-connect-api-config
+  name: files-connect-config
   namespace: sandbox
 data:
   PORT: "3000"
@@ -21,3 +21,11 @@ data:
   LAMBDA_REGION: "ap-south-1"
   CAT_API_URL: "https://dx.tgdex.telangana.gov.in/tgdex/cat/v1"
   REPORTS_LAMBDA_URL: "https://a6tttymcoyytfod7umoabkxsc40blzhi.lambda-url.ap-south-1.on.aws/"
+  # Redis configuration for job queue
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  # Storage provider configuration
+  STORAGE_PROVIDER: "s3"
+  STORAGE_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"
+  STORAGE_REGION: "ap-south-1"
+  STORAGE_USE_SSL: "true"

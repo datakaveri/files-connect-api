@@ -10,7 +10,8 @@ A TypeScript-based API service for secure file operations with databank support.
 - **Security**: Role-based access control (RBAC) with Keycloak integration
 - **File Operations**: List, download, and manage files with metadata
 - **File Previews**: Generate previews for supported file types (CSV, JSON, XLSX, Parquet)
-- **Asynchronous Processing**: Background job processing for ZIP creation and reports
+- **Asynchronous Processing**: Redis-based job queue with Python workers for ZIP creation and reports
+- **Cloud Agnostic**: Works with both AWS S3 and MinIO for on-premise deployments
 - **RESTful API**: Standardized API following REST best practices
 - **OpenAPI Documentation**: Auto-generated API documentation with Swagger UI
 
@@ -20,6 +21,8 @@ A TypeScript-based API service for secure file operations with databank support.
 - TypeScript (v5.0 or later)
 - pnpm (package manager)
 - Storage backend: AWS S3 or MinIO
+- Redis (v7 or later) for job queue
+- Python 3.11+ (for workers)
 - Keycloak server for authentication (optional, can be disabled in development)
 - Docker (optional, for containerized deployment)
 
@@ -38,14 +41,21 @@ This API supports multiple storage backends through a unified interface:
 
 ### Docker Development Setup
 
-For local development with MinIO, use the provided Docker Compose setup:
+For local development with MinIO, Redis, and workers, use the provided Docker Compose setup:
 
-1. Start the services:
+1. Start all services:
 ```bash
 docker-compose up -d
 ```
 
-2. Access MinIO Console at: http://localhost:9001
+This starts:
+- **MinIO** - S3-compatible object storage (ports 9000, 9001)
+- **Redis** - Job queue server (port 6379)
+- **Zip Worker** - Python worker for processing zip jobs
+
+2. Access services:
+- MinIO Console: http://localhost:9001
+- Redis: localhost:6379
    - Username: `minioadmin`
    - Password: `minioadmin`
 
@@ -213,6 +223,31 @@ The application follows a clean architecture with clear separation of concerns:
 - **Databank Service**: Manages databank operations and access control
 - **File Validation Service**: Validates file types and content
 - **Multipart Upload Service**: Handles large file uploads with S3
+- **Job Queue System**: Redis-based async job processing with Python workers
+
+## Async Job Processing
+
+The system uses a Redis-based job queue for long-running operations:
+
+### Architecture
+```
+API (TypeScript) → Redis Queue → Worker (Python) → S3/MinIO
+                        ↓
+                   Job Status
+```
+
+### Supported Jobs
+1. **Zip Creation**: Streams files from databank folders and creates compressed archives
+2. **Report Generation**: Creates data readiness reports (planned)
+
+### Features
+- **Memory Efficient**: Streams large files without loading into memory
+- **Scalable**: Horizontally scale workers based on load
+- **Resilient**: Automatic retry on failures, graceful shutdown
+- **Cloud Agnostic**: Works with both S3 and MinIO
+- **Progress Tracking**: Real-time job status updates via Redis
+
+For detailed documentation on workers, see [workers/README.md](workers/README.md)
 - **Preview Service**: Generates previews for supported file types
 - **Job Service**: Manages background processing jobs
 - **Auth Service**: Handles authentication and authorization

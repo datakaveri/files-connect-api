@@ -19,6 +19,53 @@ services:
       timeout: 20s
       retries: 3
 
+  # Redis for job queue
+  redis:
+    image: redis:7-alpine
+    container_name: files-connect-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Zip Worker for processing databank zip jobs
+  zip-worker:
+    build:
+      context: ./workers/zip-worker
+      dockerfile: Dockerfile
+    container_name: files-connect-zip-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # Storage configuration (MinIO for local development)
+      STORAGE_PROVIDER: minio
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET_NAME: files-connect-bucket
+      USE_SSL: "false"
+      
+      # CAT API configuration (optional - update with your values)
+      # CAT_URL: http://your-cat-api-url
+      # CAT_USERNAME: your-username
+      # CAT_PASSWORD: your-password
+    restart: unless-stopped
+    # For development, can run multiple workers by scaling:
+    # docker-compose up -d --scale zip-worker=3
+
   # Files Connect API
   # api:
   #   build:
@@ -103,4 +150,5 @@ services:
 
 volumes:
   minio_data:
+  redis_data:
   # rabbitmq_data:

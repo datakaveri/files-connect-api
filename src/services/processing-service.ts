@@ -1,7 +1,7 @@
 /**
  * Processing Service
  * Handles creation and management of processing jobs for databanks
- * and interactions with Lambda functions for processing
+ * Uses Redis job queue for async processing by worker containers
  */
 import { v4 as uuidv4 } from "uuid";
 import { createLogger } from "../core/utils/logger";
@@ -9,17 +9,11 @@ import {
   NotFoundError,
   ValidationError,
 } from "../core/errors/application-errors";
-import { env } from "../config/environment";
-import axios, { AxiosRequestConfig, Method, AxiosRequestHeaders } from "axios";
-import { SignatureV4 } from "@aws-sdk/signature-v4";
-import { Sha256 } from "@aws-crypto/sha256-js";
-import { HttpRequest } from "@aws-sdk/types";
-
-// Interface for the status of a Lambda invocation attempt
-interface LambdaInvocationStatus {
-  success: boolean; // True if the request was successfully initiated
-  message: string;  // Message about the initiation
-}
+import {
+  pushJob,
+  getJobStatus,
+  updateJobStatus as updateJobStatusInQueue,
+} from "../core/utils/job-queue";
 
 // Create a logger for this module
 const logger = createLogger("ProcessingService");
@@ -54,20 +48,13 @@ export interface ProcessingJob {
 }
 
 /**
- * Interface for Lambda function result
+ * Interface for job trigger result
  */
-export interface LambdaFunctionResult {
-  /** Whether the operation was successful */
+export interface JobTriggerResult {
+  /** Whether the job was successfully queued */
   success: boolean;
   /** Response message */
   message: string;
-  /** Optional data returned by the function */
-  data?: Record<string, unknown>;
-  /** Optional error information */
-  error?: {
-    code: string;
-    details?: unknown;
-  };
 }
 
 // Define the processing service interface
@@ -114,47 +101,30 @@ export interface ProcessingServiceInterface {
   getJob(jobId: string, databankId: string): Promise<ProcessingJob>;
 
   /**
-   * Triggers a Lambda function for processing
+   * Triggers a job in the queue for processing
    * @param functionName - The name of the function to trigger
-   * @param payload - The payload to send to the function
    * @param databankId - The databank ID for authorization
-   * @returns Promise resolving to the function response
+   * @returns Promise resolving to the trigger result
    */
   triggerFunction(
     functionName: string,
     databankId: string
-  ): Promise<LambdaFunctionResult>;
+  ): Promise<JobTriggerResult>;
 }
 
 /**
- * In-memory implementation of the Processing Service
- * In a production environment, this would use a database for persistence
- * Also handles Lambda function triggers for processing jobs
+ * Redis-based implementation of the Processing Service
+ * Uses Redis for job queue management and status tracking
  */
 class ProcessingServiceImpl implements ProcessingServiceInterface {
-  private jobs: Map<string, ProcessingJob> = new Map();
-  private zipLambdaUrl: string;
-  private reportsLambdaUrl: string;
-
-  /**
-   * Creates a new ProcessingService instance
-   * @param zipLambdaUrl - The URL of the Lambda function
-   * @param reportsLambdaUrl - The URL of the Lambda function
-   */
-  constructor(zipLambdaUrl: string, reportsLambdaUrl: string) {
-    this.zipLambdaUrl = zipLambdaUrl;
-    this.reportsLambdaUrl = reportsLambdaUrl;
-    logger.info("ProcessingService initialized", {
-      zipLambdaUrl,
-      reportsLambdaUrl,
-    });
+  constructor() {
+    logger.info("ProcessingService initialized with Redis job queue");
   }
 
   /**
-   * Create a new processing job and trigger the corresponding Lambda function
+   * Create a new processing job and push it to the Redis queue
    * @param type - Type of job (zip or report)
    * @param databankId - ID of the databank
-   * @param prefix - Optional prefix for processing specific files
    * @param options - Optional processing options
    * @returns The created job
    */
@@ -171,19 +141,17 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
     // Create a new job
     const jobId = uuidv4();
     const jobType = type as ProcessingJobType;
+    const createdAt = new Date();
+    
     const job: ProcessingJob = {
       jobId,
       type: jobType,
       status: ProcessingJobStatus.PENDING,
       databankId,
-      createdAt: new Date(),
+      createdAt,
       progress: 0,
       options,
     };
-
-    // TODO: Store the job in a database instead of in-memory map
-    // In a real implementation, this would be stored in a database
-    this.jobs.set(jobId, job);
 
     // Log job creation
     logger.info(`Created processing job: ${jobId}`, {
@@ -192,28 +160,36 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
       type: jobType,
     });
 
-    // Trigger the Lambda function for processing
+    // Push job to Redis queue for processing
     try {
-      // Trigger the Lambda function using the function name based on job type
-      // Use the job type as the function name
-      logger.info(`Triggering Lambda function for job: ${jobId}`, {
+      logger.info(`Pushing job to Redis queue: ${jobId}`, {
         jobId,
-        functionName: jobType,
+        type: jobType,
       });
-      await this.triggerFunction(jobType, databankId);
-
-      // Update job status to PROCESSING
-      job.status = ProcessingJobStatus.PROCESSING;
-      this.jobs.set(jobId, job);
+      
+      await pushJob(jobType, jobId, databankId, options);
+      
+      logger.info(`Job successfully queued: ${jobId}`);
     } catch (error) {
-      // If Lambda trigger fails, update job status to FAILED
+      // If queue push fails, mark job as failed
       logger.error(
-        `Failed to trigger Lambda function for job: ${jobId}`,
+        `Failed to push job to queue: ${jobId}`,
         error as Error
       );
       job.status = ProcessingJobStatus.FAILED;
       job.error = error instanceof Error ? error.message : String(error);
-      this.jobs.set(jobId, job);
+      
+      // Still try to update status in Redis
+      try {
+        await updateJobStatusInQueue(
+          jobId,
+          ProcessingJobStatus.FAILED,
+          0,
+          job.error
+        );
+      } catch (updateError) {
+        logger.error("Failed to update job status after queue error", updateError as Error);
+      }
     }
 
     return job;
@@ -237,9 +213,6 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
     error?: string,
     result?: any
   ): Promise<ProcessingJob> {
-    // Get the job
-    const job = await this.getJob(jobId, databankId);
-
     // Validate status
     if (
       !Object.values(ProcessingJobStatus).includes(
@@ -249,31 +222,11 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
       throw new ValidationError(`Invalid job status: ${status}`);
     }
 
-    // Update the job
-    job.status = status as ProcessingJobStatus;
+    // Update job status in Redis
+    await updateJobStatusInQueue(jobId, status, progress, error, result);
 
-    if (progress !== undefined) {
-      job.progress = Math.min(Math.max(0, progress), 100); // Ensure progress is between 0-100
-    }
-
-    if (error) {
-      job.error = error;
-    }
-
-    if (result) {
-      job.result = result;
-    }
-
-    // If the job is completed or failed, set the completedAt timestamp
-    if (
-      status === ProcessingJobStatus.COMPLETED ||
-      status === ProcessingJobStatus.FAILED
-    ) {
-      job.completedAt = new Date();
-    }
-
-    // Store the updated job
-    this.jobs.set(jobId, job);
+    // Get the updated job
+    const job = await this.getJob(jobId, databankId);
 
     logger.info(
       `Updated processing job: ${jobId}, status: ${status}, progress: ${progress}`
@@ -290,216 +243,56 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
    * @throws NotFoundError if the job doesn't exist
    */
   async getJob(jobId: string, databankId: string): Promise<ProcessingJob> {
-    const job = this.jobs.get(jobId);
+    // Get job status from Redis
+    const jobStatus = await getJobStatus(jobId);
 
-    if (!job || job.databankId !== databankId) {
+    if (!jobStatus || jobStatus.databankId !== databankId) {
       throw new NotFoundError(`Job not found: ${jobId}`);
+    }
+
+    // Convert JobStatus to ProcessingJob
+    const job: ProcessingJob = {
+      jobId: jobStatus.jobId,
+      type: jobStatus.type as ProcessingJobType,
+      status: jobStatus.status as ProcessingJobStatus,
+      databankId: jobStatus.databankId,
+      createdAt: new Date(jobStatus.createdAt),
+      progress: jobStatus.progress,
+      error: jobStatus.error,
+      result: jobStatus.result,
+      options: jobStatus.options,
+    };
+
+    if (jobStatus.completedAt) {
+      job.completedAt = new Date(jobStatus.completedAt);
     }
 
     return job;
   }
 
   /**
-   * Triggers a Lambda function
+   * Triggers a job in the queue for processing
+   * Note: This method exists for backward compatibility but the actual
+   * job queuing happens in createJob()
    * @param functionName - The name of the function to trigger
-   * @param payload - The payload to send to the function
    * @param databankId - The databank ID for authorization
-   * @returns Promise resolving to the function response
+   * @returns Promise resolving to the trigger result
    */
   async triggerFunction(
     functionName: "zip" | "report",
     databankId: string
-  ): Promise<LambdaInvocationStatus> {
-    logger.debug("Triggering Lambda function", {
+  ): Promise<JobTriggerResult> {
+    logger.debug("Job trigger called (queue-based)", {
       functionName,
       databankId,
     });
 
-    // Check if Lambda URL is configured
-    if (!this.zipLambdaUrl && !this.reportsLambdaUrl) {
-      throw new Error("Lambda URL not configured");
-    }
-
-    try {
-      const enhancedPayload = {
-        folder_key: databankId,
-      };
-      const body = JSON.stringify(enhancedPayload);
-
-      // Determine the correct Lambda URL based on functionName
-      const targetLambdaUrl =
-        functionName === "zip" ? this.zipLambdaUrl : this.reportsLambdaUrl;
-
-      if (!targetLambdaUrl) {
-        logger.error("Lambda URL not configured for function", undefined, {
-          functionName,
-          databankId,
-        });
-        throw new Error(`Lambda URL for ${functionName} not configured`);
-      }
-
-      if (
-        !env.LAMBDA_ACCESS_KEY ||
-        !env.LAMBDA_SECRET_KEY ||
-        !env.LAMBDA_REGION
-      ) {
-        logger.error(
-          "AWS Lambda credentials or region not configured in environment variables",
-          undefined,
-          { functionName, databankId }
-        );
-        throw new Error("AWS Lambda credentials or region not configured.");
-      }
-
-      const { hostname, pathname, protocol, search } = new URL(targetLambdaUrl);
-
-      const request: HttpRequest = {
-        method: "POST",
-        protocol: protocol.slice(0, -1), // Remove trailing ':' e.g. 'https:' -> 'https'
-        hostname: hostname,
-        path: pathname,
-        query: Object.fromEntries(new URLSearchParams(search)),
-        headers: {
-          "Content-Type": "application/json",
-          host: hostname,
-        },
-        body: body,
-      };
-
-      const signer = new SignatureV4({
-        credentials: {
-          accessKeyId: env.LAMBDA_ACCESS_KEY,
-          secretAccessKey: env.LAMBDA_SECRET_KEY,
-        },
-        region: env.LAMBDA_REGION,
-        service: "lambda",
-        sha256: Sha256,
-      });
-
-      const signedRequest = await signer.sign(request);
-
-      const axiosConfig: AxiosRequestConfig = {
-        method: signedRequest.method as Method,
-        url: targetLambdaUrl,
-        headers: signedRequest.headers as AxiosRequestHeaders,
-        data: signedRequest.body,
-        maxBodyLength: Infinity,
-      };
-      // Send the request but don't wait for the Lambda to complete
-      axios.request(axiosConfig)
-        .then(axiosResponse => {
-          const result = axiosResponse.data as LambdaFunctionResult;
-          if (
-            axiosResponse.status < 200 ||
-            axiosResponse.status >= 300 ||
-            (result && result.success === false)
-          ) {
-            const errorDetails = result?.error
-              ? JSON.stringify(result.error)
-              : result?.message || "No additional error details";
-            logger.error("Async Lambda function execution finished with an error", undefined, {
-              functionName,
-              databankId,
-              statusCode: axiosResponse.status,
-              responseData: result,
-              errorDetails,
-              async: true
-            });
-          } else {
-            logger.debug("Async Lambda function execution completed successfully", {
-              functionName,
-              databankId,
-              statusCode: axiosResponse.status,
-              responseData: result,
-              async: true
-            });
-          }
-        })
-        .catch(asyncError => {
-          let logMessage = "Error during asynchronous Lambda execution";
-          const errorContext: any = { functionName, databankId, async: true };
-          if (axios.isAxiosError(asyncError)) {
-            logMessage = `Axios error during async Lambda execution: ${asyncError.message}`;
-            errorContext.axiosError = {
-              message: asyncError.message,
-              code: asyncError.code,
-              config: asyncError.config ? { url: asyncError.config.url, method: asyncError.config.method } : undefined,
-            };
-            if (asyncError.response) {
-              logMessage += ` - Lambda Response (${asyncError.response.status})`;
-              errorContext.axiosError.response = {
-                status: asyncError.response.status,
-                data: asyncError.response.data,
-              };
-            }
-          } else if (asyncError instanceof Error) {
-            logMessage = `Error during async Lambda execution: ${asyncError.message}`;
-            errorContext.genericError = { name: asyncError.name, message: asyncError.message };
-          } else {
-            errorContext.unknownError = asyncError;
-          }
-          logger.error(logMessage, asyncError instanceof Error ? asyncError : new Error(String(asyncError)), errorContext);
-        });
-
-      logger.info("Lambda function trigger initiated successfully via AWS Signature", {
-        functionName,
-        databankId,
-      });
-
-      return { success: true, message: "Lambda function trigger initiated." };
-    } catch (error: any) {
-      let errorMessage = "Error triggering Lambda function";
-      let errorDetailsToLog: any = { functionName, databankId };
-
-      if (axios.isAxiosError(error)) {
-        errorMessage = `Axios error triggering Lambda: ${error.message}`;
-        errorDetailsToLog.axiosError = {
-          message: error.message,
-          code: error.code,
-          config: error.config
-            ? {
-                url: error.config.url,
-                method: error.config.method,
-                headers: error.config.headers,
-              }
-            : undefined,
-        };
-        if (error.response) {
-          const lambdaError =
-            error.response.data?.error ||
-            error.response.data?.message ||
-            JSON.stringify(error.response.data);
-          errorMessage += ` - Lambda Response (${error.response.status}): ${lambdaError}`;
-          errorDetailsToLog.axiosError.response = {
-            status: error.response.status,
-            data: error.response.data,
-            headers: error.response.headers,
-          };
-        } else if (error.request) {
-          errorMessage += ` - No response received.`;
-          errorDetailsToLog.axiosError.request = "No response received";
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message || "Unknown error during Lambda trigger";
-        errorDetailsToLog.genericError = {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        };
-      } else {
-        errorMessage = "An unknown error occurred during Lambda trigger.";
-        errorDetailsToLog.unknownError = error;
-      }
-
-      logger.error(
-        "Error triggering Lambda function",
-        error instanceof Error ? error : new Error(String(error)),
-        errorDetailsToLog
-      );
-      // Log the synchronous error and return a failure status for the initiation
-      // The logger.error call is already made just before this in the original code
-      return { success: false, message: errorMessage };
-    }
+    // This is now handled by pushJob in createJob method
+    // This method exists primarily for backward compatibility
+    return {
+      success: true,
+      message: "Job queued for processing",
+    };
   }
 }
 
@@ -508,14 +301,5 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
  * @returns A processing service instance
  */
 export function createProcessingService(): ProcessingServiceInterface {
-  const zipLambdaUrl = env.ZIP_LAMBDA_URL || "";
-  const reportsLambdaUrl = env.REPORTS_LAMBDA_URL || "";
-
-  if (!zipLambdaUrl || !reportsLambdaUrl) {
-    logger.warn(
-      "Lambda URL not configured, Lambda function triggers will not work"
-    );
-  }
-
-  return new ProcessingServiceImpl(zipLambdaUrl, reportsLambdaUrl);
+  return new ProcessingServiceImpl();
 }
