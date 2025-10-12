@@ -336,6 +336,21 @@ export class MinIORepository implements StorageRepositoryInterface {
   }
 
   /**
+   * Creates a presigned URL for uploading a part in a multipart upload
+   */
+  async createPresignedUrlForPart(uploadId: string, key: string, partNumber: number, expiresIn: number = 3600): Promise<string> {
+    return withRetry(async () => {
+      // For multipart uploads, we need to include uploadId and partNumber in the signature
+      const reqParams = {
+        'uploadId': uploadId,
+        'partNumber': partNumber.toString()
+      };
+      const url = await this.minioClient.presignedUrl('PUT', this.bucketName, key, expiresIn, reqParams);
+      return url;
+    }, this.config.retryOptions);
+  }
+
+  /**
    * Gets the underlying MinIO client
    */
   getClient(): Minio.Client {
