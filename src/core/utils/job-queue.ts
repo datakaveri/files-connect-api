@@ -171,11 +171,11 @@ export async function getJobStatus(jobId: string): Promise<JobStatus | null> {
 
   // Parse the job status
   const jobStatus: JobStatus = {
-    jobId: jobData.jobId,
-    type: jobData.type,
-    status: jobData.status,
-    databankId: jobData.databankId,
-    createdAt: jobData.createdAt,
+    jobId: jobData.jobId || "",
+    type: jobData.type || "",
+    status: jobData.status || "",
+    databankId: jobData.databankId || "",
+    createdAt: jobData.createdAt || "",
   };
 
   if (jobData.progress) {

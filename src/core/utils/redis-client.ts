@@ -69,7 +69,7 @@ class RedisClient {
       this.client = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: (retries: number) => {
             if (retries > this.maxReconnectAttempts) {
               logger.error("Max Redis reconnection attempts reached");
               return new Error("Max reconnection attempts reached");
@@ -83,8 +83,8 @@ class RedisClient {
       }) as RedisClientType;
 
       // Set up event handlers
-      this.client.on("error", (err) => {
-        logger.error("Redis client error", err as Error);
+      this.client.on("error", (err: Error) => {
+        logger.error("Redis client error", err);
       });
 
       this.client.on("connect", () => {
