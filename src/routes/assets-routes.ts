@@ -4,7 +4,7 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import { S3ServiceInterface } from '../services/s3-service';
+import { StorageServiceInterface } from '../services/storage-service';
 import { createLogger } from '../core/utils/logger';
 import { validateBody } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
@@ -25,7 +25,7 @@ export const assetsRoutes = Router();
  * Initialize asset routes with the S3 service
  * @param s3Service - The S3 service to use for asset operations
  */
-export function initAssetRoutes(s3Service: S3ServiceInterface) {
+export function initAssetRoutes(s3Service: StorageServiceInterface) {
   logger.info('Initializing asset routes');
 
   // Apply authentication middleware to all routes

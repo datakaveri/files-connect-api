@@ -1,17 +1,17 @@
 /**
- * S3 Repository Module
- * 
+ * AWS S3 Repository Module
+ *
  * This module provides a repository layer for interacting with AWS S3 service.
- * It abstracts away the details of the AWS SDK and provides a clean interface
- * for performing S3 operations with built-in retry logic for handling transient errors.
- * 
- * @module repositories/s3-repository
- * @see {@link S3RepositoryInterface} for the interface definition
- * @see {@link S3Repository} for the implementation
+ * It implements the StorageRepositoryInterface to provide a unified interface
+ * for AWS S3 operations, compatible with the generic storage abstraction.
+ *
+ * @module repositories/aws-s3-repository
+ * @see {@link StorageRepositoryInterface} for the interface definition
+ * @see {@link AWSS3Repository} for the implementation
  */
-import { 
-  S3Client, 
-  ListObjectsV2Command, 
+import {
+  S3Client,
+  ListObjectsV2Command,
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
@@ -30,175 +30,84 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
+import { StorageRepositoryInterface, StorageConfig, MultipartUploadResult } from '../core/types/storage';
 import { env } from '../config/environment';
 import { createLogger } from '../core/utils/logger';
 import { S3Constants } from '../config/constants';
 import { withRetry, RetryOptions, DEFAULT_RETRY_OPTIONS } from '../core/utils/retry-utils';
 
 // Create a logger for this module
-const logger = createLogger('S3Repository');
+const logger = createLogger('AWSS3Repository');
 
 /**
- * Configuration options for the S3 repository
- * 
- * @interface S3RepositoryConfig
- * @property {string} region - The AWS region where the S3 bucket is located
- * @property {string} bucketName - The name of the S3 bucket to interact with
+ * Configuration options for the AWS S3 repository
+ *
+ * @interface AWSS3RepositoryConfig
+ * @property {StorageConfig} config - Storage configuration
  * @property {Partial<RetryOptions>} [retryOptions] - Optional configuration for retry behavior
  */
-export interface S3RepositoryConfig {
-  /** AWS region */
-  region: string;
-  
-  /** S3 bucket name */
-  bucketName: string;
-  
-  /** Retry options for S3 operations */
+export interface AWSS3RepositoryConfig extends StorageConfig {
   retryOptions?: Partial<RetryOptions>;
 }
 
-/**
- * Interface defining the contract for S3 repository implementations
- * 
- * This interface defines all the methods that an S3 repository implementation
- * must provide. It abstracts the underlying S3 client and provides methods
- * for common S3 operations like listing objects, getting/putting objects,
- * and handling multipart uploads.
- * 
- * @interface S3RepositoryInterface
- */
-export interface S3RepositoryInterface {
-  /**
-   * Lists objects in the S3 bucket with the given prefix
-   * @param prefix - The prefix to filter objects by
-   * @param maxKeys - Maximum number of keys to return
-   * @param delimiter - The delimiter for grouping objects
-   * @returns Promise resolving to the list objects command output
-   */
-  listObjects(prefix: string, maxKeys?: number, delimiter?: string): Promise<ListObjectsV2CommandOutput>;
-  
-  /**
-   * Lists objects in the S3 bucket with the given prefix and continuation token
-   * @param prefix - The prefix to filter objects by
-   * @param maxKeys - Maximum number of keys to return
-   * @param delimiter - The delimiter for grouping objects
-   * @param continuationToken - Token for pagination
-   * @returns Promise resolving to the list objects command output
-   */
-  listObjectsWithToken(prefix: string, maxKeys?: number, delimiter?: string, continuationToken?: string): Promise<ListObjectsV2CommandOutput>;
-  
-  /**
-   * Gets an object from the S3 bucket
-   * @param key - The key of the object to get
-   * @returns Promise resolving to the get object command output
-   */
-  getObject(key: string): Promise<GetObjectCommandOutput>;
-  
-  /**
-   * Gets a partial object from the S3 bucket (first N bytes)
-   * @param key - The key of the object to get
-   * @param maxBytes - Maximum number of bytes to retrieve
-   * @returns Promise resolving to the get object command output
-   */
-  getPartialObject(key: string, maxBytes: number): Promise<GetObjectCommandOutput>;
-  
-  /**
-   * Puts an object in the S3 bucket
-   * @param key - The key to store the object under
-   * @param body - The object data
-   * @param contentType - The content type of the object
-   * @returns Promise resolving to the put object command output
-   */
-  putObject(key: string, body: Buffer | Uint8Array | string | Readable, contentType?: string): Promise<PutObjectCommandOutput>;
-  
-  /**
-   * Deletes an object from the S3 bucket
-   * @param key - The key of the object to delete
-   * @returns Promise resolving to the delete object command output
-   */
-  deleteObject(key: string): Promise<DeleteObjectCommandOutput>;
-  
-  /**
-   * Completes a multipart upload
-   * @param key - The key of the object
-   * @param uploadId - The upload ID
-   * @param parts - The parts to include in the completed object
-   * @returns Promise resolving to the complete multipart upload command output
-   */
-  completeMultipartUpload(
-    key: string, 
-    uploadId: string, 
-    parts: { PartNumber: number; ETag: string }[]
-  ): Promise<CompleteMultipartUploadCommandOutput>;
-  
-  /**
-   * Aborts a multipart upload
-   * @param key - The key of the object
-   * @param uploadId - The upload ID
-   * @returns Promise resolving to the abort multipart upload command output
-   */
-  abortMultipartUpload(key: string, uploadId: string): Promise<AbortMultipartUploadCommandOutput>;
-  
-  /**
-   * Creates a presigned URL for an object
-   * @param key - The key of the object
-   * @param expiresIn - The number of seconds until the URL expires
-   * @returns Promise resolving to the presigned URL
-   */
-  createPresignedUrl(key: string, expiresIn?: number): Promise<string>;
-  
-  /**
-   * Gets the underlying S3 client
-   * This should be used sparingly and only when the interface methods are insufficient
-   * @returns The S3 client instance
-   */
-  get client(): S3Client;
-}
+// Export legacy interface for backward compatibility
+export interface S3RepositoryInterface extends StorageRepositoryInterface {}
 
 /**
- * Implementation of the S3 repository interface
- * 
- * This class provides a concrete implementation of the S3RepositoryInterface
+ * AWS S3 repository implementation
+ *
+ * This class provides a concrete implementation of the StorageRepositoryInterface
  * using the AWS SDK for JavaScript v3. It handles direct interactions with the
  * AWS S3 service and includes retry logic for handling transient errors.
- * 
- * @class S3Repository
- * @implements {S3RepositoryInterface}
+ *
+ * @class AWSS3Repository
+ * @implements {StorageRepositoryInterface}
  */
-export class S3Repository implements S3RepositoryInterface {
+export class AWSS3Repository implements StorageRepositoryInterface {
   private s3Client: S3Client;
   private bucketName: string;
   private retryOptions: RetryOptions;
   
   /**
-   * Creates a new S3Repository instance
-   * 
+   * Creates a new AWSS3Repository instance
+   *
    * Initializes the S3 client with the provided configuration and sets up
    * retry behavior based on the provided options or defaults.
-   * 
+   *
    * @constructor
-   * @param {S3RepositoryConfig} config - Configuration for the S3 repository
+   * @param {AWSS3RepositoryConfig} config - Configuration for the AWS S3 repository
    */
-  constructor(config: S3RepositoryConfig) {
-    // Initialize S3 client with credentials from environment variables
-    this.s3Client = new S3Client({
-      region: config.region,
+  constructor(config: AWSS3RepositoryConfig) {
+    // Initialize S3 client with configuration
+    const s3Config: any = {
+      region: config.region || 'us-east-1',
       credentials: {
-        accessKeyId: env.S3_ACCESS_KEY,
-        secretAccessKey: env.S3_SECRET_KEY
-      },
-      endpoint: env.S3_ENDPOINT
-    });
-    
+        accessKeyId: config.accessKey,
+        secretAccessKey: config.secretKey
+      }
+    };
+
+    // Add endpoint if provided
+    if (config.endpoint) {
+      s3Config.endpoint = config.endpoint;
+      // Add forcePathStyle if configured
+      if (config.forcePathStyle) {
+        s3Config.forcePathStyle = true;
+      }
+    }
+
+    this.s3Client = new S3Client(s3Config);
+
     this.bucketName = config.bucketName;
     this.retryOptions = {
       ...DEFAULT_RETRY_OPTIONS,
       ...config.retryOptions
     };
-    
-    logger.info('S3Repository initialized', { 
-      region: config.region, 
+
+    logger.info('AWSS3Repository initialized', {
+      region: config.region,
       bucket: config.bucketName,
+      endpoint: config.endpoint,
       retryConfig: {
         maxRetries: this.retryOptions.maxRetries,
         baseDelayMs: this.retryOptions.baseDelayMs,
@@ -460,6 +369,63 @@ export class S3Repository implements S3RepositoryInterface {
     );
   }
   
+
+  /**
+   * Creates a multipart upload
+   */
+  async createMultipartUpload(key: string, contentType?: string): Promise<MultipartUploadResult> {
+    logger.debug('Creating multipart upload', { key, contentType });
+
+    const command = new CreateMultipartUploadCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    return withRetry(
+      async () => {
+        const response = await this.s3Client.send(command);
+        logger.debug('Created multipart upload successfully', { key, uploadId: response.UploadId });
+        return {
+          uploadId: response.UploadId!,
+          key
+        };
+      },
+      this.retryOptions,
+      { operation: 'createMultipartUpload', key, contentType }
+    );
+  }
+
+  /**
+   * Uploads a part in a multipart upload
+   */
+  async uploadPart(
+    uploadId: string,
+    key: string,
+    partNumber: number,
+    body: any
+  ): Promise<string> {
+    logger.debug('Uploading part', { uploadId, key, partNumber, bodySize: Buffer.isBuffer(body) ? body.length : 'unknown' });
+
+    const command = new UploadPartCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+      Body: body,
+    });
+
+    return withRetry(
+      async () => {
+        const response = await this.s3Client.send(command);
+        logger.debug('Uploaded part successfully', { uploadId, key, partNumber, etag: response.ETag });
+        return response.ETag!;
+      },
+      this.retryOptions,
+      { operation: 'uploadPart', uploadId, key, partNumber }
+    );
+  }
+
   /**
    * Creates a presigned URL for an object
    * @param key - The key of the object
@@ -467,16 +433,16 @@ export class S3Repository implements S3RepositoryInterface {
    * @returns Promise resolving to the presigned URL
    */
   async createPresignedUrl(
-    key: string, 
+    key: string,
     expiresIn: number = S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION
   ): Promise<string> {
     logger.debug('Creating presigned URL', { key, expiresIn });
-    
+
     const command = new GetObjectCommand({
       Bucket: this.bucketName,
       Key: key,
     });
-    
+
     return withRetry(
       async () => {
         const url = await getSignedUrl(this.s3Client, command, { expiresIn });
@@ -487,21 +453,33 @@ export class S3Repository implements S3RepositoryInterface {
       { operation: 'createPresignedUrl', key, expiresIn }
     );
   }
+
+  /**
+   * Gets the underlying client
+   */
+  getClient(): S3Client {
+    return this.s3Client;
+  }
 }
 
 /**
- * Factory function to create a new S3Repository instance with default configuration
- * 
- * This function creates a new S3Repository instance using environment variables
- * for configuration. It's the recommended way to create an S3Repository instance
- * in the application.
- * 
- * @function createS3Repository
- * @returns {S3Repository} A configured S3Repository instance
+ * Factory function to create a new AWSS3Repository instance with configuration
+ *
+ * This function creates a new AWSS3Repository instance using the provided configuration.
+ * It's the recommended way to create an AWSS3Repository instance in the application.
+ *
+ * @function createAWSS3Repository
+ * @param {AWSS3RepositoryConfig} config - Configuration for the repository
+ * @returns {AWSS3Repository} A configured AWSS3Repository instance
  */
-export function createS3Repository(): S3Repository {
-  return new S3Repository({
-    region: env.S3_REGION,
-    bucketName: env.BUCKET_NAME,
-  });
+export function createAWSS3Repository(config: AWSS3RepositoryConfig): AWSS3Repository {
+  return new AWSS3Repository(config);
+}
+
+// Legacy factory function for backward compatibility
+export function createS3Repository(): AWSS3Repository {
+  // Use new storage configuration which handles fallbacks
+  const { createStorageConfig } = require('../config/storage');
+  const config = createStorageConfig();
+  return createAWSS3Repository(config);
 }

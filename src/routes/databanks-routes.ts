@@ -10,9 +10,12 @@ import { Router, Request, Response } from "express";
 import { Readable } from 'stream';
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { createS3Service, S3ServiceInterface } from "../services/s3-service";
-import { createFileService, FileService } from "../services/file-service";
-import { createMultipartUploadService, MultipartUploadServiceInterface } from "../services/multipart-upload-service";
+import { createStorageService } from "../services/storage-service";
+import { createFileService } from "../services";
+import { createMultipartUploadService } from "../services";
+import { StorageServiceInterface } from "../services/storage-service";
+import { FileService } from "../services/file-service";
+import { MultipartUploadServiceInterface } from "../services/multipart-upload-service";
 import { createProcessingService, ProcessingServiceInterface } from "../services/processing-service";
 import { env } from "../config/environment";
 import { createLogger } from "../core/utils/logger";
@@ -51,9 +54,9 @@ import {
 const logger = createLogger('DatabanksRoutes');
 
 // Create services
-const s3Service: S3ServiceInterface = createS3Service();
-const fileService: FileService = createFileService(s3Service);
-const multipartUploadService: MultipartUploadServiceInterface = createMultipartUploadService(s3Service);
+const s3Service: StorageServiceInterface = createStorageService();
+const fileService: FileService = createFileService();
+const multipartUploadService: MultipartUploadServiceInterface = createMultipartUploadService();
 const processingService: ProcessingServiceInterface = createProcessingService();
 
 /**

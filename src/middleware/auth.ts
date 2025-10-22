@@ -280,7 +280,7 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       logger.debug('ACL API response', { responseData });
       
       // Check response type to determine access
-      if (responseData.type === 'urn:dx:controlPanel:success') {
+      if (responseData.type === 'urn:dx:apdServerPanel:success') {
         // User has access, continue to next middleware
         logger.info('Databank access granted via ACL API', {
           userId: res.locals.userId,
@@ -343,12 +343,18 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
   const { databankId } = req.params;
   logger.debug(`[checkItemAccess] Checking access for databankId: ${databankId}`);
 
-  if (!databankId) {
-    logger.warn('[checkItemAccess] Databank ID not found in request parameters.');
-    return next(new ValidationError('Databank ID is required in path parameters.'));
+  if (!databankId || databankId === 'undefined' || databankId === 'null') {
+    logger.warn(`[checkItemAccess] Invalid databank ID: ${databankId}`);
+    return next(new ValidationError('Valid databank ID is required in path parameters.'));
   }
 
   try {
+    // // In development mode, skip Catalogue API check if it's not configured or unavailable
+    // if (process.env.NODE_ENV === 'development' && (!env.CAT_API_URL || env.CAT_API_URL.includes('localhost'))) {
+    //   logger.warn(`[checkItemAccess] Skipping Catalogue API check in development mode for databankId: ${databankId}`);
+    //   return next();
+    // }
+
     const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
     

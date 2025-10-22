@@ -1,10 +1,10 @@
 /**
- * S3 Service
- * Handles business logic for S3 operations
+ * Storage Service
+ * Handles business logic for storage operations (S3, MinIO, etc.)
  */
 import { Readable } from 'stream';
 import { S3Client, HeadObjectCommand, NoSuchKey } from '@aws-sdk/client-s3';
-import { S3Repository, S3RepositoryInterface } from '../repositories/s3-repository';
+import { StorageRepositoryInterface } from '../core/types/storage';
 import { createLogger } from '../core/utils/logger';
 import { S3Constants } from '../config/constants';
 import { 
@@ -32,13 +32,13 @@ namespace AWSS3Types {
 }
 
 // Create a logger for this module
-const logger = createLogger('S3Service');
+const logger = createLogger('StorageService');
 
 /**
- * Interface for S3 service
- * Defines methods for S3 operations
+ * Interface for Storage service
+ * Defines methods for storage operations
  */
-export interface S3ServiceInterface {
+export interface StorageServiceInterface {
   /**
    * Lists objects in the S3 bucket with the given prefix
    * @param prefix - The prefix to filter objects by
@@ -154,19 +154,19 @@ export interface S3ServiceInterface {
  * S3 Service implementation
  * Handles business logic for S3 operations
  */
-export class S3Service implements S3ServiceInterface {
-  private s3Repository: S3RepositoryInterface;
-  private assetsRepository: S3RepositoryInterface;
-  
+export class StorageService implements StorageServiceInterface {
+  private s3Repository: StorageRepositoryInterface;
+  private assetsRepository: StorageRepositoryInterface;
+
   /**
-   * Creates a new S3Service instance
-   * @param s3Repository - The S3 repository to use for regular operations
-   * @param assetsRepository - The S3 repository to use for assets operations (optional)
+   * Creates a new StorageService instance
+   * @param s3Repository - The storage repository to use for regular operations
+   * @param assetsRepository - The storage repository to use for assets operations (optional)
    */
-  constructor(s3Repository: S3RepositoryInterface, assetsRepository?: S3RepositoryInterface) {
+  constructor(s3Repository: StorageRepositoryInterface, assetsRepository?: StorageRepositoryInterface) {
     this.s3Repository = s3Repository;
     this.assetsRepository = assetsRepository || s3Repository; // Fall back to main repository if no assets repository provided
-    logger.info('S3Service initialized');
+    logger.info('StorageService initialized');
   }
   
   /**
@@ -909,8 +909,8 @@ export class S3Service implements S3ServiceInterface {
    * This should be used sparingly and only when the interface methods are insufficient
    * @returns The S3 client instance
    */
-  getS3Client(): S3Client {
-    return this.s3Repository.client;
+  getS3Client(): any {
+    return this.s3Repository.getClient();
   }
 }
 
@@ -918,46 +918,34 @@ export class S3Service implements S3ServiceInterface {
  * Creates a new S3Service instance with default configuration
  * @returns S3Service instance
  */
-export function createS3Service(): S3ServiceInterface {
-  // Create the main S3 repository with retry logic
-  const s3Repository = new S3Repository({
-    region: env.S3_REGION,
-    bucketName: env.BUCKET_NAME,
-    retryOptions: {
-      maxRetries: 3,
-      baseDelayMs: 100,
-      maxDelayMs: 5000,
-      useExponentialBackoff: true
-    }
+export function createS3Service(): StorageServiceInterface {
+  // Use the new storage configuration factory
+  const { createStorageConfig } = require('../config/storage');
+  const { createStorageRepository } = require('../repositories');
+
+  const config = createStorageConfig();
+
+  // Create the main repository
+  const s3Repository = createStorageRepository(config);
+
+  // For assets, we could create a separate config with different bucket
+  // but for now, we'll use the same repository
+  const assetsRepository = s3Repository;
+
+  // Create the storage service with both repositories
+  const s3Service: StorageServiceInterface = new StorageService(s3Repository, assetsRepository);
+
+  logger.info('Storage service created', {
+    provider: config.provider,
+    mainBucket: config.bucketName,
+    assetsBucket: config.assetsBucketName || config.bucketName,
+    endpoint: config.endpoint
   });
-  
-  // Determine assets bucket - use dedicated bucket if specified, otherwise fall back to main bucket
-  const assetsBucketName = env.ASSETS_BUCKET_NAME || env.BUCKET_NAME;
-  
-  // Create a separate repository for assets if using a different bucket
-  let assetsRepository: S3Repository | undefined;
-  if (assetsBucketName !== env.BUCKET_NAME) {
-    assetsRepository = new S3Repository({
-      region: env.S3_REGION,
-      bucketName: assetsBucketName,
-      retryOptions: {
-        maxRetries: 3,
-        baseDelayMs: 100,
-        maxDelayMs: 5000,
-        useExponentialBackoff: true
-      }
-    });
-    logger.info('Created separate assets repository', { assetsBucketName });
-  }
-  
-  // Create the base S3 service with both repositories
-  const s3Service: S3ServiceInterface = new S3Service(s3Repository, assetsRepository);
-  
-  logger.info('S3 service created', { 
-    mainBucket: env.BUCKET_NAME, 
-    assetsBucket: assetsBucketName,
-    usingDedicatedAssetsBucket: assetsBucketName !== env.BUCKET_NAME 
-  });
-  
+
   return s3Service;
+}
+
+// Export a factory function for the new StorageService interface
+export function createStorageService(): StorageServiceInterface {
+  return createS3Service();
 }

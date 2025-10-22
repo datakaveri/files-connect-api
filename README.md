@@ -10,7 +10,8 @@ A TypeScript-based API service for secure file operations with databank support.
 - **Security**: Role-based access control (RBAC) with Keycloak integration
 - **File Operations**: List, download, and manage files with metadata
 - **File Previews**: Generate previews for supported file types (CSV, JSON, XLSX, Parquet)
-- **Asynchronous Processing**: Background job processing for ZIP creation and reports
+- **Asynchronous Processing**: Redis-based job queue with Python workers for ZIP creation and reports
+- **Cloud Agnostic**: Works with both AWS S3 and MinIO for on-premise deployments
 - **RESTful API**: Standardized API following REST best practices
 - **OpenAPI Documentation**: Auto-generated API documentation with Swagger UI
 
@@ -19,9 +20,46 @@ A TypeScript-based API service for secure file operations with databank support.
 - Node.js (v18 or later)
 - TypeScript (v5.0 or later)
 - pnpm (package manager)
-- AWS Account with S3 access
+- Storage backend: AWS S3 or MinIO
+- Redis (v7 or later) for job queue
+- Python 3.11+ (for workers)
 - Keycloak server for authentication (optional, can be disabled in development)
 - Docker (optional, for containerized deployment)
+
+## Storage Providers
+
+This API supports multiple storage backends through a unified interface:
+
+### AWS S3 (Production)
+- Set `STORAGE_PROVIDER=s3` in environment variables
+- Requires AWS credentials and S3 bucket access
+
+### MinIO (Development/Local)
+- Set `STORAGE_PROVIDER=minio` in environment variables
+- Lightweight S3-compatible object storage
+- Perfect for local development and testing
+
+### Docker Development Setup
+
+For local development with MinIO, Redis, and workers, use the provided Docker Compose setup:
+
+1. Start all services:
+```bash
+docker-compose up -d
+```
+
+This starts:
+- **MinIO** - S3-compatible object storage (ports 9000, 9001)
+- **Redis** - Job queue server (port 6379)
+- **Zip Worker** - Python worker for processing zip jobs
+
+2. Access services:
+- MinIO Console: http://localhost:9001
+- Redis: localhost:6379
+   - Username: `minioadmin`
+   - Password: `minioadmin`
+
+3. The API will automatically connect to MinIO with the provided configuration.
 
 ## Installation
 
@@ -38,25 +76,64 @@ cd files-connect-api
 pnpm install
 ```
 
-3. Configure environment variables in `.env` file:
+3. Configure environment variables in `.env` file (see `.env.example` for all options):
 
+### Basic Configuration
 ```
 PORT=3000
 NODE_ENV=development
-S3_ENDPOINT=https://s3.amazonaws.com
-S3_REGION=us-east-1
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-BUCKET_NAME=your-bucket-name
-MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=1000
-CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
 LOG_LEVEL=debug
+CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
+```
 
-# Keycloak Configuration
-KEYCLOAK_URL=https://your-keycloak-url/auth/realms/your-realm
+### Storage Configuration
+```
+# Choose storage provider: 's3' or 'minio'
+STORAGE_PROVIDER=minio
+
+# MinIO (for local development)
+STORAGE_ENDPOINT=http://localhost:9000
+STORAGE_ACCESS_KEY=minioadmin
+STORAGE_SECRET_KEY=minioadmin
+STORAGE_FORCE_PATH_STYLE=true
+STORAGE_USE_SSL=false
+
+# AWS S3 (for production)
+# STORAGE_PROVIDER=s3
+# STORAGE_ENDPOINT=https://s3.amazonaws.com
+# STORAGE_REGION=us-east-1
+# STORAGE_ACCESS_KEY=your-aws-access-key
+# STORAGE_SECRET_KEY=your-aws-secret-key
+
+# Bucket configuration
+BUCKET_NAME=your-bucket-name
+ASSETS_BUCKET_NAME=your-assets-bucket
+MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=5
+```
+
+### Authentication Configuration
+```
+KEYCLOAK_AUTH_URL=https://your-keycloak-url
 KEYCLOAK_REALM=your-realm
 KEYCLOAK_CLIENT_ID=your-client-id
 KEYCLOAK_PUBLIC_KEY="your-public-key"
+```
+
+### Other Services
+```
+# ACL and Catalogue APIs
+ACL_APD_API_URL=http://localhost:8081
+CAT_API_URL=http://localhost:8082
+
+# RabbitMQ (for async processing)
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=guest
+RABBITMQ_PASSWORD=guest
+
+# Lambda functions (optional)
+ZIP_LAMBDA_URL=http://localhost:8083
+REPORTS_LAMBDA_URL=http://localhost:8084
 ```
 
 ## Development
@@ -146,6 +223,31 @@ The application follows a clean architecture with clear separation of concerns:
 - **Databank Service**: Manages databank operations and access control
 - **File Validation Service**: Validates file types and content
 - **Multipart Upload Service**: Handles large file uploads with S3
+- **Job Queue System**: Redis-based async job processing with Python workers
+
+## Async Job Processing
+
+The system uses a Redis-based job queue for long-running operations:
+
+### Architecture
+```
+API (TypeScript) → Redis Queue → Worker (Python) → S3/MinIO
+                        ↓
+                   Job Status
+```
+
+### Supported Jobs
+1. **Zip Creation**: Streams files from databank folders and creates compressed archives
+2. **Report Generation**: Creates data readiness reports (planned)
+
+### Features
+- **Memory Efficient**: Streams large files without loading into memory
+- **Scalable**: Horizontally scale workers based on load
+- **Resilient**: Automatic retry on failures, graceful shutdown
+- **Cloud Agnostic**: Works with both S3 and MinIO
+- **Progress Tracking**: Real-time job status updates via Redis
+
+For detailed documentation on workers, see [workers/README.md](workers/README.md)
 - **Preview Service**: Generates previews for supported file types
 - **Job Service**: Manages background processing jobs
 - **Auth Service**: Handles authentication and authorization

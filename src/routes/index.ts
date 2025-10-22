@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { databanksRoutes } from './databanks-routes';
 import { assetsRoutes, initAssetRoutes } from './assets-routes';
 import { ApiPaths } from '../config/constants';
-import { createS3Service } from '../services/s3-service';
+import { createStorageService } from '../services/storage-service';
 
 // Create a main router
 const router = Router();
@@ -16,7 +16,7 @@ const router = Router();
 // Note: CORS, request context, and other global middleware are applied in app.ts
 
 // Initialize services needed for routes
-const s3Service = createS3Service();
+const s3Service = createStorageService();
 
 // Initialize asset routes
 const assetRoutesWithHandlers = initAssetRoutes(s3Service);

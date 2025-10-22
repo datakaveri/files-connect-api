@@ -31,7 +31,8 @@ export type FilePreviewResult =
 // export interface CSVPreviewResult { data: Record<string, any>[]; headers: string[]; totalRows: number; }
 // export interface XLSXPreviewResult { data: Record<string, any>[]; headers: string[]; sheets: string[]; totalRows: number; }
 // export interface ParquetPreviewResult { data: Record<string, any>[]; headers: string[]; totalRows: number; }
-import { S3ServiceInterface } from "./s3-service";
+import { StorageServiceInterface } from "./storage-service";
+import { StorageRepositoryInterface } from "../core/types/storage";
 import { createLogger } from "../core/utils/logger";
 import { FileTypes, S3Constants } from "../config/constants";
 import { DuckDBS3 } from "../repositories/duckdb";
@@ -149,14 +150,19 @@ export interface FileServiceInterface {
  * Handles file operations like preview and processing
  */
 export class FileService implements FileServiceInterface {
-  private s3Service: S3ServiceInterface;
+  private storageService: StorageServiceInterface;
+  private storageRepository: StorageRepositoryInterface;
   private duckdb: DuckDBS3;
   /**
    * Creates a new FileService instance
    * @param s3Service - The S3 service to use
    */
-  constructor(s3Service: S3ServiceInterface) {
-    this.s3Service = s3Service;
+  constructor(
+    storageService: StorageServiceInterface,
+    storageRepository: StorageRepositoryInterface
+  ) {
+    this.storageService = storageService;
+    this.storageRepository = storageRepository;
     this.duckdb = new DuckDBS3();
     logger.info("FileService initialized");
   }
@@ -289,14 +295,14 @@ export class FileService implements FileServiceInterface {
           String(fileType) !== "parquet"
         ) {
           logger.debug(`Getting partial object with maxBytes: ${maxBytes}`);
-          stream = await this.s3Service.getPartialObject(
+          stream = await this.storageService.getPartialObject(
             key,
             databankId,
             maxBytes,
           );
         } else if (String(fileType) === "xlsx") {
           logger.debug("Getting full object for preview");
-          stream = await this.s3Service.getObject(key, databankId);
+          stream = await this.storageService.getObject(key, databankId);
         }
         assert(stream instanceof Readable);
         // Process the file based on its type
@@ -738,6 +744,6 @@ export class FileService implements FileServiceInterface {
  * @param s3Service - The S3 service to use
  * @returns FileService instance
  */
-export function createFileService(s3Service: S3ServiceInterface): FileService {
-  return new FileService(s3Service);
+export function createFileService(storageService: StorageServiceInterface, storageRepository: StorageRepositoryInterface): FileService {
+  return new FileService(storageService, storageRepository);
 }
