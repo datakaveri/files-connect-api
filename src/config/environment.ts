@@ -81,12 +81,17 @@ const envSchema = z.object({
   RABBITMQ_EXCHANGE: z.string(),
   RABBITMQ_ROUTING_KEY: z.string(),
 
-  //Lambda Configs
-  ZIP_LAMBDA_URL: z.string().url(),
-  REPORTS_LAMBDA_URL: z.string().url(),
-  LAMBDA_ACCESS_KEY: z.string(),
-  LAMBDA_SECRET_KEY: z.string(),
-  LAMBDA_REGION: z.string(),
+  // Redis configuration (for job queue)
+  REDIS_HOST: z.string().default("localhost"),
+  REDIS_PORT: z.string().transform((val) => parseInt(val, 10)).default("6379"),
+  REDIS_PASSWORD: z.string().optional(),
+
+  //Lambda Configs (optional for backward compatibility)
+  ZIP_LAMBDA_URL: z.string().url().optional(),
+  REPORTS_LAMBDA_URL: z.string().url().optional(),
+  LAMBDA_ACCESS_KEY: z.string().optional(),
+  LAMBDA_SECRET_KEY: z.string().optional(),
+  LAMBDA_REGION: z.string().optional(),
 });
 
 // Export type definition
