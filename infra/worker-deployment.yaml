@@ -104,30 +104,6 @@ spec:
             memory: "2Gi"
             cpu: "1000m"
         
-        # Liveness probe - check if worker process is running
-        livenessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - pgrep -f "python.*worker.py" || exit 1
-          initialDelaySeconds: 30
-          periodSeconds: 30
-          timeoutSeconds: 10
-          failureThreshold: 3
-        
-        # Startup probe - give worker time to start
-        startupProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - pgrep -f "python.*worker.py" || exit 1
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 10
-      
       # Graceful shutdown configuration
       terminationGracePeriodSeconds: 60
       
