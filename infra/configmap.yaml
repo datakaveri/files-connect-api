@@ -24,6 +24,7 @@ data:
   # Redis configuration for job queue
   REDIS_HOST: "redis"
   REDIS_PORT: "6379"
+  REDIS_DB: "0"
   # Storage provider configuration
   STORAGE_PROVIDER: "s3"
   STORAGE_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"

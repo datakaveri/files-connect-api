@@ -61,10 +61,10 @@ class RedisClient {
         port: env.REDIS_PORT,
       });
 
-      // Create Redis client
+      // Create Redis client with database number
       const redisUrl = env.REDIS_PASSWORD
-        ? `redis://:${env.REDIS_PASSWORD}@${env.REDIS_HOST}:${env.REDIS_PORT}`
-        : `redis://${env.REDIS_HOST}:${env.REDIS_PORT}`;
+        ? `redis://:${env.REDIS_PASSWORD}@${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`
+        : `redis://${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`;
 
       this.client = createClient({
         url: redisUrl,
@@ -159,6 +159,14 @@ class RedisClient {
 export const getRedisClient = async (): Promise<RedisClientType> => {
   const redisClient = RedisClient.getInstance();
   return redisClient.getClient();
+};
+
+// Export connect function for eager connection on startup
+export const connectRedis = async (): Promise<void> => {
+  logger.info("Establishing Redis connection on startup");
+  const redisClient = RedisClient.getInstance();
+  await redisClient.getClient();
+  logger.info("Redis connection established successfully");
 };
 
 // Export disconnect function for graceful shutdown

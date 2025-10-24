@@ -119,6 +119,14 @@ KEYCLOAK_CLIENT_ID=your-client-id
 KEYCLOAK_PUBLIC_KEY="your-public-key"
 ```
 
+### Redis Configuration (Job Queue)
+```
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# REDIS_PASSWORD=your-password  # Optional
+```
+
 ### Other Services
 ```
 # ACL and Catalogue APIs

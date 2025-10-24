@@ -5,12 +5,23 @@
 import app from './app';
 import { createLogger } from './core/utils/logger';
 import { env } from './config/environment';
+import { connectRedis, disconnectRedis } from './core/utils/redis-client';
 
 // Create a logger for this module
 const logger = createLogger('Server');
 
 // Log application startup
 logger.info(`Starting application in ${env.NODE_ENV} environment on port ${env.PORT}`);
+
+// Initialize Redis connection on startup
+(async () => {
+  try {
+    await connectRedis();
+  } catch (error) {
+    logger.error('Failed to connect to Redis on startup', error as Error);
+    process.exit(1);
+  }
+})();
 
 // Start the server
 const server = app.listen(Number(env.PORT), () => {
@@ -33,8 +44,15 @@ process.on('uncaughtException', (error) => {
 });
 
 // Handle termination signals for graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  
+  // Disconnect Redis
+  try {
+    await disconnectRedis();
+  } catch (error) {
+    logger.error('Error disconnecting Redis', error as Error);
+  }
   
   server.close(() => {
     logger.info('Server closed');
