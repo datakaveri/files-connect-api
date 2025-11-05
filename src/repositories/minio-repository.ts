@@ -43,14 +43,33 @@ export class MinIORepository implements StorageRepositoryInterface {
     this.bucketName = config.bucketName;
 
     // Parse endpoint to extract hostname and port
-    const endpointUrl = new URL(config.endpoint.startsWith("http") ? config.endpoint : `http://${config.endpoint}`);
+    // Handle cases: "minio.iudx.io", "http://minio.iudx.io", "https://minio.iudx.io:443"
+    let endpointUrl: URL;
+    if (config.endpoint.startsWith("http://") || config.endpoint.startsWith("https://")) {
+      endpointUrl = new URL(config.endpoint);
+    } else {
+      // If no protocol, infer from useSSL setting
+      const protocol = config.useSSL !== false ? "https" : "http";
+      endpointUrl = new URL(`${protocol}://${config.endpoint}`);
+    }
+
     const hostname = endpointUrl.hostname;
-    const port = config.port || endpointUrl.port || (config.useSSL === false ? 80 : 443);
+
+    // Determine port: explicit config > URL port > default based on SSL
+    let port: number;
+    if (config.port) {
+      port = config.port;
+    } else if (endpointUrl.port) {
+      port = parseInt(endpointUrl.port, 10);
+    } else {
+      // Default ports: 443 for HTTPS, 80 for HTTP
+      port = config.useSSL !== false ? 443 : 80;
+    }
 
     // Initialize MinIO client
     this.minioClient = new Minio.Client({
       endPoint: hostname,
-      port: parseInt(port.toString(), 10),
+      port: port,
       useSSL: config.useSSL !== false, // Default to true
       accessKey: config.accessKey,
       secretKey: config.secretKey,
@@ -59,8 +78,10 @@ export class MinIORepository implements StorageRepositoryInterface {
 
     logger.info("MinIO repository initialized", {
       endpoint: config.endpoint,
+      hostname: hostname,
+      port: port,
       bucketName: this.bucketName,
-      useSSL: config.useSSL,
+      useSSL: config.useSSL !== false,
     });
   }
 
