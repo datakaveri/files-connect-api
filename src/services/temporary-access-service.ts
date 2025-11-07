@@ -101,7 +101,6 @@ export class TemporaryAccessService implements TemporaryAccessServiceInterface {
           Effect: 'Allow',
           Action: ['s3:GetObject'],
           Resource: [
-            `arn:aws:s3:::${bucketName}/${databankId}/`,
             `arn:aws:s3:::${bucketName}/${databankId}/*`
           ],
         },
