@@ -43,6 +43,12 @@ The API has been restructured to follow REST best practices, with all resources 
 | `/v1/databanks/:databankId/process` | POST | Create a processing job (zip and/or report) | Yes | Provider |
 | `/v1/databanks/:databankId/process/:jobId/status` | PUT | Update status of a processing job | Yes | Provider |
 
+### Temporary Access APIs
+
+| Endpoint | Method | Description | Auth Required | Roles |
+|----------|--------|-------------|--------------|-------|
+| `/v1/databanks/:databankId/query-access` | GET | Generate temporary AWS STS credentials for direct S3 access to databank | Yes | Provider, Consumer |
+
 ### Download Operations APIs
 
 | Endpoint | Method | Description | Auth Required | Roles |
@@ -62,4 +68,6 @@ The API has been restructured to follow REST best practices, with all resources 
 - The processing APIs trigger background jobs for creating zip files and generating reports
 - Processing jobs run asynchronously and respond with 202 Accepted status
 - Zip creation jobs can be tracked and downloaded once complete via the databanks download API
+- Temporary access API generates AWS STS credentials for direct S3 access to databank files without proxying through the API
+- Temporary credentials are time-limited (default 15 minutes) and scoped to specific databank access only
 - Authorization is role-based with two primary roles: Provider and Consumer

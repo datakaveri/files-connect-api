@@ -93,6 +93,12 @@ const envSchema = z.object({
   LAMBDA_ACCESS_KEY: z.string().optional(),
   LAMBDA_SECRET_KEY: z.string().optional(),
   LAMBDA_REGION: z.string().optional(),
+  // STS (Temporary Access) Configuration
+  STS_ROLE_ARN: z.string(),
+  STS_SESSION_DURATION_IN_SECONDS: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .default("900"), // Default 15 minutes (900 seconds)
 });
 
 // Export type definition
