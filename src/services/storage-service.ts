@@ -168,6 +168,41 @@ export class StorageService implements StorageServiceInterface {
     this.assetsRepository = assetsRepository || s3Repository; // Fall back to main repository if no assets repository provided
     logger.info('StorageService initialized');
   }
+
+  /**
+   * Normalizes various body types returned by repositories to a Readable stream
+   * @param body - The body returned from the storage repository
+   * @returns A Node.js Readable stream
+   */
+  private normalizeToReadable(
+    body: Readable | Buffer | Uint8Array | string | AsyncIterable<unknown> | Iterable<unknown>
+  ): Readable {
+    if (body instanceof Readable) {
+      return body;
+    }
+
+    if (Buffer.isBuffer(body)) {
+      return Readable.from(body);
+    }
+
+    if (body instanceof Uint8Array) {
+      return Readable.from(body);
+    }
+
+    if (typeof body === 'string') {
+      return Readable.from([body]);
+    }
+
+    if (body && typeof (body as any)[Symbol.asyncIterator] === 'function') {
+      return Readable.from(body as AsyncIterable<unknown>);
+    }
+
+    if (body && typeof (body as any)[Symbol.iterator] === 'function') {
+      return Readable.from(body as Iterable<unknown>);
+    }
+
+    throw new Error('Unsupported body type returned from storage repository');
+  }
   
   /**
    * Uploads an asset directly to S3 (without multipart)
@@ -577,7 +612,7 @@ export class StorageService implements StorageServiceInterface {
         databankId 
       });
       
-      return response.Body as Readable;
+      return this.normalizeToReadable(response.Body);
     } catch (error) {
       logger.error('Error getting object', error as Error, { 
         key: normalizedKey, 
@@ -619,7 +654,7 @@ export class StorageService implements StorageServiceInterface {
         contentLength: response.ContentLength
       });
       
-      return response.Body as Readable;
+      return this.normalizeToReadable(response.Body);
     } catch (error) {
       logger.error('Error getting partial object', error as Error, { 
         key: normalizedKey, 
