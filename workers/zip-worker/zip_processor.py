@@ -5,6 +5,8 @@ Ported from AWS Lambda function to work with Redis job queue
 """
 import os
 import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
 import tempfile
 import zipfile
 import logging
@@ -29,48 +31,78 @@ def get_s3_client():
     Create and configure S3/MinIO client based on environment variables
     """
     storage_provider = os.environ.get('STORAGE_PROVIDER', 's3').lower()
-    
+
     # Get credentials
     access_key = os.environ.get('S3_ACCESS_KEY')
     secret_key = os.environ.get('S3_SECRET_KEY')
-    
+
     if not access_key or not secret_key:
         raise ValueError("S3_ACCESS_KEY and S3_SECRET_KEY must be set")
-    
+
     # Configure client based on provider
     if storage_provider == 'minio':
         endpoint = os.environ.get('S3_ENDPOINT')
         if not endpoint:
             raise ValueError("S3_ENDPOINT must be set for MinIO")
-        
+
         use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
-        
+
         logger.info(f"Configuring MinIO client: endpoint={endpoint}, use_ssl={use_ssl}")
-        
+
+        # Create boto3 config with proper signature version and addressing style
+        boto_config = Config(
+            signature_version='s3v4',
+            s3={
+                'addressing_style': 'path'  # Use path-style for MinIO
+            }
+        )
+
+        # Parse endpoint to determine if it's HTTP or HTTPS
+        if not use_ssl and not endpoint.startswith('http://'):
+            # Force HTTP if use_ssl is False and not already specified
+            if endpoint.startswith('https://'):
+                endpoint = endpoint.replace('https://', 'http://')
+            elif not endpoint.startswith('http'):
+                endpoint = f'http://{endpoint}'
+        elif use_ssl and not endpoint.startswith('https://'):
+            # Force HTTPS if use_ssl is True and not already specified
+            if endpoint.startswith('http://'):
+                endpoint = endpoint.replace('http://', 'https://')
+            elif not endpoint.startswith('http'):
+                endpoint = f'https://{endpoint}'
+
+        logger.info(f"Using endpoint URL: {endpoint}")
+
         return boto3.client(
             's3',
             endpoint_url=endpoint,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            use_ssl=use_ssl,
-            verify=use_ssl
+            config=boto_config,
+            verify=use_ssl  # Only verify SSL certificates if using SSL
         )
     else:
         # AWS S3
         region = os.environ.get('S3_REGION', 'us-east-1')
         endpoint = os.environ.get('S3_ENDPOINT')
-        
+
         logger.info(f"Configuring S3 client: region={region}")
-        
+
+        # Create boto3 config
+        boto_config = Config(
+            signature_version='s3v4',
+            region_name=region
+        )
+
         config_params = {
             'aws_access_key_id': access_key,
             'aws_secret_access_key': secret_key,
-            'region_name': region
+            'config': boto_config
         }
-        
+
         if endpoint:
             config_params['endpoint_url'] = endpoint
-        
+
         return boto3.client('s3', **config_params)
 
 
