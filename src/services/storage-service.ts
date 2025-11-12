@@ -17,6 +17,8 @@ import {
 import { S3ObjectDetails } from '../core/types/s3-service';
 import { isFolder, getFileExtension } from '../core/utils/helpers';
 import { env } from '../config/environment';
+import { createStorageConfig } from '../config/storage';
+import { createStorageRepository } from '../repositories';
 
 // Define AWS S3 types to avoid namespace errors
 namespace AWSS3Types {
@@ -955,9 +957,6 @@ export class StorageService implements StorageServiceInterface {
  */
 export function createS3Service(): StorageServiceInterface {
   // Use the new storage configuration factory
-  const { createStorageConfig } = require('../config/storage');
-  const { createStorageRepository } = require('../repositories');
-
   const config = createStorageConfig();
 
   // Create the main repository

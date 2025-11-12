@@ -2,18 +2,17 @@
  * Express Application Configuration
  * Main application setup and middleware configuration
  */
-import express, { Express, Request, Response, NextFunction } from 'express';
-// Import directly without type checking to avoid TypeScript errors
-// since we already have the packages installed in package.json
-const helmet = require('helmet');
-const compression = require('compression');
-const cors = require('cors');
-const { rateLimit } = require('express-rate-limit');
+import express, { Express, Request, Response } from 'express';
+import helmet from 'helmet';
+import compression from 'compression';
+import cors from 'cors';
+import { rateLimit } from 'express-rate-limit';
 // Note: We're using a custom async error handler middleware instead of express-async-errors
 // because express-async-errors is not compatible with Express 5
-const swaggerUi = require('swagger-ui-express');
-const pino = require('pino');
-const pinoHttp = require('pino-http');
+import swaggerUi from 'swagger-ui-express';
+import pino from 'pino';
+import pinoHttp from 'pino-http';
+import path from 'path';
 
 // Import middlewares
 import { errorHandler } from './middleware/error-handler';
@@ -107,7 +106,20 @@ process.on('uncaughtException', (error) => {
 });
 
 // Apply global middleware
-app.use(helmet()); // Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'script-src': ["'self'", 'https://cdn.redoc.ly'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'img-src': ["'self'", 'data:', 'https://cdn.redoc.ly'],
+        'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      },
+    },
+  }),
+); // Security headers
 app.use(compression()); // Compress responses
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
@@ -165,6 +177,12 @@ app.get('/v1/health', (req: Request, res: Response) => {
 
 // API Documentation
 app.use('/v1/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+app.get('/openapi.json', (req: Request, res: Response) => {
+  res.json(openApiDocument);
+});
+app.get('/apis', (req: Request, res: Response) => {
+  res.sendFile(path.join(process.cwd(), 'redoc.html'));
+});
 
 // Mount API routes with versioning
 app.use('/v1', router);
