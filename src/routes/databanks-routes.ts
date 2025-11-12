@@ -8,8 +8,7 @@
  */
 import { Router, Request, Response } from "express";
 import { Readable } from 'stream';
-import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { createStorageService } from "../services/storage-service";
 import { createFileService } from "../services";
 import { createMultipartUploadService } from "../services";
@@ -710,36 +709,67 @@ databanksRoutes.get(
     
     // Check if the zip file exists
     try {
-      const command = new GetObjectCommand({
-        Bucket: env.BUCKET_NAME,
-        Key: zipKey
-      });
-      
-      // Get the S3 repository client directly for presigned URL generation
-      const s3Client = (s3Service as any).s3Repository.client;
-      
-      // Generate a presigned URL for downloading the zip
-      const presignedUrl = await getSignedUrl(s3Client, command, {
-        expiresIn: 300 // URL expires in 5 minutes
-      });
-      
+      const storageClient = s3Service.getS3Client() as any;
+
+      if (storageClient && typeof storageClient.send === 'function') {
+        // AWS SDK client (used for S3/MinIO with S3 compatibility)
+        await storageClient.send(new HeadObjectCommand({
+          Bucket: env.BUCKET_NAME,
+          Key: zipKey
+        }));
+      } else if (storageClient && typeof storageClient.statObject === 'function') {
+        // MinIO client
+        await storageClient.statObject(env.BUCKET_NAME, zipKey);
+      } else {
+        logger.warn('Unable to determine storage client type while checking zip existence', { zipKey });
+      }
+
+      const presignedUrl = await s3Service.createAssetPresignedUrl(zipKey, 300);
+
       logger.info(`Successfully generated download URL for key: ${zipKey}`);
-      
+
       const response = buildResponse({
         downloadUrl: presignedUrl,
         expiresAt: new Date(Date.now() + 300 * 1000).toISOString() // URL expires in 5 minutes
       });
-      
+
       res.json(response);
     } catch (error) {
-      // If the ZIP file doesn't exist
-      logger.error(`Zip file not found: ${zipKey}, error: ${error instanceof Error ? error.message : String(error)}`);
-      
-      res.status(404).json({ 
+      const err = error as any;
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const statusCode = err?.$metadata?.httpStatusCode || err?.statusCode;
+      const errorCode = err?.code || err?.name;
+      const isNotFoundError =
+        statusCode === 404 ||
+        errorCode === 'NotFound' ||
+        errorCode === 'NoSuchKey' ||
+        errorCode === 'NotFoundError';
+
+      if (isNotFoundError) {
+        logger.warn(`Zip file not found: ${zipKey}, error: ${errorMessage}`);
+
+        res.status(404).json({ 
+          success: false,
+          error: {
+            message: `Zip file for databank ${databankId} not found`,
+            code: 'RESOURCE_NOT_FOUND'
+          }
+        });
+
+        return;
+      }
+
+      logger.error(
+        `Failed to generate download URL for zip: ${zipKey}`,
+        err instanceof Error ? err : undefined,
+        { databankId, zipKey, errorCode, statusCode }
+      );
+
+      res.status(500).json({
         success: false,
         error: {
-          message: `Zip file for databank ${databankId} not found`,
-          code: 'RESOURCE_NOT_FOUND'
+          message: 'Failed to generate download link. Please try again later.',
+          code: 'DOWNLOAD_LINK_ERROR'
         }
       });
     }
