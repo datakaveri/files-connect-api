@@ -5,6 +5,9 @@
 
 import { createStorageConfig } from '../config/storage';
 import { createStorageRepository } from '../repositories';
+import { StorageService } from './storage-service';
+import { createMultipartUploadService as createMultipartUploadServiceInternal } from './multipart-upload-service';
+import { createFileService as createFileServiceInternal } from './file-service';
 
 export * from './auth-service';
 export * from './file-service';
@@ -25,8 +28,7 @@ export * from './audit-service';
 export function createStorageService() {
   const config = createStorageConfig();
   const repository = createStorageRepository(config);
-  const { StorageService } = require('./storage-service'); // Import here to avoid circular dependency
-  return new StorageService(repository, config);
+  return new StorageService(repository);
 }
 
 /**
@@ -41,7 +43,6 @@ export function createMultipartUploadService() {
   const config = createStorageConfig();
   const repository = createStorageRepository(config);
   const storageService = createStorageService();
-  const { createMultipartUploadService: createMultipartUploadServiceInternal } = require('./multipart-upload-service');
   return createMultipartUploadServiceInternal(storageService, repository);
 }
 
@@ -57,6 +58,5 @@ export function createFileService() {
   const config = createStorageConfig();
   const repository = createStorageRepository(config);
   const storageService = createStorageService();
-  const { createFileService: createFileServiceInternal } = require('./file-service');
   return createFileServiceInternal(storageService, repository);
 }
