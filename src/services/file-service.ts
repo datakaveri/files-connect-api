@@ -219,6 +219,7 @@ export class FileService implements FileServiceInterface {
       case "csv":
         return FileTypes.CSV as SupportedFileType;
       case "json":
+      case "geojson":
         return FileTypes.JSON as SupportedFileType;
       case "xml":
         return FileTypes.XML as SupportedFileType;

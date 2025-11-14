@@ -6,10 +6,10 @@ A TypeScript-based API service for secure file operations with databank support.
 
 - **Databank Management**: Organize files into logical databanks with access control
 - **Secure File Uploads**: Support for large file uploads with multipart upload
-- **File Type Validation**: Strict validation of uploaded files (CSV, JSON, TXT, Parquet, XLSX, ZIP)
+- **File Type Validation**: Strict validation of uploaded files (CSV, JSON, GeoJSON, TXT, Parquet, XLSX, ZIP)
 - **Security**: Role-based access control (RBAC) with Keycloak integration
 - **File Operations**: List, download, and manage files with metadata
-- **File Previews**: Generate previews for supported file types (CSV, JSON, XLSX, Parquet)
+- **File Previews**: Generate previews for supported file types (CSV, JSON, GeoJSON, XLSX, Parquet)
 - **Asynchronous Processing**: Redis-based job queue with Python workers for ZIP creation and reports
 - **Cloud Agnostic**: Works with both AWS S3 and MinIO for on-premise deployments
 - **RESTful API**: Standardized API following REST best practices
@@ -304,7 +304,7 @@ For detailed documentation on workers, see [workers/README.md](workers/README.md
 
 The API enforces strict file type validation for databank uploads:
 
-- **Allowed file types**: CSV, JSON, TXT, Parquet, XLSX, ZIP
+- **Allowed file types**: CSV, JSON, GeoJSON, TXT, Parquet, XLSX, ZIP
 - **Blocked file types**: Executable files (.exe, .dll, .bat, .cmd, .sh, .js, .py, .php)
 
 Validation occurs during multipart upload initiation and returns a 415 Unsupported Media Type status code for disallowed file types.
