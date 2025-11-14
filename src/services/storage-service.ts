@@ -505,6 +505,8 @@ export class StorageService implements StorageServiceInterface {
         return 'text/csv';
       case 'json':
         return 'application/json';
+      case 'geojson':
+        return 'application/geo+json';
       case 'xml':
         return 'application/xml';
       case 'zip':

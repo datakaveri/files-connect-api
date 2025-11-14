@@ -57,7 +57,7 @@ export const AllowedFileTypes = {
   // For databank uploads (data files only)
   DATABANK: [
     'aiconfig', 'ark', 'arrow', 'bif', 'bin', 'bpe', 'cbm', 'cfg', 'ckpt', 'conf',
-    'crfsuite', 'csv', 'dict', 'elki', 'emb', 'engine', 'ggml', 'gguf', 'gpickle', 'h5',
+    'crfsuite', 'csv', 'dict', 'elki', 'emb', 'engine', 'geojson', 'ggml', 'gguf', 'gpickle', 'h5',
     'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'nc',
     'nemo', 'npy', 'npz', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
     'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'tsv', 'txt', 'xml', 'yaml',
