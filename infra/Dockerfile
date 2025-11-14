@@ -19,6 +19,7 @@ WORKDIR /app
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-lock.yaml ./
+COPY --from=builder /app/redoc.html ./
 
 RUN npm install -g pnpm && \
     pnpm install 
