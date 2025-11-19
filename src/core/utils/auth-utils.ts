@@ -8,7 +8,7 @@ import { DecodedToken, UserRole, DatabankAccessResult } from '../types/auth';
 import { AuthConstants } from '../../config/constants';
 import { isDecodedToken } from './type-guards';
 import { Request, Response } from 'express';
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 
 // Create a logger for this module
 const logger = createLogger('AuthUtils');
