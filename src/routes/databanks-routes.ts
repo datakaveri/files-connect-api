@@ -209,11 +209,10 @@ databanksRoutes.post(
 /**
  * POST /databanks/:databankId/files/metadata
  * Get metadata for a file in the databank (key in request body)
+ * NOTE: No authentication required for this endpoint
  */
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/metadata`,
-  authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   validateBody(fileMetadataSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
