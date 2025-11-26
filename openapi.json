@@ -3,7 +3,7 @@
   "info": {
     "title": "Files Connect API",
     "version": "1.0.0",
-    "description": "API for file uploads, downloads, and processing",
+    "description": "API for file uploads, downloads, and processing.\n\n## Authentication & Authorization\n\nThis API uses JWT Bearer token authentication with role-based access control (RBAC).\n\n### User Roles\n\nThe following roles are defined in the system:\n\n- **provider**: Can upload files, create processing jobs, and manage databanks. Full read/write access to their own databanks.\n- **consumer**: Can view and download files from databanks they have access to. Read-only access.\n- **cos_admin**: Administrative role with elevated privileges across the system.\n\n### Access Control\n\nEach API endpoint specifies which roles are allowed to access it. Check the endpoint description for the \"Access Control\" section to see which roles can use that endpoint.",
     "contact": {
       "name": "API Support",
       "email": "support@example.com"
@@ -38,7 +38,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "JWT-based authentication"
+        "description": "JWT-based authentication. The JWT token should contain user roles in the realm_access.roles claim. Supported roles: provider, consumer, cos_admin"
       }
     },
     "schemas": {
@@ -138,7 +138,7 @@
           "Databanks"
         ],
         "summary": "List files in a databank directory",
-        "description": "Returns a list of files and directories in the specified databank directory",
+        "description": "Returns a list of files and directories in the specified databank directory.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
         "parameters": [
           {
             "schema": {
@@ -342,7 +342,7 @@
           "Databanks"
         ],
         "summary": "Download a specific file from a databank",
-        "description": "Returns a specific file or generates a presigned URL for download",
+        "description": "Returns a specific file or generates a presigned URL for download.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
         "parameters": [
           {
             "schema": {
@@ -460,7 +460,7 @@
           "Databanks"
         ],
         "summary": "Get metadata for a specific file in a databank",
-        "description": "Returns metadata for a specific file in a databank",
+        "description": "Returns metadata for a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: No authentication required (Public endpoint)",
         "parameters": [
           {
             "schema": {
@@ -588,7 +588,7 @@
           "Databanks"
         ],
         "summary": "Delete a specific file from a databank",
-        "description": "Deletes a specific file from a databank by key",
+        "description": "Deletes a specific file from a databank by key.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer` (owner only)",
         "parameters": [
           {
             "schema": {
@@ -702,7 +702,7 @@
           "Databanks"
         ],
         "summary": "Generate preview for a specific file in a databank",
-        "description": "Returns a preview of a specific file in a databank",
+        "description": "Returns a preview of a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
         "parameters": [
           {
             "schema": {
@@ -877,7 +877,7 @@
           "Databanks"
         ],
         "summary": "Initiate a multipart upload to a databank",
-        "description": "Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.",
+        "description": "Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1060,7 +1060,7 @@
           "Databanks"
         ],
         "summary": "Complete a multipart upload to a databank",
-        "description": "Finalizes a multipart upload to a databank",
+        "description": "Finalizes a multipart upload to a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1210,7 +1210,7 @@
           "Databanks"
         ],
         "summary": "Cancel a multipart upload",
-        "description": "Cancels an in-progress multipart upload and removes any uploaded parts",
+        "description": "Cancels an in-progress multipart upload and removes any uploaded parts.\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1382,7 +1382,7 @@
           "Assets"
         ],
         "summary": "Upload an asset (multipart/form-data)",
-        "description": "Uploads an asset using multipart/form-data and returns a unique key for future reference. Only PDF and image files are allowed (JPEG, PNG, GIF, WebP, SVG, TIFF, BMP).",
+        "description": "Uploads an asset using multipart/form-data and returns a unique key for future reference. Only PDF and image files are allowed (JPEG, PNG, GIF, WebP, SVG, TIFF, BMP).\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`, `cos_admin`",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -1497,7 +1497,7 @@
           "Assets"
         ],
         "summary": "Get a presigned URL for an asset",
-        "description": "Returns a presigned URL for downloading an asset",
+        "description": "Returns a presigned URL for downloading an asset.\n\n**Access Control:**\n- Allowed Roles: `provider`, `cos_admin`",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1609,7 +1609,7 @@
           "Databanks"
         ],
         "summary": "Get download URL for databank",
-        "description": "Returns a presigned URL for downloading the databank zip file",
+        "description": "Returns a presigned URL for downloading the databank zip file.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
         "parameters": [
           {
             "schema": {
@@ -1709,7 +1709,7 @@
           "Databanks"
         ],
         "summary": "Create a processing job for a databank",
-        "description": "Creates a new processing job (zip and/or report) for a databank",
+        "description": "Creates a new processing job (zip and/or report) for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1852,7 +1852,7 @@
           "Databanks"
         ],
         "summary": "Update processing job status",
-        "description": "Updates the status of a processing job for a databank",
+        "description": "Updates the status of a processing job for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {

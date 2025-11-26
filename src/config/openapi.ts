@@ -17,7 +17,23 @@ export const openApiInfo = {
   info: {
     title: 'Files Connect API',
     version: env.VERSION || '1.0.0',
-    description: 'API for file uploads, downloads, and processing',
+    description: `API for file uploads, downloads, and processing.
+
+## Authentication & Authorization
+
+This API uses JWT Bearer token authentication with role-based access control (RBAC).
+
+### User Roles
+
+The following roles are defined in the system:
+
+- **provider**: Can upload files, create processing jobs, and manage databanks. Full read/write access to their own databanks.
+- **consumer**: Can view and download files from databanks they have access to. Read-only access.
+- **cos_admin**: Administrative role with elevated privileges across the system.
+
+### Access Control
+
+Each API endpoint specifies which roles are allowed to access it. Check the endpoint description for the "Access Control" section to see which roles can use that endpoint.`,
     contact: {
       name: 'API Support',
       email: 'support@example.com',
@@ -144,7 +160,7 @@ registry.registerComponent('securitySchemes', 'bearerAuth', {
   type: 'http',
   scheme: 'bearer',
   bearerFormat: 'JWT',
-  description: 'JWT-based authentication',
+  description: 'JWT-based authentication. The JWT token should contain user roles in the realm_access.roles claim. Supported roles: provider, consumer, cos_admin',
 });
 
 // Register base schemas
@@ -242,7 +258,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'List files in a databank directory',
   description:
-    'Returns a list of files and directories in the specified databank directory',
+    'Returns a list of files and directories in the specified databank directory.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -299,7 +315,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Download a specific file from a databank',
   description:
-    'Returns a specific file or generates a presigned URL for download',
+    'Returns a specific file or generates a presigned URL for download.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -348,7 +364,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/files/metadata',
   tags: ['Databanks'],
   summary: 'Get metadata for a specific file in a databank',
-  description: 'Returns metadata for a specific file in a databank',
+  description: 'Returns metadata for a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: No authentication required (Public endpoint)',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -388,7 +404,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/files/delete',
   tags: ['Databanks'],
   summary: 'Delete a specific file from a databank',
-  description: 'Deletes a specific file from a databank by key',
+  description: 'Deletes a specific file from a databank by key.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer` (owner only)',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -432,7 +448,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/files/preview',
   tags: ['Databanks'],
   summary: 'Generate preview for a specific file in a databank',
-  description: 'Returns a preview of a specific file in a databank',
+  description: 'Returns a preview of a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -490,7 +506,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Initiate a multipart upload to a databank',
   description:
-    'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.',
+    'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -540,7 +556,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/uploads/{uploadId}',
   tags: ['Databanks'],
   summary: 'Complete a multipart upload to a databank',
-  description: 'Finalizes a multipart upload to a databank',
+  description: 'Finalizes a multipart upload to a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -588,7 +604,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Cancel a multipart upload',
   description:
-    'Cancels an in-progress multipart upload and removes any uploaded parts',
+    'Cancels an in-progress multipart upload and removes any uploaded parts.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -645,7 +661,7 @@ registry.registerPath({
   tags: ['Assets'],
   summary: 'Upload an asset (multipart/form-data)',
   description:
-    'Uploads an asset using multipart/form-data and returns a unique key for future reference. Only PDF and image files are allowed (JPEG, PNG, GIF, WebP, SVG, TIFF, BMP).',
+    'Uploads an asset using multipart/form-data and returns a unique key for future reference. Only PDF and image files are allowed (JPEG, PNG, GIF, WebP, SVG, TIFF, BMP).\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`, `cos_admin`',
   request: {
     body: {
       content: {
@@ -691,7 +707,7 @@ registry.registerPath({
   path: '/assets/download',
   tags: ['Assets'],
   summary: 'Get a presigned URL for an asset',
-  description: 'Returns a presigned URL for downloading an asset',
+  description: 'Returns a presigned URL for downloading an asset.\n\n**Access Control:**\n- Allowed Roles: `provider`, `cos_admin`',
   request: {
     body: {
       content: {
@@ -740,7 +756,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/download',
   tags: ['Databanks'],
   summary: 'Get download URL for databank',
-  description: 'Returns a presigned URL for downloading the databank zip file',
+  description: 'Returns a presigned URL for downloading the databank zip file.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -772,7 +788,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Create a processing job for a databank',
   description:
-    'Creates a new processing job (zip and/or report) for a databank',
+    'Creates a new processing job (zip and/or report) for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -816,7 +832,7 @@ registry.registerPath({
   path: '/databanks/{databankId}/process/{jobId}/status',
   tags: ['Databanks'],
   summary: 'Update processing job status',
-  description: 'Updates the status of a processing job for a databank',
+  description: 'Updates the status of a processing job for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),

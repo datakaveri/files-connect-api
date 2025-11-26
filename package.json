@@ -9,7 +9,8 @@
     "build": "tsc",
     "start": "node ./build/server.js",
     "lint": "eslint . --ext .ts",
-    "test": "jest --verbose --detectOpenHandles"
+    "test": "jest --verbose --detectOpenHandles",
+    "openapi": "pnpm build && node scripts/generate-openapi.js"
   },
   "keywords": [
     "express",
