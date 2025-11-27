@@ -30,10 +30,6 @@ USER worker
 # Set Python to run in unbuffered mode for better logging
 ENV PYTHONUNBUFFERED=1
 
-# Health check (optional - checks if process is running)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD pgrep -f "python.*worker.py" || exit 1
-
 # Run the worker
 CMD ["python", "-u", "worker.py"]
 

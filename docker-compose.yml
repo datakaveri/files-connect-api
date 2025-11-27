@@ -49,6 +49,7 @@ services:
       # Redis configuration
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_DB: 0
       
       # Storage configuration (MinIO for local development)
       STORAGE_PROVIDER: minio
@@ -109,6 +110,11 @@ services:
   #     # Catalogue API
   #     CAT_API_URL: http://localhost:8082
 
+  #     # Redis Configuration
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     REDIS_DB: 0
+  #
   #     # RabbitMQ
   #     RABBITMQ_HOST: localhost
   #     RABBITMQ_PORT: 5672

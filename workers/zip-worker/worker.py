@@ -36,12 +36,14 @@ def get_redis_client():
     redis_host = os.environ.get('REDIS_HOST', 'localhost')
     redis_port = int(os.environ.get('REDIS_PORT', '6379'))
     redis_password = os.environ.get('REDIS_PASSWORD')
+    redis_db = int(os.environ.get('REDIS_DB', '0'))
     
-    logger.info(f"Connecting to Redis: {redis_host}:{redis_port}")
+    logger.info(f"Connecting to Redis: {redis_host}:{redis_port}/{redis_db}")
     
     redis_config = {
         'host': redis_host,
         'port': redis_port,
+        'db': redis_db,
         'decode_responses': True,
         'socket_connect_timeout': 5,
         'socket_keepalive': True,
@@ -55,7 +57,7 @@ def get_redis_client():
         client = redis.Redis(**redis_config)
         # Test connection
         client.ping()
-        logger.info("Successfully connected to Redis")
+        logger.info(f"Successfully connected to Redis database {redis_db}")
         return client
     except Exception as e:
         logger.error(f"Failed to connect to Redis: {str(e)}")

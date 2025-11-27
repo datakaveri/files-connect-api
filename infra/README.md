@@ -1,5 +1,9 @@
 # Files Connect API Infrastructure Guide
 
+## Documentation
+
+- **[STS Setup Guide](./STS_SETUP.md)** - Complete guide for configuring AWS STS temporary access
+
 ## Getting Started
 
 First, clone the repository:
@@ -42,3 +46,16 @@ kubectl apply -f infra/manifest.yaml
 ```bash
 kubectl apply -f infra/ingress.yaml
 ```
+
+## AWS STS Configuration
+
+1. Follow the **[STS Setup Guide](./STS_SETUP.md)** for detailed instructions
+
+Key environment variables to configure:
+
+```bash
+STS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_TEMP_ACCESS_ROLE
+STS_SESSION_DURATION_IN_SECONDS=900
+```
+
+Add these to your `secret.yaml` or ConfigMap as appropriate.

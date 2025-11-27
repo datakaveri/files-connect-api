@@ -15,6 +15,7 @@ const ALLOWED_FILE_TYPES = [
   'application/pdf',
   // Images
   'image/jpeg',
+  'image/jpg',
   'image/png',
   'image/gif',
   'image/webp',

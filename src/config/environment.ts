@@ -85,6 +85,7 @@ const envSchema = z.object({
   REDIS_HOST: z.string().default("localhost"),
   REDIS_PORT: z.string().transform((val) => parseInt(val, 10)).default("6379"),
   REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.string().transform((val) => parseInt(val, 10)).default("0"),
 
   //Lambda Configs (optional for backward compatibility)
   ZIP_LAMBDA_URL: z.string().url().optional(),
@@ -92,6 +93,12 @@ const envSchema = z.object({
   LAMBDA_ACCESS_KEY: z.string().optional(),
   LAMBDA_SECRET_KEY: z.string().optional(),
   LAMBDA_REGION: z.string().optional(),
+  // STS (Temporary Access) Configuration
+  STS_ROLE_ARN: z.string(),
+  STS_SESSION_DURATION_IN_SECONDS: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .default("900"), // Default 15 minutes (900 seconds)
 });
 
 // Export type definition

@@ -8,6 +8,7 @@ A TypeScript-based API service for secure file operations with databank support.
 - **Secure File Uploads**: Support for large file uploads with multipart upload
 - **File Type Validation**: Strict validation of uploaded files (CSV, JSON, TXT, Parquet, XLSX, ZIP)
 - **Security**: Role-based access control (RBAC) with Keycloak integration
+- **Temporary Access Credentials**: Generate time-limited AWS STS credentials for direct S3 access
 - **File Operations**: List, download, and manage files with metadata
 - **File Previews**: Generate previews for supported file types (CSV, JSON, XLSX, Parquet)
 - **Asynchronous Processing**: Redis-based job queue with Python workers for ZIP creation and reports
@@ -119,6 +120,23 @@ KEYCLOAK_CLIENT_ID=your-client-id
 KEYCLOAK_PUBLIC_KEY="your-public-key"
 ```
 
+### Redis Configuration (Job Queue)
+```
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+# REDIS_PASSWORD=your-password  # Optional
+```
+
+### Temporary Access Configuration (Optional)
+```
+# AWS STS for temporary credentials (optional)
+STS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/DatabanksTemporaryAccessRole
+STS_SESSION_DURATION_IN_SECONDS=900
+```
+
+See [STS Setup Guide](./infra/STS_SETUP.md) for detailed configuration instructions.
+
 ### Other Services
 ```
 # ACL and Catalogue APIs
@@ -187,6 +205,7 @@ Once the server is running, you can access the interactive API documentation at:
   - `POST /v1/databanks/{databankId}/files` - List files in databank
   - `POST /v1/databanks/{databankId}/files/download` - Download files
   - `POST /v1/databanks/{databankId}/process` - Create processing job
+  - `GET /v1/databanks/{databankId}/query-access` - Generate temporary S3 credentials
 
 - **Asset Operations**:
   - `POST /v1/assets` - Upload asset files
