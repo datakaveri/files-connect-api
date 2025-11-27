@@ -1,26 +1,32 @@
+version: '3.9'
+
 # Override file for local development
-# This file allows you to customize the docker-compose.yml for your local environment
-# Copy this file and modify the values as needed
-services:
-  # api:
-  #   environment:
-      # Override storage provider if you want to use S3 instead of MinIO
-      # STORAGE_PROVIDER: s3
-      # STORAGE_ENDPOINT: https://s3.amazonaws.com
-      # STORAGE_REGION: us-east-1
-      # STORAGE_ACCESS_KEY: your-aws-access-key
-      # STORAGE_SECRET_KEY: your-aws-secret-key
-      # STORAGE_FORCE_PATH_STYLE: false
-      # STORAGE_USE_SSL: true
+# This file allows you to customize the docker-compose.yml for your local environment.
+# Copy this file, remove the ".example" suffix, and uncomment/set the values you need.
 
-      # Override other services URLs if running locally
-      # KEYCLOAK_AUTH_URL: http://host.docker.internal:8080
-      # ACL_APD_API_URL: http://host.docker.internal:8081
-      # CAT_API_URL: http://host.docker.internal:8082
-      # RABBITMQ_HOST: host.docker.internal
+services: {}
 
-    # Mount additional volumes for development
-    # volumes:
-    #   - .:/app
-    #   - /app/node_modules
-    #   - ~/.aws:/root/.aws:ro  # Mount AWS credentials if using S3
+# Example overrides:
+# services:
+#   api:
+#     environment:
+#       # Override storage provider if you want to use S3 instead of MinIO
+#       # STORAGE_PROVIDER: s3
+#       # STORAGE_ENDPOINT: https://s3.amazonaws.com
+#       # STORAGE_REGION: us-east-1
+#       # STORAGE_ACCESS_KEY: your-aws-access-key
+#       # STORAGE_SECRET_KEY: your-aws-secret-key
+#       # STORAGE_FORCE_PATH_STYLE: false
+#       # STORAGE_USE_SSL: true
+#
+#       # Override other services URLs if running locally
+#       # KEYCLOAK_AUTH_URL: http://host.docker.internal:8080
+#       # ACL_APD_API_URL: http://host.docker.internal:8081
+#       # CAT_API_URL: http://host.docker.internal:8082
+#       # RABBITMQ_HOST: host.docker.internal
+#
+#     # Mount additional volumes for development
+#     # volumes:
+#     #   - .:/app
+#     #   - /app/node_modules
+#     #   - ~/.aws:/root/.aws:ro  # Mount AWS credentials if using S3

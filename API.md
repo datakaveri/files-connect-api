@@ -32,7 +32,7 @@ The API has been restructured to follow REST best practices, with all resources 
 
 | Endpoint | Method | Description | Auth Required | Roles |
 |----------|--------|-------------|--------------|-------|
-| `/v1/databanks/:databankId/uploads` | POST | Initiate a multipart upload and get presigned URLs (CSV, JSON, TXT, Parquet, XLSX, ZIP files only) | Yes | Provider |
+| `/v1/databanks/:databankId/uploads` | POST | Initiate a multipart upload and get presigned URLs (CSV, JSON, GeoJSON, TXT, Parquet, XLSX, ZIP files only) | Yes | Provider |
 | `/v1/databanks/:databankId/uploads/:uploadId` | PUT | Finalize a multipart upload | Yes | Provider |
 | `/v1/databanks/:databankId/uploads/:uploadId/cancel` | POST | Cancel a multipart upload | Yes | Provider |
 
@@ -62,8 +62,8 @@ The API has been restructured to follow REST best practices, with all resources 
 - The base path for all APIs is `/v1` as defined in the main router
 - APIs follow REST conventions with appropriate HTTP methods and all resources organized under databanks
 - Resources are organized into logical groups (files, uploads, process, download) within the databanks resource
-- File preview supports multiple formats: CSV, JSON, XML, XLSX, and Parquet
-- Databank multipart uploads support only CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted
+- File preview supports multiple formats: CSV, JSON, GeoJSON, XML, XLSX, and Parquet
+- Databank multipart uploads support only CSV, JSON, GeoJSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted
 - Multipart uploads are used for large file uploads and follow the AWS S3 multipart upload protocol
 - The processing APIs trigger background jobs for creating zip files and generating reports
 - Processing jobs run asynchronously and respond with 202 Accepted status

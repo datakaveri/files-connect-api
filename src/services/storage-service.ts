@@ -17,6 +17,8 @@ import {
 import { S3ObjectDetails } from '../core/types/s3-service';
 import { isFolder, getFileExtension } from '../core/utils/helpers';
 import { env } from '../config/environment';
+import { createStorageConfig } from '../config/storage';
+import { createStorageRepository } from '../repositories';
 
 // Define AWS S3 types to avoid namespace errors
 namespace AWSS3Types {
@@ -167,6 +169,41 @@ export class StorageService implements StorageServiceInterface {
     this.s3Repository = s3Repository;
     this.assetsRepository = assetsRepository || s3Repository; // Fall back to main repository if no assets repository provided
     logger.info('StorageService initialized');
+  }
+
+  /**
+   * Normalizes various body types returned by repositories to a Readable stream
+   * @param body - The body returned from the storage repository
+   * @returns A Node.js Readable stream
+   */
+  private normalizeToReadable(
+    body: Readable | Buffer | Uint8Array | string | AsyncIterable<unknown> | Iterable<unknown>
+  ): Readable {
+    if (body instanceof Readable) {
+      return body;
+    }
+
+    if (Buffer.isBuffer(body)) {
+      return Readable.from(body);
+    }
+
+    if (body instanceof Uint8Array) {
+      return Readable.from(body);
+    }
+
+    if (typeof body === 'string') {
+      return Readable.from([body]);
+    }
+
+    if (body && typeof (body as any)[Symbol.asyncIterator] === 'function') {
+      return Readable.from(body as AsyncIterable<unknown>);
+    }
+
+    if (body && typeof (body as any)[Symbol.iterator] === 'function') {
+      return Readable.from(body as Iterable<unknown>);
+    }
+
+    throw new Error('Unsupported body type returned from storage repository');
   }
   
   /**
@@ -468,6 +505,8 @@ export class StorageService implements StorageServiceInterface {
         return 'text/csv';
       case 'json':
         return 'application/json';
+      case 'geojson':
+        return 'application/geo+json';
       case 'xml':
         return 'application/xml';
       case 'zip':
@@ -577,7 +616,7 @@ export class StorageService implements StorageServiceInterface {
         databankId 
       });
       
-      return response.Body as Readable;
+      return this.normalizeToReadable(response.Body);
     } catch (error) {
       logger.error('Error getting object', error as Error, { 
         key: normalizedKey, 
@@ -619,7 +658,7 @@ export class StorageService implements StorageServiceInterface {
         contentLength: response.ContentLength
       });
       
-      return response.Body as Readable;
+      return this.normalizeToReadable(response.Body);
     } catch (error) {
       logger.error('Error getting partial object', error as Error, { 
         key: normalizedKey, 
@@ -920,9 +959,6 @@ export class StorageService implements StorageServiceInterface {
  */
 export function createS3Service(): StorageServiceInterface {
   // Use the new storage configuration factory
-  const { createStorageConfig } = require('../config/storage');
-  const { createStorageRepository } = require('../repositories');
-
   const config = createStorageConfig();
 
   // Create the main repository

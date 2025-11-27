@@ -13,7 +13,7 @@ import {
   checkDatabankAccess, 
   extractUserInfo
 } from '../core/utils/auth-utils';
-import { ServiceUnavailableError, ValidationError } from '../core/errors/application-errors';
+import { ServiceUnavailableError, ValidationError, NotFoundError } from '../core/errors/application-errors';
 
 // Create a logger for this module
 const logger = createLogger('AuthMiddleware');
@@ -397,12 +397,47 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
   } catch (error) {
     if (axios.isAxiosError(error)) {
       logger.error(`[checkItemAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
-      let detail = 'Failed to connect to Catalogue API.';
+      
       if (error.response) {
-        detail = `Catalogue API responded with status ${error.response.status} (${error.response.statusText}).`;
+        const status = error.response.status;
+        const statusText = error.response.statusText;
+        
+        // Handle 404 - item not found in catalogue
+        if (status === 404) {
+          logger.warn(`[checkItemAccess] Databank ${databankId} not found in Catalogue API`);
+          return next(new NotFoundError('Databank', databankId));
+        }
+        
+        // Handle other 4xx errors - client errors
+        if (status >= 400 && status < 500) {
+          logger.warn(`[checkItemAccess] Catalogue API returned client error ${status} for databankId: ${databankId}`);
+          return next(new ValidationError(
+            `Invalid databank request: ${statusText}`,
+            { 
+              databankId, 
+              catalogueStatus: status,
+              detail: `Catalogue API responded with status ${status} (${statusText}).`
+            }
+          ));
+        }
+        
+        // Handle 5xx errors - server errors
+        logger.error(`[checkItemAccess] Catalogue API service error ${status} for databankId: ${databankId}`);
+        return next(new ServiceUnavailableError('Catalogue API', { 
+          detail: `Catalogue API responded with status ${status} (${statusText}).`,
+          databankId 
+        }));
       }
-      return next(new ServiceUnavailableError('Catalogue API', { detail, databankId }));
+      
+      // Network error - no response from server
+      logger.error(`[checkItemAccess] Failed to connect to Catalogue API for databankId: ${databankId}`);
+      return next(new ServiceUnavailableError('Catalogue API', { 
+        detail: 'Failed to connect to Catalogue API.',
+        databankId 
+      }));
     }
+    
+    // Unexpected non-Axios error
     logger.error(`[checkItemAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
     return next(new ServiceUnavailableError('Catalogue API', { 
       detail: 'An unexpected error occurred while verifying databank public access.',
@@ -464,12 +499,47 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
   } catch (error) {
     if (axios.isAxiosError(error)) {
       logger.error(`[checkItemAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
-      let detail = 'Failed to connect to Catalogue API.';
+      
       if (error.response) {
-        detail = `Catalogue API responded with status ${error.response.status} (${error.response.statusText}).`;
+        const status = error.response.status;
+        const statusText = error.response.statusText;
+        
+        // Handle 404 - item not found in catalogue
+        if (status === 404) {
+          logger.warn(`[checkItemAccess] Databank ${databankId} not found in Catalogue API`);
+          return next(new NotFoundError('Databank', databankId));
+        }
+        
+        // Handle other 4xx errors - client errors
+        if (status >= 400 && status < 500) {
+          logger.warn(`[checkItemAccess] Catalogue API returned client error ${status} for databankId: ${databankId}`);
+          return next(new ValidationError(
+            `Invalid databank request: ${statusText}`,
+            { 
+              databankId, 
+              catalogueStatus: status,
+              detail: `Catalogue API responded with status ${status} (${statusText}).`
+            }
+          ));
+        }
+        
+        // Handle 5xx errors - server errors
+        logger.error(`[checkItemAccess] Catalogue API service error ${status} for databankId: ${databankId}`);
+        return next(new ServiceUnavailableError('Catalogue API', { 
+          detail: `Catalogue API responded with status ${status} (${statusText}).`,
+          databankId 
+        }));
       }
-      return next(new ServiceUnavailableError('Catalogue API', { detail, databankId }));
+      
+      // Network error - no response from server
+      logger.error(`[checkItemAccess] Failed to connect to Catalogue API for databankId: ${databankId}`);
+      return next(new ServiceUnavailableError('Catalogue API', { 
+        detail: 'Failed to connect to Catalogue API.',
+        databankId 
+      }));
     }
+    
+    // Unexpected non-Axios error
     logger.error(`[checkItemAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
     return next(new ServiceUnavailableError('Catalogue API', { 
       detail: 'An unexpected error occurred while verifying databank public access.',
@@ -545,12 +615,47 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
   } catch (error) {
     if (axios.isAxiosError(error)) {
       logger.error(`[checkIsOwner] Axios error calling Catalogue API for databankId: ${databankId}`, error);
-      let detail = 'Failed to connect to Catalogue API.';
+      
       if (error.response) {
-        detail = `Catalogue API responded with status ${error.response.status} (${error.response.statusText}).`;
+        const status = error.response.status;
+        const statusText = error.response.statusText;
+        
+        // Handle 404 - item not found in catalogue
+        if (status === 404) {
+          logger.warn(`[checkIsOwner] Databank ${databankId} not found in Catalogue API`);
+          return next(new NotFoundError('Databank', databankId));
+        }
+        
+        // Handle other 4xx errors - client errors
+        if (status >= 400 && status < 500) {
+          logger.warn(`[checkIsOwner] Catalogue API returned client error ${status} for databankId: ${databankId}`);
+          return next(new ValidationError(
+            `Invalid databank request: ${statusText}`,
+            { 
+              databankId, 
+              catalogueStatus: status,
+              detail: `Catalogue API responded with status ${status} (${statusText}).`
+            }
+          ));
+        }
+        
+        // Handle 5xx errors - server errors
+        logger.error(`[checkIsOwner] Catalogue API service error ${status} for databankId: ${databankId}`);
+        return next(new ServiceUnavailableError('Catalogue API', { 
+          detail: `Catalogue API responded with status ${status} (${statusText}).`,
+          databankId 
+        }));
       }
-      return next(new ServiceUnavailableError('Catalogue API', { detail, databankId }));
+      
+      // Network error - no response from server
+      logger.error(`[checkIsOwner] Failed to connect to Catalogue API for databankId: ${databankId}`);
+      return next(new ServiceUnavailableError('Catalogue API', { 
+        detail: 'Failed to connect to Catalogue API.',
+        databankId 
+      }));
     }
+    
+    // Unexpected non-Axios error
     logger.error(`[checkIsOwner] Unexpected error while checking ownership for databankId: ${databankId}`, error as Error);
     return next(new ServiceUnavailableError('Catalogue API', { 
       detail: 'An unexpected error occurred while verifying databank ownership.',

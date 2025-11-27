@@ -1,0 +1,2005 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Files Connect API",
+    "version": "1.0.0",
+    "description": "API for file uploads, downloads, and processing.\n\n## Authentication & Authorization\n\nThis API uses JWT Bearer token authentication with role-based access control (RBAC).\n\n### User Roles\n\nThe following roles are defined in the system:\n\n- **provider**: Can upload files, create processing jobs, and manage databanks. Full read/write access to their own databanks.\n- **consumer**: Can view and download files from databanks they have access to. Read-only access.\n- **cos_admin**: Administrative role with elevated privileges across the system.\n\n### Access Control\n\nEach API endpoint specifies which roles are allowed to access it. Check the endpoint description for the \"Access Control\" section to see which roles can use that endpoint.",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.com"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://v2.dev.file-s3.iudx.io/v1/",
+      "description": "Development environment"
+    },
+    {
+      "url": "https://staging.file.forestdx.iudx.io/v1/",
+      "description": "Staging environment"
+    },
+    {
+      "url": "https://files.forest-stack.digivan.forest.rajasthan.gov.in/v1/",
+      "description": "Production environment"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT-based authentication. The JWT token should contain user roles in the realm_access.roles claim. Supported roles: provider, consumer, cos_admin"
+      }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check endpoint",
+        "description": "Checks if the API is running properly",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    },
+                    "service": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "timestamp",
+                    "service",
+                    "version"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/files": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "List files in a databank directory",
+        "description": "Returns a list of files and directories in the specified databank directory.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "delimiter": {
+                    "type": "string"
+                  },
+                  "maxKeys": {
+                    "type": "number"
+                  },
+                  "recursive": {
+                    "type": "boolean",
+                    "description": "When true, returns all files recursively including those in subdirectories"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of files and directories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "size": {
+                                "type": "number"
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "contentType": {
+                                "type": "string"
+                              },
+                              "etag": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "size",
+                              "lastModified"
+                            ]
+                          }
+                        },
+                        "directories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "prefix": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "prefix",
+                              "name"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "files",
+                        "directories"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/files/download": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Download a specific file from a databank",
+        "description": "Returns a specific file or generates a presigned URL for download.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "File key"
+                  },
+                  "presigned": {
+                    "type": "boolean",
+                    "description": "Whether to return a presigned URL"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File content or presigned URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "presignedUrl": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/files/metadata": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Get metadata for a specific file in a databank",
+        "description": "Returns metadata for a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: No authentication required (Public endpoint)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "File key"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "type": "number"
+                        },
+                        "lastModified": {
+                          "type": "string"
+                        },
+                        "contentType": {
+                          "type": "string"
+                        },
+                        "etag": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "size",
+                        "lastModified"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/files/delete": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Delete a specific file from a databank",
+        "description": "Deletes a specific file from a databank by key.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer` (owner only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "S3 object key to delete"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/files/preview": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Generate preview for a specific file in a databank",
+        "description": "Returns a preview of a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "File key"
+                  },
+                  "maxLines": {
+                    "type": "number",
+                    "description": "Maximum number of lines to return"
+                  },
+                  "fileType": {
+                    "type": "string",
+                    "description": "File type for preview"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "firstNLines": {
+                          "type": "number"
+                        },
+                        "totalLines": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "format"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or file format not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/uploads": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Initiate a multipart upload to a databank",
+        "description": "Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "numParts": {
+                    "type": "number"
+                  },
+                  "contentType": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "numParts"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload initiated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "uploadId": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "parts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "partNumber": {
+                                "type": "number"
+                              },
+                              "presignedUrl": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "partNumber",
+                              "presignedUrl"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "uploadId",
+                        "key",
+                        "parts"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported file type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/uploads/{uploadId}": {
+      "put": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Complete a multipart upload to a databank",
+        "description": "Finalizes a multipart upload to a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Upload ID"
+            },
+            "required": true,
+            "description": "Upload ID",
+            "name": "uploadId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "parts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "partNumber": {
+                          "type": "number"
+                        },
+                        "etag": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "partNumber",
+                        "etag"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "key",
+                  "parts"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "etag": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "etag",
+                        "key",
+                        "location"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/uploads/{uploadId}/cancel": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Cancel a multipart upload",
+        "description": "Cancels an in-progress multipart upload and removes any uploaded parts.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Upload ID"
+            },
+            "required": true,
+            "description": "Upload ID",
+            "name": "uploadId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "S3 object key"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Multipart upload canceled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "uploadId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "key",
+                        "uploadId"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assets": {
+      "post": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Upload an asset (multipart/form-data)",
+        "description": "Uploads an asset using multipart/form-data and returns a unique key for future reference. Only PDF and image files are allowed (JPEG, PNG, GIF, WebP, SVG, TIFF, BMP).\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`, `cos_admin`",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "nullable": true,
+                    "description": "File to upload"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "description": "Unique key for the uploaded asset"
+                        },
+                        "originalname": {
+                          "type": "string",
+                          "description": "Original filename"
+                        },
+                        "size": {
+                          "type": "number",
+                          "description": "File size in bytes"
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "description": "Content type of the file"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "originalname",
+                        "size",
+                        "contentType"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assets/download": {
+      "post": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get a presigned URL for an asset",
+        "description": "Returns a presigned URL for downloading an asset.\n\n**Access Control:**\n- Allowed Roles: `provider`, `cos_admin`",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "Asset key"
+                  },
+                  "expiresIn": {
+                    "type": "number",
+                    "description": "Expiration time in seconds"
+                  }
+                },
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presigned URL generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "description": "Presigned URL for the asset"
+                        },
+                        "expiresIn": {
+                          "type": "number",
+                          "description": "Expiration time in seconds"
+                        }
+                      },
+                      "required": [
+                        "url",
+                        "expiresIn"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asset not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/download": {
+      "get": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Get download URL for databank",
+        "description": "Returns a presigned URL for downloading the databank zip file.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "downloadUrl": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "downloadUrl",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Databank not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/process": {
+      "post": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Create a processing job for a databank",
+        "description": "Creates a new processing job (zip and/or report) for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "Type of processing job (zip or report)"
+                  },
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {}
+                  }
+                },
+                "required": [
+                  "type",
+                  "options"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Processing job created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "jobId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "progress": {
+                          "type": "number"
+                        },
+                        "completedAt": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "jobId",
+                        "status",
+                        "type",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/process/{jobId}/status": {
+      "put": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Update processing job status",
+        "description": "Updates the status of a processing job for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Job ID"
+            },
+            "required": true,
+            "description": "Job ID",
+            "name": "jobId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "description": "New status for the job"
+                  },
+                  "progress": {
+                    "type": "number"
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "object",
+                    "properties": {}
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processing job status updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "jobId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "progress": {
+                          "type": "number"
+                        },
+                        "completedAt": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "jobId",
+                        "status",
+                        "type",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
