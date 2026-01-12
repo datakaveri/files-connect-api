@@ -24,6 +24,13 @@ COPY --from=builder /app/redoc.html ./
 RUN npm install -g pnpm && \
     pnpm install 
 
+# Install curl (needed for downloading the agent) 
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# ---- Download Elastic APM Java Agent ----
+RUN curl -sSL -o /app/elastic-apm-agent.jar \
+    https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent/1.45.0/elastic-apm-agent-1.45.0.jar
+
 ENV NODE_ENV=production
 
 EXPOSE 3000
