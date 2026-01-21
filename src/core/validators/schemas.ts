@@ -196,6 +196,7 @@ export const fileMetadataSchema = z.object({
   key: z.string().min(1, 'Key is required')
 });
 
+
 // Export type definitions derived from schemas
 // Note: S3 route types have been moved to core/types/s3-routes.ts
 export type FilePreviewRequest = z.infer<typeof filePreviewSchema>;

@@ -16,6 +16,7 @@ export * from './processing-service';
 export * from './storage-service';
 export * from './rabbitmq-service';
 export * from './audit-service';
+export * from './temporary-access-service';
 
 /**
  * Creates a storage service with the configured storage provider

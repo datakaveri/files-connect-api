@@ -12,9 +12,11 @@ import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { createStorageService } from "../services/storage-service";
 import { createFileService } from "../services";
 import { createMultipartUploadService } from "../services";
+import { createTemporaryAccessService } from "../services/temporary-access-service";
 import { StorageServiceInterface } from "../services/storage-service";
 import { FileService } from "../services/file-service";
 import { MultipartUploadServiceInterface } from "../services/multipart-upload-service";
+import { TemporaryAccessServiceInterface } from "../services/temporary-access-service";
 import { createProcessingService, ProcessingServiceInterface } from "../services/processing-service";
 import { env } from "../config/environment";
 import { createLogger } from "../core/utils/logger";
@@ -46,7 +48,7 @@ import {
   createProcessingJobSchema,
   updateProcessingJobStatusSchema,
   deleteObjectSchema,
-  abortMultipartUploadSchema
+  abortMultipartUploadSchema,
 } from "../core/validators/schemas";
 
 // Create a logger for this module
@@ -57,6 +59,7 @@ const s3Service: StorageServiceInterface = createStorageService();
 const fileService: FileService = createFileService();
 const multipartUploadService: MultipartUploadServiceInterface = createMultipartUploadService();
 const processingService: ProcessingServiceInterface = createProcessingService();
+const temporaryAccessService: TemporaryAccessServiceInterface = createTemporaryAccessService();
 
 /**
  * Create a new Express router for all databank operations
@@ -684,6 +687,79 @@ databanksRoutes.put(
   })
 );
 
+
+//=============================================================================
+// TEMPORARY ACCESS OPERATIONS
+//=============================================================================
+
+/**
+ * GET /databanks/:databankId/query-access
+ * Generate temporary credentials for accessing entire databank
+ * Returns AWS STS temporary credentials with limited permissions to databank/*
+ * Note: Duration is configured globally via STS_SESSION_DURATION_IN_SECONDS environment variable
+ */
+databanksRoutes.get(
+  `/:databankId/query-access`,
+  authenticate,
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  checkItemAccessWithDatabankAccess, // Check if user has access to the databank
+  asyncHandler(async (req: Request, res: Response) => {
+    const databankId = req.params.databankId;
+    
+    logger.info(`Temporary access request: databankId=${databankId}`);
+    
+    // Validate the databankId parameter
+    if (!databankId) {
+      throw new ValidationError('Databank ID is required');
+    }
+    
+    try {
+      // Get user ID from locals
+      const userId = res.locals.userId as string;
+      
+      // Generate temporary credentials for entire databank
+      const credentials = await temporaryAccessService.generateTemporaryCredentials({
+        databankId,
+        userId,
+      });
+      
+      const response = buildResponse({
+        credentials: {
+          accessKeyId: credentials.accessKeyId,
+          secretAccessKey: credentials.secretAccessKey,
+          sessionToken: credentials.sessionToken,
+          expiration: credentials.expiration,
+        },
+        s3Config: {
+          region: credentials.region,
+          bucket: credentials.bucket,
+          databankId: credentials.databankId,
+        },
+        expiresAt: credentials.expiration,
+      });
+      
+      logger.info(`Successfully generated temporary credentials for databankId=${databankId}`);
+      
+      res.json(response);
+    } catch (error) {
+      logger.error('Error generating temporary credentials', error as Error, {
+        databankId,
+      });
+      
+      if (error instanceof ValidationError) {
+        res.status(400).json({
+          success: false,
+          error: {
+            message: error.message,
+            code: 'VALIDATION_ERROR'
+          }
+        });
+      } else {
+        throw error; // Let the global error handler catch it
+      }
+    }
+  })
+);
 
 //=============================================================================
 // DATABANK DOWNLOAD OPERATIONS

@@ -30,3 +30,6 @@ data:
   STORAGE_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"
   STORAGE_REGION: "ap-south-1"
   STORAGE_USE_SSL: "true"
+  # STS configuration for temporary access
+  STS_ROLE_ARN: "arn:aws:iam::123456789012:role/DatabanksTemporaryAccessRole"
+  STS_SESSION_DURATION_IN_SECONDS: "900"
