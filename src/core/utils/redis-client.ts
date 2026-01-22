@@ -1,16 +1,20 @@
 /**
  * Redis Client
  * Provides a singleton Redis client with connection management and retry logic
+ * Supports both standalone and cluster modes
  */
-import { createClient, RedisClientType } from "redis";
+import { createClient, createCluster, RedisClientType, RedisClusterType } from "redis";
 import { env } from "../../config/environment";
 import { createLogger } from "./logger";
 
 const logger = createLogger("RedisClient");
 
+// Union type for both client types
+type RedisConnection = RedisClientType | RedisClusterType;
+
 class RedisClient {
   private static instance: RedisClient;
-  private client: RedisClientType | null = null;
+  private client: RedisConnection | null = null;
   private isConnecting = false;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
@@ -32,7 +36,7 @@ class RedisClient {
   /**
    * Get the Redis client, connecting if necessary
    */
-  public async getClient(): Promise<RedisClientType> {
+  public async getClient(): Promise<RedisConnection> {
     if (this.client && this.client.isOpen) {
       return this.client;
     }
@@ -50,37 +54,104 @@ class RedisClient {
   }
 
   /**
-   * Connect to Redis
+   * Create a standalone Redis client
    */
-  private async connect(): Promise<RedisClientType> {
-    this.isConnecting = true;
+  private createStandaloneClient(): RedisClientType {
+    // Create Redis client with database number
+    const redisUrl = env.REDIS_PASSWORD
+      ? `redis://:${env.REDIS_PASSWORD}@${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`
+      : `redis://${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`;
 
-    try {
-      logger.info("Connecting to Redis", {
-        host: env.REDIS_HOST,
-        port: env.REDIS_PORT,
-      });
+    logger.info("Creating standalone Redis client", {
+      host: env.REDIS_HOST,
+      port: env.REDIS_PORT,
+      db: env.REDIS_DB,
+    });
 
-      // Create Redis client with database number
-      const redisUrl = env.REDIS_PASSWORD
-        ? `redis://:${env.REDIS_PASSWORD}@${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`
-        : `redis://${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`;
+    return createClient({
+      url: redisUrl,
+      socket: {
+        reconnectStrategy: (retries: number) => {
+          if (retries > this.maxReconnectAttempts) {
+            logger.error("Max Redis reconnection attempts reached");
+            return new Error("Max reconnection attempts reached");
+          }
+          // Exponential backoff: 100ms, 200ms, 400ms, 800ms, etc.
+          const delay = Math.min(100 * Math.pow(2, retries), 3000);
+          logger.warn(`Redis reconnection attempt ${retries}, waiting ${delay}ms`);
+          return delay;
+        },
+      },
+    }) as RedisClientType;
+  }
 
-      this.client = createClient({
-        url: redisUrl,
+  /**
+   * Create a Redis Cluster client
+   */
+  private createClusterClient(): RedisClusterType {
+    logger.info("Creating Redis Cluster client", {
+      host: env.REDIS_HOST,
+      port: env.REDIS_PORT,
+    });
+
+    // Note: Redis Cluster doesn't support database selection (always uses DB 0)
+    if (env.REDIS_DB !== 0) {
+      logger.warn(
+        "REDIS_DB is set but Redis Cluster mode only supports database 0. Ignoring REDIS_DB setting."
+      );
+    }
+
+    const clusterOptions: Parameters<typeof createCluster>[0] = {
+      rootNodes: [
+        {
+          url: env.REDIS_PASSWORD
+            ? `redis://:${env.REDIS_PASSWORD}@${env.REDIS_HOST}:${env.REDIS_PORT}`
+            : `redis://${env.REDIS_HOST}:${env.REDIS_PORT}`,
+        },
+      ],
+      defaults: {
         socket: {
           reconnectStrategy: (retries: number) => {
             if (retries > this.maxReconnectAttempts) {
-              logger.error("Max Redis reconnection attempts reached");
+              logger.error("Max Redis Cluster reconnection attempts reached");
               return new Error("Max reconnection attempts reached");
             }
             // Exponential backoff: 100ms, 200ms, 400ms, 800ms, etc.
             const delay = Math.min(100 * Math.pow(2, retries), 3000);
-            logger.warn(`Redis reconnection attempt ${retries}, waiting ${delay}ms`);
+            logger.warn(`Redis Cluster reconnection attempt ${retries}, waiting ${delay}ms`);
             return delay;
           },
         },
-      }) as RedisClientType;
+        ...(env.REDIS_PASSWORD && { password: env.REDIS_PASSWORD }),
+      },
+      // Use replicas for read operations when available
+      useReplicas: true,
+    };
+
+    return createCluster(clusterOptions) as RedisClusterType;
+  }
+
+  /**
+   * Connect to Redis
+   */
+  private async connect(): Promise<RedisConnection> {
+    this.isConnecting = true;
+
+    try {
+      const isClusterMode = env.REDIS_CLUSTER_MODE;
+
+      logger.info("Connecting to Redis", {
+        host: env.REDIS_HOST,
+        port: env.REDIS_PORT,
+        clusterMode: isClusterMode,
+      });
+
+      // Create appropriate client based on mode
+      if (isClusterMode) {
+        this.client = this.createClusterClient();
+      } else {
+        this.client = this.createStandaloneClient();
+      }
 
       // Set up event handlers
       this.client.on("error", (err: Error) => {
@@ -88,29 +159,30 @@ class RedisClient {
       });
 
       this.client.on("connect", () => {
-        logger.info("Redis client connected");
+        logger.info("Redis client connected", { clusterMode: isClusterMode });
         this.reconnectAttempts = 0;
       });
 
       this.client.on("ready", () => {
-        logger.info("Redis client ready");
+        logger.info("Redis client ready", { clusterMode: isClusterMode });
       });
 
       this.client.on("reconnecting", () => {
         this.reconnectAttempts++;
         logger.warn("Redis client reconnecting", {
           attempt: this.reconnectAttempts,
+          clusterMode: isClusterMode,
         });
       });
 
       this.client.on("end", () => {
-        logger.warn("Redis client connection closed");
+        logger.warn("Redis client connection closed", { clusterMode: isClusterMode });
       });
 
       // Connect to Redis
       await this.client.connect();
 
-      logger.info("Successfully connected to Redis");
+      logger.info("Successfully connected to Redis", { clusterMode: isClusterMode });
       this.isConnecting = false;
       return this.client;
     } catch (error) {
@@ -156,7 +228,7 @@ class RedisClient {
 }
 
 // Export singleton instance getter
-export const getRedisClient = async (): Promise<RedisClientType> => {
+export const getRedisClient = async (): Promise<RedisConnection> => {
   const redisClient = RedisClient.getInstance();
   return redisClient.getClient();
 };
@@ -180,4 +252,3 @@ export const isRedisConnected = (): boolean => {
   const redisClient = RedisClient.getInstance();
   return redisClient.isConnected();
 };
-
