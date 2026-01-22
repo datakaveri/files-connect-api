@@ -86,6 +86,10 @@ const envSchema = z.object({
   REDIS_PORT: z.string().transform((val) => parseInt(val, 10)).default("6379"),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_DB: z.string().transform((val) => parseInt(val, 10)).default("0"),
+  REDIS_CLUSTER_MODE: z
+    .string()
+    .transform((val) => val === "true")
+    .default("false"),
 
   //Lambda Configs (optional for backward compatibility)
   ZIP_LAMBDA_URL: z.string().url().optional(),
