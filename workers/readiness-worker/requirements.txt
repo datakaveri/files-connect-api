@@ -1,0 +1,17 @@
+chardet==5.2.0
+fpdf==1.7.2
+metrics==0.0.2
+pandas==2.2.3
+pytest==8.3.5
+openai==1.82.0
+dotenv==0.9.9
+boto3==1.28.66
+pyarrow==14.0.1
+requests==2.32.4
+numpy==1.26.4
+openpyxl==3.1.5
+pydicom==3.0.1
+xlrd==2.0.2
+PyPDF2==3.0.1
+mutagen==1.47.0
+pillow==11.3.0
