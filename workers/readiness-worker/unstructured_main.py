@@ -29,13 +29,10 @@ def get_output_dir(directory):
     # Use /tmp/outputReports in Lambda, else local outputReports
     if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         return os.path.join("/tmp", os.path.basename(directory))
-<<<<<<< Updated upstream
-=======
     elif os.environ.get("WORKER_TEMP_DIR"):
         # When running in worker, use temp_dir/outputReports
         temp_dir = os.environ.get("WORKER_TEMP_DIR")
         return os.path.join(temp_dir, "outputReports", os.path.basename(directory))
->>>>>>> Stashed changes
     else:
         return f"outputReports/{os.path.basename(directory)}"
 

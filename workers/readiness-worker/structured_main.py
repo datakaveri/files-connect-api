@@ -20,14 +20,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 # Load environment variables from .env file
 load_dotenv()  
 api_key = os.getenv("OPENAI_API_KEY")
-<<<<<<< Updated upstream
-logging.info("OpenAI API key loaded successfully.")
-=======
 if api_key:
     logging.info("OpenAI API key loaded successfully.")
 else:
     logging.warning("OPENAI_API_KEY not found in environment variables. Column role inference will fail.")
->>>>>>> Stashed changes
 elastic_id = os.getenv("ELASTIC_ID")
 elastic_pass = os.getenv("ELASTIC_PASS")
 logging.info("Elastic credentials loaded successfully.")
@@ -37,13 +33,10 @@ def get_output_dir(directory):
     # Use /tmp/outputReports in Lambda, else local outputReports
     if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         return os.path.join("/tmp", os.path.basename(directory))
-<<<<<<< Updated upstream
-=======
     elif os.environ.get("WORKER_TEMP_DIR"):
         # When running in worker, use temp_dir/outputReports
         temp_dir = os.environ.get("WORKER_TEMP_DIR")
         return os.path.join(temp_dir, "outputReports", os.path.basename(directory))
->>>>>>> Stashed changes
     else:
         return f"outputReports/{os.path.basename(directory)}"
 
@@ -68,14 +61,11 @@ def main(directory, folder_key):
     """
     # directory = input("Enter the directory containing data files: ")
 
-<<<<<<< Updated upstream
-=======
     # Initialize variables that may be used outside the try block
     final_percentage = "unknown"
     uuid = None
     true_name = os.path.basename(directory)
 
->>>>>>> Stashed changes
     try:
         data = log_and_call(input_handler.load_data_from_directory, directory)
         all_scores = []
@@ -84,23 +74,14 @@ def main(directory, folder_key):
             logging.error("No data files found in the specified directory.")
             return
         for df, file_path, sample in data:
-<<<<<<< Updated upstream
-            try:
-                # Get the dataset name from the file path, strip special characters
-                dataset_name = os.path.splitext(os.path.basename(file_path))[0].replace('%20', ' ').replace('%21', '!').replace('%22', '"').replace('%23', '#').replace('%24', '$').replace('%25', '%').replace('%26', '&').replace('%27', "'").replace('%28', '(').replace('%29', ')').replace('%2A', '*').replace('%2B', '+').replace('%2C', ',').replace('%2D', '-').replace('%2E', '.').replace('%2F', '/').replace('%3A', ':').replace('%3B', ';').replace('%3C', '<').replace('%3D', '=').replace('%3E', '>').replace('%3F', '?').replace('%40', '@').replace('[', '(').replace(']', ')')
-=======
             # Initialize dataset_name early for error logging
             dataset_name = os.path.splitext(os.path.basename(file_path))[0].replace('%20', ' ').replace('%21', '!').replace('%22', '"').replace('%23', '#').replace('%24', '$').replace('%25', '%').replace('%26', '&').replace('%27', "'").replace('%28', '(').replace('%29', ')').replace('%2A', '*').replace('%2B', '+').replace('%2C', ',').replace('%2D', '-').replace('%2E', '.').replace('%2F', '/').replace('%3A', ':').replace('%3B', ';').replace('%3C', '<').replace('%3D', '=').replace('%3E', '>').replace('%3F', '?').replace('%40', '@').replace('[', '(').replace(']', ')')
             try:
->>>>>>> Stashed changes
                 try:
                     true_name, uuid = log_and_call(get_dataset_name_from_url, folder_key)
                 except Exception:
                     true_name = os.path.basename(directory)
-<<<<<<< Updated upstream
-=======
                     uuid = folder_key  # Use folder_key as fallback uuid
->>>>>>> Stashed changes
                     logging.info(f"Could not fetch true name for {file_path}, using directory name: {true_name}")
 
                 sample_size = len(df)
@@ -110,11 +91,8 @@ def main(directory, folder_key):
                 file_path = os.path.dirname(file_path)
 
                 # Use OpenAI to infer column roles
-<<<<<<< Updated upstream
-=======
                 if not api_key:
                     raise ValueError("OPENAI_API_KEY is not set. Cannot infer column roles.")
->>>>>>> Stashed changes
                 imputed_columns = log_and_call(infer_column_roles_openai, df, api_key)
                 logging.info(f"Inferred column roles for {uuid}: {imputed_columns}")
 
@@ -166,9 +144,6 @@ def main(directory, folder_key):
             log_and_call(generate_pdf_from_json, f"{output_dir}/average_score_final_readiness_report.json", pdf_output, uuid, raw_avg_report["total_percentage"], output_dir, true_name, logo_path, sample_size, average_report=True)
             logging.info("Average score report generated for all datasets")
             final_percentage = average_percentage if average_percentage is not None else "unknown"
-<<<<<<< Updated upstream
-        update_cat_readiness_score(uuid, final_percentage, elastic_id, elastic_pass)
-=======
         elif len(all_scores) == 1:
             # Single file processed successfully, final_percentage was set in the loop
             pass
@@ -178,7 +153,6 @@ def main(directory, folder_key):
             update_cat_readiness_score(uuid, final_percentage, elastic_id, elastic_pass)
         else:
             logging.warning(f"Skipping CAT readiness score update: uuid={uuid}, files_processed={len(all_scores)}")
->>>>>>> Stashed changes
         return
     except Exception as e:
         logging.error(f"Error: {e}")
