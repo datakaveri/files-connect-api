@@ -14,7 +14,7 @@ A TypeScript-based API service for secure file operations with databank support.
 - **Asynchronous Processing**: Redis-based job queue with Python workers for ZIP creation and reports
 - **Cloud Agnostic**: Works with both AWS S3 and MinIO for on-premise deployments
 - **RESTful API**: Standardized API following REST best practices
-- **OpenAPI Documentation**: Auto-generated API documentation with Swagger UI
+- **OpenAPI Documentation**: Auto-generated API documentation with ReDoc
 
 ## Prerequisites
 
@@ -180,7 +180,7 @@ pnpm start
 pnpm test
 ```
 
-5. Generate API documentation (OpenAPI/Swagger):
+5. Generate OpenAPI spec (static `openapi.json`):
 
 ```bash
 pnpm openapi
@@ -195,7 +195,9 @@ For deployment instructions, please refer to the [Infrastructure Guide](./infra/
 ### Interactive Documentation
 
 Once the server is running, you can access the interactive API documentation at:
-- Swagger UI: http://localhost:3000/v1/docs
+- **ReDoc**: http://localhost:3000/apis
+
+The OpenAPI spec is also available at http://localhost:3000/openapi.json
 
 ### Key Endpoints
 
@@ -220,7 +222,7 @@ The application follows a clean architecture with clear separation of concerns:
 1. **Presentation Layer**:
    - Routes and controllers for handling HTTP requests/responses
    - Request validation and authentication middleware
-   - OpenAPI/Swagger documentation
+   - OpenAPI (ReDoc) documentation
 
 2. **Application Layer**:
    - Business logic and use cases
