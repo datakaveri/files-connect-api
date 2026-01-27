@@ -67,6 +67,43 @@ services:
     # For development, can run multiple workers by scaling:
     # docker-compose up -d --scale zip-worker=3
 
+  # Readiness Worker for processing data readiness assessment jobs
+  readiness-worker:
+    build:
+      context: ./workers/readiness-worker
+      dockerfile: Dockerfile.worker
+    container_name: files-connect-readiness-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Redis configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      READINESS_QUEUE_NAME: jobs:readiness
+      
+      # Storage configuration (MinIO for local development)
+      STORAGE_PROVIDER: minio
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET_NAME: files-connect-bucket
+      S3_REPORTS_BUCKET_NAME: files-connect-bucket
+      USE_SSL: "false"
+      
+      # OpenAI API configuration (required for column/role inference)
+      # OPENAI_API_KEY: ${OPENAI_API_KEY}
+      
+      # Elastic/CAT API configuration (optional - for updating readiness scores)
+      # ELASTIC_ID: your-elastic-id
+      # ELASTIC_PASS: your-elastic-password
+    restart: unless-stopped
+    # For development, can run multiple workers by scaling:
+    # docker-compose up -d --scale readiness-worker=2
+
   # Files Connect API
   # api:
   #   build:

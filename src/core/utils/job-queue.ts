@@ -10,8 +10,25 @@ const logger = createLogger("JobQueue");
 // Job queue names
 export const JOB_QUEUES = {
   ZIP: "jobs:zip",
-  REPORT: "jobs:report",
+  READINESS: "jobs:readiness",
+  REPORT: "jobs:report", // Deprecated, use READINESS instead
 } as const;
+
+/**
+ * Get the queue key for a given job type
+ * @param type - Job type (zip, readiness, or report)
+ * @returns Queue key string
+ */
+function getQueueKey(type: string): string {
+  if (type === "zip") {
+    return JOB_QUEUES.ZIP;
+  } else if (type === "readiness") {
+    return JOB_QUEUES.READINESS;
+  } else {
+    // Fallback to REPORT for backward compatibility
+    return JOB_QUEUES.REPORT;
+  }
+}
 
 // Job data structure
 export interface JobData {
@@ -38,7 +55,7 @@ export interface JobStatus {
 
 /**
  * Push a job to the queue
- * @param type - Job type (zip or report)
+ * @param type - Job type (zip, readiness, or report)
  * @param jobId - Unique job ID
  * @param databankId - Databank ID to process
  * @param options - Optional job options
@@ -52,7 +69,7 @@ export async function pushJob(
   const redis = await getRedisClient();
 
   // Determine the queue based on job type
-  const queueKey = type === "zip" ? JOB_QUEUES.ZIP : JOB_QUEUES.REPORT;
+  const queueKey = getQueueKey(type);
 
   // Create job data
   const jobData: JobData = {
@@ -213,12 +230,12 @@ export async function getJobStatus(jobId: string): Promise<JobStatus | null> {
 
 /**
  * Get queue length
- * @param type - Job type (zip or report)
+ * @param type - Job type (zip, readiness, or report)
  * @returns Number of jobs in the queue
  */
 export async function getQueueLength(type: string): Promise<number> {
   const redis = await getRedisClient();
-  const queueKey = type === "zip" ? JOB_QUEUES.ZIP : JOB_QUEUES.REPORT;
+  const queueKey = getQueueKey(type);
   return await redis.lLen(queueKey);
 }
 

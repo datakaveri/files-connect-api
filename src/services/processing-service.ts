@@ -21,7 +21,8 @@ const logger = createLogger("ProcessingService");
 // Define processing job types
 export enum ProcessingJobType {
   ZIP = "zip",
-  REPORT = "report",
+  READINESS = "readiness",
+  REPORT = "report", // Deprecated, use READINESS instead
 }
 
 // Define processing job status

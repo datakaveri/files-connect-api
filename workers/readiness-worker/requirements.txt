@@ -15,3 +15,6 @@ xlrd==2.0.2
 PyPDF2==3.0.1
 mutagen==1.47.0
 pillow==11.3.0
+redis==5.0.1
+urllib3>=1.25.4,<2.1
+python-dotenv==1.0.0
