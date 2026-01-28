@@ -35,6 +35,26 @@ Processes databank zip creation jobs:
 - Graceful shutdown handling
 - Automatic retry on connection failures
 
+### Report Worker (`report-worker/`)
+
+Processes data readiness assessment jobs:
+- Downloads files from S3/MinIO
+- Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio) datasets
+- Runs comprehensive data quality assessment framework
+- Generates detailed JSON and PDF reports
+- Uploads reports back to storage
+- Updates CAT API with readiness scores
+
+**Key Features:**
+- Supports both structured and unstructured data
+- Automatic data type detection
+- Comprehensive metrics (quality, variance, standardization, documentation, etc.)
+- LLM-powered column/role inference (OpenAI)
+- Memory-efficient processing
+- Works with both AWS S3 and MinIO
+- Graceful shutdown handling
+- Automatic retry on connection failures
+
 ## Running Workers
 
 ### Docker Compose (Local Development)
@@ -45,9 +65,11 @@ docker-compose up -d
 
 # Scale workers
 docker-compose up -d --scale zip-worker=3
+docker-compose up -d --scale report-worker=2
 
 # View worker logs
 docker-compose logs -f zip-worker
+docker-compose logs -f report-worker
 
 # Stop services
 docker-compose down
@@ -99,11 +121,16 @@ python worker.py
 
 ### Required
 
+**For all workers:**
 - `REDIS_HOST` - Redis server hostname
 - `REDIS_PORT` - Redis server port (default: 6379)
 - `S3_BUCKET_NAME` - S3/MinIO bucket name
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
+
+**For readiness worker:**
+- `S3_REPORTS_BUCKET_NAME` - S3/MinIO bucket name for storing reports
+- `OPENAI_API_KEY` - OpenAI API key for column/role inference (required)
 
 ### Storage Configuration
 
@@ -124,16 +151,23 @@ USE_SSL=true
 
 ### Optional
 
+**For all workers:**
 - `REDIS_PASSWORD` - Redis password (if authentication enabled)
 - `CAT_URL` - CAT API URL for status updates
 - `CAT_USERNAME` - CAT API username
 - `CAT_PASSWORD` - CAT API password
 
+**For readiness worker:**
+- `READINESS_QUEUE_NAME` - Custom queue name (default: `jobs:readiness`)
+- `ELASTIC_ID` - Elasticsearch ID for CAT API updates
+- `ELASTIC_PASS` - Elasticsearch password for CAT API updates
+
 ## Job Queue Structure
 
 ### Queue Names
 - `jobs:zip` - Zip creation jobs
-- `jobs:report` - Report generation jobs (future)
+- `jobs:readiness` - Data readiness assessment jobs
+- `jobs:report` - Report generation jobs (deprecated, use `jobs:readiness`)
 
 ### Job Data Format
 ```json
@@ -175,6 +209,7 @@ redis-cli -h localhost -p 6379
 
 # Check queue length
 LLEN jobs:zip
+LLEN jobs:readiness
 
 # View job status
 HGETALL job:your-job-id-here
@@ -191,9 +226,11 @@ MONITOR
 ```bash
 # View worker logs
 docker-compose logs -f zip-worker
+docker-compose logs -f report-worker
 
 # View last 100 lines
 docker-compose logs --tail=100 zip-worker
+docker-compose logs --tail=100 report-worker
 ```
 
 ### Kubernetes Logs
@@ -219,11 +256,13 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
 2. Verify queue has jobs:
    ```bash
    redis-cli LLEN jobs:zip
+   redis-cli LLEN jobs:readiness
    ```
 
 3. Check worker logs:
    ```bash
    docker-compose logs zip-worker
+   docker-compose logs report-worker
    ```
 
 ### Job Stuck in "Pending"
@@ -258,9 +297,11 @@ If workers are running out of memory:
 ```bash
 # Docker Compose
 docker-compose up -d --scale zip-worker=5
+docker-compose up -d --scale report-worker=3
 
 # Kubernetes
 kubectl scale deployment zip-worker --replicas=5
+kubectl scale deployment report-worker --replicas=3
 ```
 
 **Vertical Scaling (Kubernetes):**
@@ -325,7 +366,7 @@ curl -X POST http://localhost:3000/v1/databanks/test-123/process \
 
 ## Future Enhancements
 
-- [ ] Add report generation worker
+- [x] Add report generation worker (report-worker)
 - [ ] Implement job priorities
 - [ ] Add job retry mechanism
 - [ ] Implement job scheduling

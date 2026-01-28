@@ -13,6 +13,22 @@ export const JOB_QUEUES = {
   REPORT: "jobs:report",
 } as const;
 
+/**
+ * Get the queue key for a given job type
+ * @param type - Job type (zip or report)
+ * @returns Queue key string
+ * @throws Error if job type is invalid
+ */
+function getQueueKey(type: string): string {
+  if (type === "zip") {
+    return JOB_QUEUES.ZIP;
+  } else if (type === "report") {
+    return JOB_QUEUES.REPORT;
+  } else {
+    throw new Error(`Invalid job type: ${type}. Valid types are: zip, report`);
+  }
+}
+
 // Job data structure
 export interface JobData {
   jobId: string;
@@ -52,7 +68,7 @@ export async function pushJob(
   const redis = await getRedisClient();
 
   // Determine the queue based on job type
-  const queueKey = type === "zip" ? JOB_QUEUES.ZIP : JOB_QUEUES.REPORT;
+  const queueKey = getQueueKey(type);
 
   // Create job data
   const jobData: JobData = {
@@ -218,7 +234,7 @@ export async function getJobStatus(jobId: string): Promise<JobStatus | null> {
  */
 export async function getQueueLength(type: string): Promise<number> {
   const redis = await getRedisClient();
-  const queueKey = type === "zip" ? JOB_QUEUES.ZIP : JOB_QUEUES.REPORT;
+  const queueKey = getQueueKey(type);
   return await redis.lLen(queueKey);
 }
 

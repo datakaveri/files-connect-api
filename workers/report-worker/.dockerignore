@@ -1,0 +1,14 @@
+dqa/
+data/
+tests/__pycache__/
+metrics/__pycache__/
+report/__pycache__/
+settings.json
+outputReports/
+.gitignore
+.env
+scripts/btb_dqap/
+drr-tgdex/
+.coverage
+layer/
+local_lambda_tester.py

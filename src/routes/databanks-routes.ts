@@ -8,7 +8,8 @@
  */
 import { Router, Request, Response } from "express";
 import { Readable } from 'stream';
-import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createStorageService } from "../services/storage-service";
 import { createFileService } from "../services";
 import { createMultipartUploadService } from "../services";
@@ -838,6 +839,128 @@ databanksRoutes.get(
         `Failed to generate download URL for zip: ${zipKey}`,
         err instanceof Error ? err : undefined,
         { databankId, zipKey, errorCode, statusCode }
+      );
+
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to generate download link. Please try again later.',
+          code: 'DOWNLOAD_LINK_ERROR'
+        }
+      });
+    }
+  })
+);
+
+/**
+ * GET /databanks/:databankId/report/download
+ * Get a download URL for a report PDF
+ */
+databanksRoutes.get(
+  `/:databankId/report/download`,
+  authenticate,
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  checkItemAccessWithDatabankAccess,
+  asyncHandler(async (req: Request, res: Response) => {
+    const databankId = req.params.databankId;
+    
+    logger.info(`Report PDF download request received for databankId: ${databankId}`);
+    
+    // Construct the report PDF key
+    const pdfKey = `dataReadiness/${databankId}.pdf`;
+    
+    // Check if the PDF file exists and generate presigned URL
+    try {
+      const storageClient = s3Service.getS3Client() as any;
+
+      // Existence check: AWS SDK client uses .send(), MinIO client uses .statObject()
+      if (storageClient && typeof storageClient.send === 'function') {
+        try {
+          await storageClient.send(new HeadObjectCommand({
+            Bucket: env.BUCKET_NAME,
+            Key: pdfKey
+          }));
+        } catch (error) {
+          const err = error as any;
+          const statusCode = err?.$metadata?.httpStatusCode || err?.statusCode;
+          const errorCode = err?.code || err?.name;
+          const isNotFound = statusCode === 404 ||
+                            errorCode === 'NotFound' ||
+                            errorCode === 'NoSuchKey' ||
+                            errorCode === 'NotFoundError';
+          if (isNotFound) {
+            throw new NotFoundError('Readiness PDF', pdfKey);
+          }
+          throw error;
+        }
+      } else if (storageClient && typeof storageClient.statObject === 'function') {
+        try {
+          await storageClient.statObject(env.BUCKET_NAME, pdfKey);
+        } catch (error) {
+          const err = error as any;
+          const errorCode = err?.code || err?.name;
+          const isNotFound = errorCode === 'NotFound' || errorCode === 'NoSuchKey';
+          if (isNotFound) {
+            throw new NotFoundError('Readiness PDF', pdfKey);
+          }
+          throw error;
+        }
+      } else {
+        logger.warn('Unable to determine storage client type while checking report PDF existence', { pdfKey });
+      }
+
+      // Generate presigned URL: AWS SDK uses getSignedUrl, MinIO uses presignedGetObject
+      let presignedUrl: string;
+      if (storageClient && typeof storageClient.send === 'function') {
+        const command = new GetObjectCommand({
+          Bucket: env.BUCKET_NAME,
+          Key: pdfKey
+        });
+        presignedUrl = await getSignedUrl(storageClient, command, { expiresIn: 300 });
+      } else if (storageClient && typeof storageClient.presignedGetObject === 'function') {
+        presignedUrl = await storageClient.presignedGetObject(env.BUCKET_NAME, pdfKey, 300);
+      } else {
+        throw new Error('Storage client does not support presigned URL generation');
+      }
+
+      logger.info(`Successfully generated download URL for report PDF: ${pdfKey}`);
+
+      const response = buildResponse({
+        downloadUrl: presignedUrl,
+        expiresAt: new Date(Date.now() + 300 * 1000).toISOString() // URL expires in 5 minutes
+      });
+
+      res.json(response);
+    } catch (error) {
+      const err = error as any;
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const statusCode = err?.$metadata?.httpStatusCode || err?.statusCode;
+      const errorCode = err?.code || err?.name;
+      const isNotFoundError =
+        err instanceof NotFoundError ||
+        statusCode === 404 ||
+        errorCode === 'NotFound' ||
+        errorCode === 'NoSuchKey' ||
+        errorCode === 'NotFoundError';
+
+      if (isNotFoundError) {
+        logger.warn(`Report PDF not found: ${pdfKey}, error: ${errorMessage}`);
+
+        res.status(404).json({ 
+          success: false,
+          error: {
+            message: `Report PDF for databank ${databankId} not found. Please ensure a report has been generated.`,
+            code: 'RESOURCE_NOT_FOUND'
+          }
+        });
+
+        return;
+      }
+
+      logger.error(
+        `Failed to generate download URL for report PDF: ${pdfKey}`,
+        err instanceof Error ? err : undefined,
+        { databankId, pdfKey, errorCode, statusCode }
       );
 
       res.status(500).json({
