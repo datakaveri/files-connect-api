@@ -107,13 +107,12 @@ Most databank operations also verify that the user has access to the specific da
 
 ## Viewing the Documentation
 
-You can view the complete API documentation with role information in:
+You can view the complete API documentation with role information at (when the server is running):
 
-1. **Swagger UI**: http://localhost:3000/v1/docs (when server is running)
-2. **Redocs**: http://localhost:3000/apis (when server is running)
-3. **OpenAPI JSON**: http://localhost:3000/openapi.json (when server is running)
+1. **ReDoc**: http://localhost:3000/apis
+2. **OpenAPI JSON**: http://localhost:3000/openapi.json
 
-Each endpoint in these documentation interfaces includes an "**Access Control**" section that specifies the allowed roles.
+Each endpoint in the documentation includes an "**Access Control**" section that specifies the allowed roles.
 
 ## Notes
 

@@ -9,7 +9,6 @@ import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
 // Note: We're using a custom async error handler middleware instead of express-async-errors
 // because express-async-errors is not compatible with Express 5
-import swaggerUi from 'swagger-ui-express';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import path from 'path';
@@ -173,10 +172,7 @@ app.get('/v1/health', (req: Request, res: Response) => {
   });
 });
 
-// No need to import again, already imported above
-
-// API Documentation
-app.use('/v1/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+// API Documentation (ReDoc + OpenAPI spec)
 app.get('/openapi.json', (req: Request, res: Response) => {
   res.json(openApiDocument);
 });

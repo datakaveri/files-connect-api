@@ -226,6 +226,21 @@ const DatabankDownloadSchema = z.object({
   expiresAt: z.string(),
 });
 
+const QueryAccessResponseSchema = z.object({
+  credentials: z.object({
+    accessKeyId: z.string(),
+    secretAccessKey: z.string(),
+    sessionToken: z.string(),
+    expiration: z.string(),
+  }),
+  s3Config: z.object({
+    region: z.string(),
+    bucket: z.string(),
+    databankId: z.string(),
+  }),
+  expiresAt: z.string(),
+});
+
 // Register Health Check Route (No auth required)
 registry.registerPath({
   method: 'get',
@@ -750,7 +765,56 @@ registry.registerPath({
   },
 });
 
-// Register Databank Operations Routes
+// Register Query Access Route (temporary S3 credentials)
+registry.registerPath({
+  method: 'get',
+  path: '/databanks/{databankId}/query-access',
+  tags: ['Databanks'],
+  summary: 'Generate temporary credentials for databank access',
+  description:
+    'Returns AWS STS temporary credentials with limited permissions to the databank. Use these credentials for direct S3 access (e.g. DuckDB, Athena). Duration is configured via STS_SESSION_DURATION_IN_SECONDS.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
+  request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID'),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Temporary credentials generated successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(QueryAccessResponseSchema),
+        },
+      },
+    },
+    400: {
+      description: 'Validation error (e.g. missing databank ID)',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: 'Forbidden',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+// Register Databank Download Route
 registry.registerPath({
   method: 'get',
   path: '/databanks/{databankId}/download',
