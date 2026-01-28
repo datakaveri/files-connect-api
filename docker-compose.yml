@@ -67,12 +67,12 @@ services:
     # For development, can run multiple workers by scaling:
     # docker-compose up -d --scale zip-worker=3
 
-  # Readiness Worker for processing data readiness assessment jobs
-  readiness-worker:
+  # Report Worker for processing data readiness assessment jobs
+  report-worker:
     build:
-      context: ./workers/readiness-worker
+      context: ./workers/report-worker
       dockerfile: Dockerfile.worker
-    container_name: files-connect-readiness-worker
+    container_name: files-connect-report-worker
     depends_on:
       redis:
         condition: service_healthy
@@ -83,7 +83,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
-      READINESS_QUEUE_NAME: jobs:readiness
+      READINESS_QUEUE_NAME: jobs:report
       
       # Storage configuration (MinIO for local development)
       STORAGE_PROVIDER: minio
@@ -95,14 +95,15 @@ services:
       USE_SSL: "false"
       
       # OpenAI API configuration (required for column/role inference)
-      # OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Set OPENAI_API_KEY in your .env file (project root); Docker Compose passes it here.
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       
       # Elastic/CAT API configuration (optional - for updating readiness scores)
       # ELASTIC_ID: your-elastic-id
       # ELASTIC_PASS: your-elastic-password
     restart: unless-stopped
     # For development, can run multiple workers by scaling:
-    # docker-compose up -d --scale readiness-worker=2
+    # docker-compose up -d --scale report-worker=2
 
   # Files Connect API
   # api:

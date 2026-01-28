@@ -35,7 +35,7 @@ Processes databank zip creation jobs:
 - Graceful shutdown handling
 - Automatic retry on connection failures
 
-### Readiness Worker (`readiness-worker/`)
+### Report Worker (`report-worker/`)
 
 Processes data readiness assessment jobs:
 - Downloads files from S3/MinIO
@@ -65,11 +65,11 @@ docker-compose up -d
 
 # Scale workers
 docker-compose up -d --scale zip-worker=3
-docker-compose up -d --scale readiness-worker=2
+docker-compose up -d --scale report-worker=2
 
 # View worker logs
 docker-compose logs -f zip-worker
-docker-compose logs -f readiness-worker
+docker-compose logs -f report-worker
 
 # Stop services
 docker-compose down
@@ -226,11 +226,11 @@ MONITOR
 ```bash
 # View worker logs
 docker-compose logs -f zip-worker
-docker-compose logs -f readiness-worker
+docker-compose logs -f report-worker
 
 # View last 100 lines
 docker-compose logs --tail=100 zip-worker
-docker-compose logs --tail=100 readiness-worker
+docker-compose logs --tail=100 report-worker
 ```
 
 ### Kubernetes Logs
@@ -262,7 +262,7 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
 3. Check worker logs:
    ```bash
    docker-compose logs zip-worker
-   docker-compose logs readiness-worker
+   docker-compose logs report-worker
    ```
 
 ### Job Stuck in "Pending"
@@ -297,11 +297,11 @@ If workers are running out of memory:
 ```bash
 # Docker Compose
 docker-compose up -d --scale zip-worker=5
-docker-compose up -d --scale readiness-worker=3
+docker-compose up -d --scale report-worker=3
 
 # Kubernetes
 kubectl scale deployment zip-worker --replicas=5
-kubectl scale deployment readiness-worker --replicas=3
+kubectl scale deployment report-worker --replicas=3
 ```
 
 **Vertical Scaling (Kubernetes):**
@@ -366,7 +366,7 @@ curl -X POST http://localhost:3000/v1/databanks/test-123/process \
 
 ## Future Enhancements
 
-- [x] Add report generation worker (readiness-worker)
+- [x] Add report generation worker (report-worker)
 - [ ] Implement job priorities
 - [ ] Add job retry mechanism
 - [ ] Implement job scheduling

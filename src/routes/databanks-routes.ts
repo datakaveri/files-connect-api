@@ -853,55 +853,77 @@ databanksRoutes.get(
 );
 
 /**
- * GET /databanks/:databankId/readiness/download
- * Get a download URL for a readiness PDF report
+ * GET /databanks/:databankId/report/download
+ * Get a download URL for a report PDF
  */
 databanksRoutes.get(
-  `/:databankId/readiness/download`,
+  `/:databankId/report/download`,
   authenticate,
   authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
   checkItemAccessWithDatabankAccess,
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     
-    logger.info(`Readiness PDF download request received for databankId: ${databankId}`);
+    logger.info(`Report PDF download request received for databankId: ${databankId}`);
     
-    // Construct the readiness PDF key
+    // Construct the report PDF key
     const pdfKey = `dataReadiness/${databankId}.pdf`;
     
     // Check if the PDF file exists and generate presigned URL
     try {
-      const storageClient = s3Service.getS3Client();
-      
-      // Check if PDF exists using HeadObjectCommand
-      // This works for both AWS S3 and MinIO when using S3-compatible client
-      try {
-        await storageClient.send(new HeadObjectCommand({
+      const storageClient = s3Service.getS3Client() as any;
+
+      // Existence check: AWS SDK client uses .send(), MinIO client uses .statObject()
+      if (storageClient && typeof storageClient.send === 'function') {
+        try {
+          await storageClient.send(new HeadObjectCommand({
+            Bucket: env.BUCKET_NAME,
+            Key: pdfKey
+          }));
+        } catch (error) {
+          const err = error as any;
+          const statusCode = err?.$metadata?.httpStatusCode || err?.statusCode;
+          const errorCode = err?.code || err?.name;
+          const isNotFound = statusCode === 404 ||
+                            errorCode === 'NotFound' ||
+                            errorCode === 'NoSuchKey' ||
+                            errorCode === 'NotFoundError';
+          if (isNotFound) {
+            throw new NotFoundError('Readiness PDF', pdfKey);
+          }
+          throw error;
+        }
+      } else if (storageClient && typeof storageClient.statObject === 'function') {
+        try {
+          await storageClient.statObject(env.BUCKET_NAME, pdfKey);
+        } catch (error) {
+          const err = error as any;
+          const errorCode = err?.code || err?.name;
+          const isNotFound = errorCode === 'NotFound' || errorCode === 'NoSuchKey';
+          if (isNotFound) {
+            throw new NotFoundError('Readiness PDF', pdfKey);
+          }
+          throw error;
+        }
+      } else {
+        logger.warn('Unable to determine storage client type while checking report PDF existence', { pdfKey });
+      }
+
+      // Generate presigned URL: AWS SDK uses getSignedUrl, MinIO uses presignedGetObject
+      let presignedUrl: string;
+      if (storageClient && typeof storageClient.send === 'function') {
+        const command = new GetObjectCommand({
           Bucket: env.BUCKET_NAME,
           Key: pdfKey
-        }));
-      } catch (error) {
-        const err = error as any;
-        const statusCode = err?.$metadata?.httpStatusCode || err?.statusCode;
-        const errorCode = err?.code || err?.name;
-        const isNotFound = statusCode === 404 || 
-                          errorCode === 'NotFound' || 
-                          errorCode === 'NoSuchKey' ||
-                          errorCode === 'NotFoundError';
-        if (isNotFound) {
-          throw new NotFoundError('Readiness PDF', pdfKey);
-        }
-        throw error;
+        });
+        presignedUrl = await getSignedUrl(storageClient, command, { expiresIn: 300 });
+      } else if (storageClient && typeof storageClient.presignedGetObject === 'function') {
+        presignedUrl = await storageClient.presignedGetObject(env.BUCKET_NAME, pdfKey, 300);
+      } else {
+        throw new Error('Storage client does not support presigned URL generation');
       }
-      
-      // Generate presigned URL using AWS SDK (works for both S3 and MinIO)
-      const command = new GetObjectCommand({
-        Bucket: env.BUCKET_NAME,
-        Key: pdfKey
-      });
-      const presignedUrl = await getSignedUrl(storageClient, command, { expiresIn: 300 });
 
-      logger.info(`Successfully generated download URL for readiness PDF: ${pdfKey}`);
+      logger.info(`Successfully generated download URL for report PDF: ${pdfKey}`);
 
       const response = buildResponse({
         downloadUrl: presignedUrl,
@@ -915,18 +937,19 @@ databanksRoutes.get(
       const statusCode = err?.$metadata?.httpStatusCode || err?.statusCode;
       const errorCode = err?.code || err?.name;
       const isNotFoundError =
+        err instanceof NotFoundError ||
         statusCode === 404 ||
         errorCode === 'NotFound' ||
         errorCode === 'NoSuchKey' ||
         errorCode === 'NotFoundError';
 
       if (isNotFoundError) {
-        logger.warn(`Readiness PDF not found: ${pdfKey}, error: ${errorMessage}`);
+        logger.warn(`Report PDF not found: ${pdfKey}, error: ${errorMessage}`);
 
         res.status(404).json({ 
           success: false,
           error: {
-            message: `Readiness PDF report for databank ${databankId} not found. Please ensure a readiness assessment has been completed.`,
+            message: `Report PDF for databank ${databankId} not found. Please ensure a report has been generated.`,
             code: 'RESOURCE_NOT_FOUND'
           }
         });
@@ -935,7 +958,7 @@ databanksRoutes.get(
       }
 
       logger.error(
-        `Failed to generate download URL for readiness PDF: ${pdfKey}`,
+        `Failed to generate download URL for report PDF: ${pdfKey}`,
         err instanceof Error ? err : undefined,
         { databankId, pdfKey, errorCode, statusCode }
       );

@@ -185,8 +185,8 @@ def worker_loop():
         logger.error(f"Failed to initialize Redis client: {str(e)}")
         sys.exit(1)
     
-    # Queue name - can be 'jobs:readiness' or 'jobs:report' based on configuration
-    queue_name = os.environ.get('READINESS_QUEUE_NAME', 'jobs:readiness')
+    # Queue name - can be 'jobs:report' or 'jobs:readiness' based on configuration
+    queue_name = os.environ.get('READINESS_QUEUE_NAME', 'jobs:report')
     logger.info(f"Listening on queue: {queue_name}")
     
     # Main loop

@@ -848,10 +848,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'get',
-  path: '/databanks/{databankId}/readiness/download',
+  path: '/databanks/{databankId}/report/download',
   tags: ['Databanks'],
-  summary: 'Get download URL for readiness PDF report',
-  description: 'Returns a presigned URL for downloading the data readiness PDF report for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
+  summary: 'Get download URL for report PDF',
+  description: 'Returns a presigned URL for downloading the report PDF for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -867,7 +867,7 @@ registry.registerPath({
       },
     },
     404: {
-      description: 'Readiness PDF report not found',
+      description: 'Report PDF not found',
       content: {
         'application/json': {
           schema: ErrorResponseSchema,
@@ -894,7 +894,7 @@ registry.registerPath({
           schema: z.object({
             type: z
               .string()
-              .describe('Type of processing job (zip, readiness, or report)'),
+              .describe('Type of processing job (zip or report)'),
             prefix: z.string().optional(),
             options: z.object({}).passthrough(),
           }),
