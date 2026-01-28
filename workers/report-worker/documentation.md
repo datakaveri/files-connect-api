@@ -1,70 +1,141 @@
-# Data Quality Assessment Framework Documentation
+# Report Worker Documentation
 
 ## 1. Project Overview
-The **Data Quality Assessment Framework** is a comprehensive tool designed to evaluate the quality, readiness, and completeness of both structured (CSV, Parquet, JSON) and unstructured (PDF, Images, Audio) datasets. It generates detailed JSON reports and PDF summaries, providing scores based on various metrics like missingness, variance, format consistency, and documentation presence.
+The **Report Worker** is a Redis-based worker application that processes data readiness assessment jobs from a job queue. It evaluates the quality, readiness, and completeness of both structured (CSV, Parquet, JSON) and unstructured (PDF, Images, Audio, Excel, DICOM) datasets. It generates detailed JSON reports and PDF summaries, providing scores based on various metrics like missingness, variance, format consistency, and documentation presence.
 
-## 2. Installation & Setup
+## 2. Architecture
+
+The report worker follows a Redis-based job queue architecture:
+
+```
+TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
+                      ↓
+                 Job Status (Redis)
+```
+
+1. The TypeScript API receives requests and creates jobs in Redis
+2. The report worker polls the Redis queue for jobs
+3. Worker downloads files from S3/MinIO, processes them, and generates reports
+4. Worker uploads reports back to storage
+5. Worker updates job status in Redis throughout processing
+
+## 3. Installation & Setup
 
 ### Prerequisites
-- Python 3.8+
-- AWS Credentials (if running in Lambda/S3 mode)
-- OpenAI API Key (for role inference)
+- Python 3.11+
+- Redis server (for job queue)
+- S3/MinIO access credentials
+- OpenAI API Key (required for column/role inference)
 
 ### Installation
-1. Clone the repository.
-2. Install dependencies:
+
+**Using Docker (Recommended):**
+```bash
+docker-compose up -d report-worker
+```
+
+**Manual Installation:**
+1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
 ### Configuration
-Create a `.env` file in the root directory with the following variables:
 
-```ini
-# Required for Column/Role Inference
-OPENAI_API_KEY=your_openai_api_key
+The worker requires the following environment variables:
 
-# Required for CAT API Updates (if used)
-ELASTIC_ID=your_elastic_id
-ELASTIC_PASS=your_elastic_password
+#### Required Environment Variables
 
-# Required for AWS Lambda / S3 Usage
-S3_BUCKET_NAME=your_input_bucket_name
-S3_REPORTS_BUCKET_NAME=your_output_bucket_name
-```
+**Redis Configuration:**
+- `REDIS_HOST` - Redis server hostname (default: `localhost`)
+- `REDIS_PORT` - Redis server port (default: `6379`)
+- `REDIS_DB` - Redis database number (default: `0`)
+- `REDIS_PASSWORD` - Redis password (optional, if authentication enabled)
+- `READINESS_QUEUE_NAME` - Queue name to listen on (default: `jobs:report`)
 
-## 3. Usage
+**Storage Configuration:**
+- `S3_BUCKET_NAME` - S3/MinIO bucket name containing datasets
+- `S3_REPORTS_BUCKET_NAME` - S3/MinIO bucket name for storing generated reports
+- `S3_ACCESS_KEY` - Storage access key
+- `S3_SECRET_KEY` - Storage secret key
+- `STORAGE_PROVIDER` - Either `s3` (AWS S3) or `minio` (default: `s3`)
 
-### Local Execution
-You can run the assessment locally for specific directories.
+**For MinIO:**
+- `S3_ENDPOINT` - MinIO endpoint URL (e.g., `http://minio:9000`)
+- `USE_SSL` - Set to `true` or `false` (default: `false`)
 
-**For Structured Data:**
+**For AWS S3:**
+- `S3_REGION` - AWS region (default: `us-east-1`)
+- `S3_ENDPOINT` - Optional custom endpoint
+
+**OpenAI Configuration:**
+- `OPENAI_API_KEY` - Required for column/role inference
+
+**Optional - CAT API Updates:**
+- `ELASTIC_ID` - Elasticsearch ID for CAT API updates
+- `ELASTIC_PASS` - Elasticsearch password for CAT API updates
+
+## 4. Usage
+
+### Running the Worker
+
+**Docker Compose:**
 ```bash
-python structured_main.py
-```
-*Prompts for directory input or modifies `main` to accept arguments.*
+# Start single worker
+docker-compose up -d report-worker
 
-**For Unstructured Data:**
+# Scale to multiple workers
+docker-compose up -d --scale report-worker=3
+
+# View logs
+docker-compose logs -f report-worker
+```
+
+**Standalone:**
 ```bash
-python unstructured_main.py
+cd workers/report-worker
+python worker.py
 ```
 
-### AWS Lambda Execution
-The `lambda_handler.py` is designed to be deployed on AWS Lambda. It triggers on events (e.g., S3 uploads) or manual invocations.
+### Job Queue Format
 
-**Event Payload:**
+Jobs are added to the Redis queue (`jobs:report` by default) with the following format:
+
 ```json
 {
-  "folder_key": "path/to/dataset/folder/"
+  "jobId": "uuid-v4",
+  "type": "report",
+  "databankId": "databank-123",
+  "createdAt": "2025-01-01T00:00:00.000Z"
 }
 ```
 
-## 4. Module Descriptions
+The worker automatically:
+1. Downloads files from `S3_BUCKET_NAME/{databankId}/`
+2. Detects data type (structured vs unstructured)
+3. Runs appropriate assessment framework
+4. Generates JSON and PDF reports
+5. Uploads PDF report to `S3_REPORTS_BUCKET_NAME/dataReadiness/{databankId}.pdf`
+6. Updates job status in Redis
 
-### Core Modules
-- **`structured_main.py`**: Entry point for structured data. Orchestrates loading, inference, metric calculation, and reporting.
-- **`unstructured_main.py`**: Entry point for unstructured data. Handles metadata extraction and similar orchestration.
-- **`lambda_handler.py`**: AWS Lambda wrapper. Handles S3 downloads, selects the appropriate main module based on file types, and uploads reports back to S3.
+### Job Status Updates
+
+The worker updates job status in Redis at key `job:{jobId}`:
+
+- `status`: `pending` → `processing` → `completed` or `failed`
+- `progress`: Percentage (0-100)
+- `result`: JSON string with processing details
+- `error`: Error message (if failed)
+- `completedAt`: ISO timestamp (when completed/failed)
+
+## 5. Module Descriptions
+
+### Core Worker Modules
+- **`worker.py`**: Main worker entry point. Polls Redis queue, processes jobs, and updates job status.
+- **`readiness_processor.py`**: Core processing logic. Handles S3 downloads, data type detection, framework execution, and report uploads.
+- **`structured_main.py`**: Entry point for structured data assessment. Orchestrates loading, inference, metric calculation, and reporting.
+- **`unstructured_main.py`**: Entry point for unstructured data assessment. Handles metadata extraction and similar orchestration.
+- **`lambda_handler.py`**: Legacy AWS Lambda wrapper (not used by worker, kept for reference).
 
 ### Report Modules (`report/`)
 - **`input_handler.py`**: Loads data from directories (supports CSV, Parquet, JSON).
@@ -73,7 +144,7 @@ The `lambda_handler.py` is designed to be deployed on AWS Lambda. It triggers on
 - **`scoring_structured.py` / `scoring_unstructured.py`**: Computes the final weighted scores and percentages.
 - **`json_writer.py`**: Saves the raw and final reports to JSON.
 - **`pdf_writer.py`**: Generates a visual PDF report from the JSON data.
-- **`post_to_cat_api.py`**: Updates an external API (CAT) with the readiness score.
+- **`post_to_cat_api.py`**: Updates an external API (CAT) with the readiness score (optional).
 
 ### Metrics Modules
 #### Structured Metrics (`structured_metrics/`)
@@ -92,8 +163,44 @@ The `lambda_handler.py` is designed to be deployed on AWS Lambda. It triggers on
 - **`consistency.py`**: Checks if all files in a dataset are of the same type.
 - **`llm_api.py`**: Infers roles from metadata.
 
-## 5. Output Artifacts
-For each dataset, the tool generates:
-1.  **`*_raw_readiness_report.json`**: Detailed metric results.
-2.  **`*_final_readiness_report.json`**: Scored and summarized report.
-3.  **`data_readiness_report.pdf`**: A user-friendly PDF summary.
+## 6. Output Artifacts
+
+For each dataset, the framework generates:
+1. **`*_raw_readiness_report.json`**: Detailed metric results with all calculated values.
+2. **`*_final_readiness_report.json`**: Scored and summarized report with final readiness scores.
+3. **`data_readiness_report.pdf`**: A user-friendly PDF summary with visualizations.
+
+The worker uploads the PDF report to S3/MinIO at:
+- **Path**: `dataReadiness/{databankId}.pdf`
+- **Bucket**: `S3_REPORTS_BUCKET_NAME`
+
+JSON reports are generated locally during processing but are not uploaded to S3 (only the PDF is uploaded).
+
+## 7. Features
+
+- **Automatic Data Type Detection**: Automatically detects structured (CSV, Parquet, JSON) vs unstructured (PDF, Images, Audio, Excel, DICOM) datasets
+- **Memory-Efficient Processing**: Uses temporary directories and streaming downloads
+- **Graceful Shutdown**: Handles SIGTERM/SIGINT signals for clean shutdown
+- **Automatic Retry**: Retries Redis connection failures (up to 5 consecutive errors)
+- **Progress Tracking**: Updates job progress in Redis throughout processing
+- **Error Handling**: Comprehensive error handling with detailed logging
+- **Dual Storage Support**: Works with both AWS S3 and MinIO
+- **Zip File Support**: Automatically extracts zip files during download
+
+## 8. Troubleshooting
+
+### Worker Not Processing Jobs
+1. Check Redis connection: `docker-compose logs redis`
+2. Verify queue has jobs: `redis-cli LLEN jobs:report`
+3. Check worker logs: `docker-compose logs report-worker`
+
+### Job Fails
+- Check if databank folder exists in S3/MinIO
+- Verify S3 credentials are correct
+- Ensure OpenAI API key is set (required)
+- Check worker logs for specific error messages
+
+### Missing Reports
+- Verify `S3_REPORTS_BUCKET_NAME` is set correctly
+- Check worker logs for upload errors
+- Ensure the framework successfully generated the PDF report
