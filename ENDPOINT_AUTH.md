@@ -126,6 +126,10 @@ Legend: **Y** = role allowed, **-** = not allowed, **(owner)** = must own resour
 
 ## Notes
 
+- **Env feature flags:** Authentication and authorization can be toggled via environment variables:
+  - `AUTH_ENABLED` (default: `true`): when set to `false`, JWT authentication is skipped (the `authenticate` middleware and token decoding are effectively no-ops).
+  - `AUTHZ_ENABLED` (default: `true`): when set to `false`, all authorization and access-control middlewares are skipped (`authorize`, `databankAccess`, `checkItemAccess`, `checkItemAccessWithDatabankAccess`, `checkIsOwner`, and `flexibleAuthMiddleware` become no-ops).
+  - If either `AUTH_ENABLED=false` or `AUTHZ_ENABLED=false`, routes that currently require auth/roles/ACL checks will effectively become public; use this only for local development or testing.
 - **authorize** uses `checkDatabankAccess()` in auth-utils, which currently **always returns hasAccess: true**; real databank-level enforcement is via **databankAccess** / **checkItemAccessWithDatabankAccess** / **checkIsOwner** and external APIs (Catalogue, ACL/APD).
 - **checkItemAccess** only enforces “public” (OPEN) vs non-public; it does not by itself deny non-public access—routes that need strict access use **checkItemAccessWithDatabankAccess** or **checkIsOwner**.
 - Asset **download** adds an in-handler rule: non-admin users may only access assets whose key starts with their own `userId`.
