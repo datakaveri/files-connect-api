@@ -15,6 +15,7 @@ def update_cat_readiness_score(uuid, score, username, password):
         logger.error("Elasticsearch credentials are missing. Username or password is None.")
         return
 
+    # TODO: Update endpoint URLs as needed
     # Define the URL and authentication details for the GET request
     get_url = "http://a078a99afc21a4474b47c8de674fc3e4-763c884c0397ea0d.elb.ap-south-1.amazonaws.com:9200/tgdex__cat/_search"
 
@@ -50,7 +51,7 @@ def update_cat_readiness_score(uuid, score, username, password):
 
             _id = hits[0]['_id']
             logger.info(f"Found document with _id: {_id}")
-
+            # TODO: Update endpoint URLs as needed
             # Now perform the POST request (update document)
             post_url = f"http://a078a99afc21a4474b47c8de674fc3e4-763c884c0397ea0d.elb.ap-south-1.amazonaws.com:9200/tgdex__cat/_update/{_id}"
 

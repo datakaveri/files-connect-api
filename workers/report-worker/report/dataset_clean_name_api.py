@@ -1,5 +1,6 @@
 import requests
 
+# TODO: Update endpoint URLs as needed
 url_format = 'https://controlplane.tgdex.telangana.gov.in/iudx/v2/cat/item?id={}'
 def get_uuid_from_dataset_name(folder_name):
     return folder_name.split('.')[0]
