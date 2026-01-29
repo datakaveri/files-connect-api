@@ -408,6 +408,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}`,
   authenticate,
   authorize([UserRole.PROVIDER]),
+  checkIsOwner,
   validateBody(initiateUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -474,6 +475,7 @@ databanksRoutes.put(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId`,
   authenticate,
   authorize([UserRole.PROVIDER]),
+  checkIsOwner,
   validateBody(completeUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -537,6 +539,7 @@ databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId/cancel`,
   authenticate,
   authorize([UserRole.PROVIDER]),
+  checkIsOwner,
   validateBody(abortMultipartUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId as string;

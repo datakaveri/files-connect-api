@@ -52,6 +52,15 @@ const envSchema = z.object({
   KEYCLOAK_CLIENT_ID: z.string(),
   KEYCLOAK_PUBLIC_KEY: z.string(),
   KEYCLOAK_REALM: z.string(),
+  // Auth feature toggles
+  AUTH_ENABLED: z
+    .string()
+    .transform((val) => val !== "false")
+    .default("true"),
+  AUTHZ_ENABLED: z
+    .string()
+    .transform((val) => val !== "false")
+    .default("true"),
 
   // Logging configuration
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),

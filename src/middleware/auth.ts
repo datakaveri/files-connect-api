@@ -21,6 +21,10 @@ const logger = createLogger('AuthMiddleware');
 // Create auth service instance
 const authService = createAuthService();
 
+// Auth feature toggles from environment
+const isAuthEnabled = env.AUTH_ENABLED;
+const isAuthzEnabled = env.AUTHZ_ENABLED;
+
 /**
  * Authentication middleware
  * Verifies JWT token and extracts user information
@@ -32,6 +36,12 @@ const authService = createAuthService();
  */
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
+    // If authentication is disabled via environment, skip this middleware
+    if (!isAuthEnabled) {
+      logger.debug('Authentication disabled via AUTH_ENABLED env flag; skipping authenticate middleware');
+      return next();
+    }
+
     // Use extractUserInfo to get user information from the request
     const userInfo = await extractUserInfo(req, res);
     
@@ -85,6 +95,12 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 export function authorize(allowedRoles: UserRole[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // If authorization is disabled via environment, skip this middleware
+      if (!isAuthEnabled || !isAuthzEnabled) {
+        logger.debug('Authorization disabled via AUTH_ENABLED/AUTHZ_ENABLED env flags; skipping authorize middleware');
+        return next();
+      }
+
       // Check if user is already authenticated
       const userId = res.locals.userId;
       const isProvider = res.locals.isProvider;
@@ -234,6 +250,12 @@ export function authorizeConsumer(req: Request, res: Response, next: NextFunctio
  */
 export async function databankAccess(req: Request, res: Response, next: NextFunction) {
   try {
+    // If authorization is disabled via environment, skip this middleware
+    if (!isAuthzEnabled) {
+      logger.debug('Authorization disabled via AUTHZ_ENABLED env flag; skipping databankAccess middleware');
+      return next();
+    }
+
     // Get databank ID from request (can be in params, query, or body)
     const requestedDatabankId = 
       req.params.databankId || 
@@ -341,6 +363,11 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
  */
 export async function checkItemAccess(req: Request, res: Response, next: NextFunction) {
   const { databankId } = req.params;
+  // If authorization is disabled via environment, skip this middleware
+  if (!isAuthzEnabled) {
+    logger.debug('Authorization disabled via AUTHZ_ENABLED env flag; skipping checkItemAccess middleware');
+    return next();
+  }
   logger.debug(`[checkItemAccess] Checking access for databankId: ${databankId}`);
 
   if (!databankId || databankId === 'undefined' || databankId === 'null') {
@@ -449,6 +476,11 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
 
 export async function checkItemAccessWithDatabankAccess(req: Request, res: Response, next: NextFunction) {
   const { databankId } = req.params;
+  // If authorization is disabled via environment, skip this middleware
+  if (!isAuthzEnabled) {
+    logger.debug('Authorization disabled via AUTHZ_ENABLED env flag; skipping checkItemAccessWithDatabankAccess middleware');
+    return next();
+  }
   logger.debug(`[checkItemAccess] Checking access for databankId: ${databankId}`);
 
   if (!databankId) {
@@ -550,6 +582,12 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
 }
 
 export function flexibleAuthMiddleware(allowedRoles: UserRole[]) {
+  // If authorization is disabled via environment, skip this middleware entirely
+  if (!isAuthEnabled || !isAuthzEnabled) {
+    logger.debug('Authorization disabled via AUTH_ENABLED/AUTHZ_ENABLED env flags; returning no-op flexibleAuthMiddleware');
+    return (_req: Request, _res: Response, next: NextFunction) => next();
+  }
+
   return authorize(allowedRoles);
 }
 
@@ -564,6 +602,12 @@ export function flexibleAuthMiddleware(allowedRoles: UserRole[]) {
 export async function checkIsOwner(req: Request, res: Response, next: NextFunction) {
   const { databankId } = req.params;
   const userId = res.locals.userId;
+
+  // If authorization is disabled via environment, skip this middleware
+  if (!isAuthzEnabled) {
+    logger.debug('Authorization disabled via AUTHZ_ENABLED env flag; skipping checkIsOwner middleware');
+    return next();
+  }
 
   logger.debug(`[checkIsOwner] Checking ownership for databankId: ${databankId} by userId: ${userId}`);
 
