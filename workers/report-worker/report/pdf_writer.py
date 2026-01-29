@@ -49,7 +49,7 @@ class PDFReport(FPDF):
 
     def header(self):
         if self.logo_path:
-            self.image(self.logo_path, 10, 5, 25)  # Logo at top-left, width = 20
+            self.image(self.logo_path, 8, 8, 40)  # Logo at top-left, width = 40
 
         self.set_font("Helvetica", 'B', 18)
         self.set_xy(10, 10)
