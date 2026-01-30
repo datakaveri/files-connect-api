@@ -9,6 +9,7 @@ import logging
 import json
 import time
 import redis
+from redis.cluster import RedisCluster
 from zip_processor import process_zip_job
 
 # Configure logging
@@ -31,37 +32,55 @@ def signal_handler(signum, frame):
 
 def get_redis_client():
     """
-    Create and return a Redis client
+    Create and return a Redis client (standalone or cluster).
+    Use REDIS_CLUSTER=true when connecting to a Redis Cluster (e.g. in Kubernetes).
     """
     redis_host = os.environ.get('REDIS_HOST', 'localhost')
     redis_port = int(os.environ.get('REDIS_PORT', '6379'))
     redis_password = os.environ.get('REDIS_PASSWORD')
     redis_db = int(os.environ.get('REDIS_DB', '0'))
-    
-    logger.info(f"Connecting to Redis: {redis_host}:{redis_port}/{redis_db}")
-    
-    redis_config = {
-        'host': redis_host,
-        'port': redis_port,
-        'db': redis_db,
-        'decode_responses': True,
-        'socket_connect_timeout': 5,
-        'socket_keepalive': True,
-        'health_check_interval': 30
-    }
-    
-    if redis_password:
-        redis_config['password'] = redis_password
-    
-    try:
-        client = redis.Redis(**redis_config)
-        # Test connection
-        client.ping()
-        logger.info(f"Successfully connected to Redis database {redis_db}")
-        return client
-    except Exception as e:
-        logger.error(f"Failed to connect to Redis: {str(e)}")
-        raise
+    use_cluster = os.environ.get('REDIS_CLUSTER', '').lower() in ('1', 'true', 'yes')
+
+    if use_cluster:
+        logger.info(f"Connecting to Redis Cluster: {redis_host}:{redis_port}")
+        cluster_config = {
+            'host': redis_host,
+            'port': redis_port,
+            'decode_responses': True,
+            'socket_connect_timeout': 5,
+            'socket_keepalive': True,
+        }
+        if redis_password:
+            cluster_config['password'] = redis_password
+        try:
+            client = RedisCluster(**cluster_config)
+            client.ping()
+            logger.info("Successfully connected to Redis Cluster")
+            return client
+        except Exception as e:
+            logger.error(f"Failed to connect to Redis Cluster: {str(e)}")
+            raise
+    else:
+        logger.info(f"Connecting to Redis: {redis_host}:{redis_port}/{redis_db}")
+        redis_config = {
+            'host': redis_host,
+            'port': redis_port,
+            'db': redis_db,
+            'decode_responses': True,
+            'socket_connect_timeout': 5,
+            'socket_keepalive': True,
+            'health_check_interval': 30
+        }
+        if redis_password:
+            redis_config['password'] = redis_password
+        try:
+            client = redis.Redis(**redis_config)
+            client.ping()
+            logger.info(f"Successfully connected to Redis database {redis_db}")
+            return client
+        except Exception as e:
+            logger.error(f"Failed to connect to Redis: {str(e)}")
+            raise
 
 
 def update_job_status(redis_client, job_id, status, progress=None, error=None, result=None):
