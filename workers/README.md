@@ -152,6 +152,7 @@ USE_SSL=true
 ### Optional
 
 **For all workers:**
+- `REDIS_CLUSTER` - Set to `true` (or `1`/`yes`) when connecting to a **Redis Cluster** (e.g. Kubernetes with `redis-redis-cluster`). Required to avoid `MOVED` errors; workers use the cluster-aware client.
 - `REDIS_PASSWORD` - Redis password (if authentication enabled)
 - `CAT_URL` - CAT API URL for status updates
 - `CAT_USERNAME` - CAT API username
@@ -264,6 +265,12 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
    docker-compose logs zip-worker
    docker-compose logs report-worker
    ```
+
+### MOVED / Redis Cluster Errors
+
+If you see `redis.exceptions.ResponseError: MOVED <slot> <host>:<port>` when deploying to Kubernetes with a Redis Cluster:
+
+- Set `REDIS_CLUSTER=true` in the worker deployment environment so the worker uses the cluster-aware Redis client (handles slot redirects).
 
 ### Job Stuck in "Pending"
 
