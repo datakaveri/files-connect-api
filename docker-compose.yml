@@ -98,7 +98,12 @@ services:
       # Set OPENAI_API_KEY in your .env file (project root); Docker Compose passes it here.
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       
-      # Elastic/CAT API configuration (optional - for updating readiness scores)
+      # Catalogue API URL (required for dataset name resolution in readiness reports)
+      CAT_API_URL: ${CAT_API_URL}
+      
+      # Elasticsearch configuration (optional - for updating readiness scores in tgdex__cat index)
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-}
+      # ELASTIC_CAT_INDEX: tgdex__cat  # optional, defaults to tgdex__cat
       # ELASTIC_ID: your-elastic-id
       # ELASTIC_PASS: your-elastic-password
     restart: unless-stopped

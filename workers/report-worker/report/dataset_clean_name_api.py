@@ -1,7 +1,15 @@
-import requests
+import os
 
-# TODO: Update endpoint URLs as needed
-url_format = 'https://controlplane.tgdex.telangana.gov.in/iudx/v2/cat/item?id={}'
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Required: CAT_API_URL from .env (base URL for catalogue API, e.g. https://dx.tgdex.telangana.gov.in/tgdex/cat/v1)
+_cat_base = os.environ.get('CAT_API_URL')
+if not _cat_base:
+    raise ValueError('CAT_API_URL is required for report worker. Set it in .env')
+url_format = f"{_cat_base.rstrip('/')}/item?id={{}}"
 def get_uuid_from_dataset_name(folder_name):
     return folder_name.split('.')[0]
 
