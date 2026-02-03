@@ -274,8 +274,12 @@ export class FileService implements FileServiceInterface {
 
         if (String(fileType) === "csv" || String(fileType) === "tsv") {
           estimatedBytesPerLine = 100; // CSV/TSV tends to be smaller per line
-        } else if (String(fileType) === "xlsx") {
-          // For XLSX, we need to get the whole file since it's binary
+        } else if (
+          String(fileType) === "xlsx" ||
+          String(fileType) === "json" ||
+          String(fileType) === "xml"
+        ) {
+          // XLSX is binary; JSON/XML require full content for valid parsing (partial = "Unexpected end of JSON input")
           estimatedBytesPerLine = 0; // Will use getObject instead of getPartialObject
         }
 
@@ -289,10 +293,19 @@ export class FileService implements FileServiceInterface {
               )
             : 0;
 
-        // Get the file stream from S3 - use partial object for text-based formats
-        let stream;
+        // Get the file stream from S3 - full object for formats that require complete content to parse
+        let stream: Readable;
         if (
-          (maxBytes > 0 && String(fileType) !== "xlsx") ||
+          String(fileType) === "xlsx" ||
+          String(fileType) === "json" ||
+          String(fileType) === "xml"
+        ) {
+          logger.debug(
+            "Getting full object for preview (required for valid parsing)",
+          );
+          stream = await this.storageService.getObject(key, databankId);
+        } else if (
+          maxBytes > 0 &&
           String(fileType) !== "parquet"
         ) {
           logger.debug(`Getting partial object with maxBytes: ${maxBytes}`);
@@ -301,8 +314,8 @@ export class FileService implements FileServiceInterface {
             databankId,
             maxBytes,
           );
-        } else if (String(fileType) === "xlsx") {
-          logger.debug("Getting full object for preview");
+        } else {
+          // Parquet uses processParquet(databankId, key) and does not use the stream
           stream = await this.storageService.getObject(key, databankId);
         }
         assert(stream instanceof Readable);
@@ -580,7 +593,15 @@ export class FileService implements FileServiceInterface {
 
     try {
       const buffer = await this.streamToBuffer(stream);
-      const jsonData = JSON.parse(buffer.toString("utf-8"));
+      const raw = buffer.toString("utf-8").trim();
+      if (!raw) {
+        return {
+          previewSupported: false,
+          message:
+            "Error parsing JSON file: File is empty or contains only whitespace.",
+        };
+      }
+      const jsonData = JSON.parse(raw);
 
       if (
         Array.isArray(jsonData) &&
