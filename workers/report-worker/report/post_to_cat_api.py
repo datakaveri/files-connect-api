@@ -1,7 +1,16 @@
+import os
+
 import requests
 from requests.auth import HTTPBasicAuth
 import json
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Elasticsearch base URL for tgdex__cat index (required when ELASTIC_ID/ELASTIC_PASS are set)
+_DEFAULT_INDEX = "tgdex__cat"
+
 
 def update_cat_readiness_score(uuid, score, username, password):
     logger = logging.getLogger(__name__)
@@ -15,9 +24,15 @@ def update_cat_readiness_score(uuid, score, username, password):
         logger.error("Elasticsearch credentials are missing. Username or password is None.")
         return
 
-    # TODO: Update endpoint URLs as needed
-    # Define the URL and authentication details for the GET request
-    get_url = "http://a078a99afc21a4474b47c8de674fc3e4-763c884c0397ea0d.elb.ap-south-1.amazonaws.com:9200/tgdex__cat/_search"
+    # ELASTICSEARCH_URL required for updating readiness scores in tgdex__cat index
+    elastic_base = os.environ.get("ELASTICSEARCH_URL")
+    if not elastic_base:
+        logger.warning("ELASTICSEARCH_URL is not set. Skipping readiness score update in catalogue index.")
+        return
+
+    base = elastic_base.rstrip("/")
+    index = os.environ.get("ELASTIC_CAT_INDEX", _DEFAULT_INDEX)
+    get_url = f"{base}/{index}/_search"
 
     # Define the query payload for GET request
     query = {
@@ -51,9 +66,8 @@ def update_cat_readiness_score(uuid, score, username, password):
 
             _id = hits[0]['_id']
             logger.info(f"Found document with _id: {_id}")
-            # TODO: Update endpoint URLs as needed
             # Now perform the POST request (update document)
-            post_url = f"http://a078a99afc21a4474b47c8de674fc3e4-763c884c0397ea0d.elb.ap-south-1.amazonaws.com:9200/tgdex__cat/_update/{_id}"
+            post_url = f"{base}/{index}/_update/{_id}"
 
             # Define the update payload for POST request
             update_data = {
