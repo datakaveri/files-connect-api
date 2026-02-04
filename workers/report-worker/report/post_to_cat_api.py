@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -74,7 +75,8 @@ def update_cat_readiness_score(uuid, score, username, password):
                 "doc": {
                     "dataReadiness": score,
                     "dataUploadStatus": True,
-                    "publishStatus": "ACTIVE"
+                    "publishStatus": "ACTIVE",
+                    "lastUpdated": datetime.now().strftime("%d %B, %Y - %I:%M %p")
                 }
             }
 

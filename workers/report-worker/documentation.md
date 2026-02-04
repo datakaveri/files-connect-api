@@ -55,7 +55,7 @@ The worker requires the following environment variables:
 
 **Storage Configuration:**
 - `S3_BUCKET_NAME` - S3/MinIO bucket name containing datasets
-- `S3_REPORTS_BUCKET_NAME` - S3/MinIO bucket name for storing generated reports
+- `DATAREADINESS_BUCKET` - S3/MinIO bucket name for storing generated PDF reports (e.g. `data-readiness-staging`)
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
 - `STORAGE_PROVIDER` - Either `s3` (AWS S3) or `minio` (default: `s3`)
@@ -115,7 +115,7 @@ The worker automatically:
 2. Detects data type (structured vs unstructured)
 3. Runs appropriate assessment framework
 4. Generates JSON and PDF reports
-5. Uploads PDF report to `S3_REPORTS_BUCKET_NAME/dataReadiness/{databankId}.pdf`
+5. Uploads PDF report to `{DATAREADINESS_BUCKET}/{databankId}/data_readiness_report.pdf`
 6. Updates job status in Redis
 
 ### Job Status Updates
@@ -171,8 +171,8 @@ For each dataset, the framework generates:
 3. **`data_readiness_report.pdf`**: A user-friendly PDF summary with visualizations.
 
 The worker uploads the PDF report to S3/MinIO at:
-- **Path**: `dataReadiness/{databankId}.pdf`
-- **Bucket**: `S3_REPORTS_BUCKET_NAME`
+- **Bucket**: `DATAREADINESS_BUCKET`
+- **Path**: `{databankId}/data_readiness_report.pdf`
 
 JSON reports are generated locally during processing but are not uploaded to S3 (only the PDF is uploaded).
 
@@ -201,6 +201,6 @@ JSON reports are generated locally during processing but are not uploaded to S3 
 - Check worker logs for specific error messages
 
 ### Missing Reports
-- Verify `S3_REPORTS_BUCKET_NAME` is set correctly
+- Verify `DATAREADINESS_BUCKET` is set correctly
 - Check worker logs for upload errors
 - Ensure the framework successfully generated the PDF report

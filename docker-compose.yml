@@ -9,7 +9,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_DEFAULT_BUCKETS: files-connect-bucket,files-connect-assets
+      MINIO_DEFAULT_BUCKETS: files-connect-bucket,files-connect-assets,data-readiness-staging
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -91,7 +91,7 @@ services:
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
       S3_BUCKET_NAME: files-connect-bucket
-      S3_REPORTS_BUCKET_NAME: files-connect-bucket
+      DATAREADINESS_BUCKET: ${DATAREADINESS_BUCKET:-data-readiness-staging}
       USE_SSL: "false"
       
       # OpenAI API configuration (required for column/role inference)

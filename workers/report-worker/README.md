@@ -48,7 +48,7 @@ python worker.py
 
 **Storage:**
 - `S3_BUCKET_NAME` - Bucket containing datasets
-- `S3_REPORTS_BUCKET_NAME` - Bucket for reports
+- `DATAREADINESS_BUCKET` - Bucket for PDF reports (e.g. `data-readiness-staging`)
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
 - `STORAGE_PROVIDER` - `s3` or `minio` (default: `s3`)
@@ -85,7 +85,7 @@ The worker:
 2. Auto-detects data type (structured/unstructured)
 3. Runs assessment framework
 4. Generates JSON and PDF reports
-5. Uploads PDF to `S3_REPORTS_BUCKET_NAME/dataReadiness/{databankId}.pdf`
+5. Uploads PDF to `{DATAREADINESS_BUCKET}/{databankId}/data_readiness_report.pdf`
 6. Updates job status in Redis
 
 ## Module Descriptions
@@ -129,7 +129,7 @@ For each dataset, generates:
 2. **`*_final_readiness_report.json`**: Scored summary
 3. **`data_readiness_report.pdf`**: Visual PDF report
 
-PDF is uploaded to: `dataReadiness/{databankId}.pdf`
+PDF is uploaded to: `{databankId}/data_readiness_report.pdf` in the `DATAREADINESS_BUCKET` bucket.
 
 ## Features
 

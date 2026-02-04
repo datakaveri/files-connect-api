@@ -179,14 +179,14 @@ def lambda_handler(event, context):
                         print(root, _, files)
                         for f in files:
                             if f.endswith(('.json', '.pdf')):
-                                load_dotenv() 
-                                reports_bucket_name = os.getenv('S3_REPORTS_BUCKET_NAME')
+                                load_dotenv()
+                                reports_bucket_name = os.getenv('DATAREADINESS_BUCKET')
                                 logger.info("Reports bucket name: %s", reports_bucket_name)
                                 if not reports_bucket_name:
-                                    logger.error("Missing required environment variable: S3_REPORTS_BUCKET_NAME")
+                                    logger.error("Missing required environment variable: DATAREADINESS_BUCKET")
                                     return {
                                         'statusCode': 500,
-                                        'body': json.dumps({'error': 'Server configuration error: Missing S3_REPORTS_BUCKET_NAME'})
+                                        'body': json.dumps({'error': 'Server configuration error: Missing DATAREADINESS_BUCKET'})
                                     }
                                 logger.info(f"Uploading report: {f} to bucket: {reports_bucket_name}")
                                 report_key = f"{os.path.basename(fk)}/{f}"

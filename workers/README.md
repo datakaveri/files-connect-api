@@ -129,7 +129,7 @@ python worker.py
 - `S3_SECRET_KEY` - Storage secret key
 
 **For readiness worker:**
-- `S3_REPORTS_BUCKET_NAME` - S3/MinIO bucket name for storing reports
+- `DATAREADINESS_BUCKET` - S3/MinIO bucket name for storing data readiness PDF reports
 - `OPENAI_API_KEY` - OpenAI API key for column/role inference (required)
 
 ### Storage Configuration
