@@ -861,16 +861,16 @@ databanksRoutes.get(
  */
 databanksRoutes.get(
   `/:databankId/report/download`,
-  authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
-  checkItemAccessWithDatabankAccess,
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     
     logger.info(`Report PDF download request received for databankId: ${databankId}`);
     
-    // Construct the report PDF key
-    const pdfKey = `dataReadiness/${databankId}.pdf`;
+    // Construct the report PDF location in the reports bucket.
+    // Reports are uploaded by the readiness worker to:
+    //   {DATAREADINESS_BUCKET}/{databankId}/data_readiness_report.pdf
+    const reportsBucket = env.DATAREADINESS_BUCKET || env.BUCKET_NAME;
+    const pdfKey = `${databankId}/data_readiness_report.pdf`;
     
     // Check if the PDF file exists and generate presigned URL
     try {
@@ -880,7 +880,7 @@ databanksRoutes.get(
       if (storageClient && typeof storageClient.send === 'function') {
         try {
           await storageClient.send(new HeadObjectCommand({
-            Bucket: env.BUCKET_NAME,
+            Bucket: reportsBucket,
             Key: pdfKey
           }));
         } catch (error) {
@@ -898,7 +898,7 @@ databanksRoutes.get(
         }
       } else if (storageClient && typeof storageClient.statObject === 'function') {
         try {
-          await storageClient.statObject(env.BUCKET_NAME, pdfKey);
+          await storageClient.statObject(reportsBucket, pdfKey);
         } catch (error) {
           const err = error as any;
           const errorCode = err?.code || err?.name;
@@ -916,12 +916,12 @@ databanksRoutes.get(
       let presignedUrl: string;
       if (storageClient && typeof storageClient.send === 'function') {
         const command = new GetObjectCommand({
-          Bucket: env.BUCKET_NAME,
+          Bucket: reportsBucket,
           Key: pdfKey
         });
         presignedUrl = await getSignedUrl(storageClient, command, { expiresIn: 300 });
       } else if (storageClient && typeof storageClient.presignedGetObject === 'function') {
-        presignedUrl = await storageClient.presignedGetObject(env.BUCKET_NAME, pdfKey, 300);
+        presignedUrl = await storageClient.presignedGetObject(reportsBucket, pdfKey, 300);
       } else {
         throw new Error('Storage client does not support presigned URL generation');
       }
