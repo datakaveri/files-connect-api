@@ -427,6 +427,39 @@ export class AWSS3Repository implements StorageRepositoryInterface {
   }
 
   /**
+   * Creates a presigned URL for uploading a part in a multipart upload.
+   * The client must PUT the part body to this URL. Without this method, the service
+   * would fall back to createPresignedUrl (GetObject), causing SignatureDoesNotMatch
+   * when the client uploads the part.
+   */
+  async createPresignedUrlForPart(
+    uploadId: string,
+    key: string,
+    partNumber: number,
+    expiresIn: number = 3600
+  ): Promise<string> {
+    logger.debug('Creating presigned URL for upload part', { uploadId, key, partNumber, expiresIn });
+
+    const command = new UploadPartCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+      Body: new Uint8Array(0), // Signature uses UNSIGNED-PAYLOAD; client sends actual body when PUTting
+    });
+
+    return withRetry(
+      async () => {
+        const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+        logger.debug('Created presigned URL for part successfully', { key, partNumber, expiresIn });
+        return url;
+      },
+      this.retryOptions,
+      { operation: 'createPresignedUrlForPart', key, partNumber, expiresIn }
+    );
+  }
+
+  /**
    * Creates a presigned URL for an object
    * @param key - The key of the object
    * @param expiresIn - The number of seconds until the URL expires
