@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -76,7 +77,7 @@ def update_cat_readiness_score(uuid, score, username, password):
                     "dataReadiness": score,
                     "dataUploadStatus": True,
                     "publishStatus": "ACTIVE",
-                    "lastUpdated": datetime.now().strftime("%d %B, %Y - %I:%M %p")
+                    "lastUpdated": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B, %Y - %I:%M %p")
                 }
             }
 
