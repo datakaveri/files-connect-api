@@ -156,8 +156,7 @@ def download_files_from_s3(s3_client, bucket_name, folder_key, temp_dir):
 
 def upload_reports_to_s3(s3_client, temp_dir, folder_key, reports_bucket_name):
     """
-    Upload generated PDF report to S3 in dataReadiness folder
-    Only uploads PDF files, named as {databank_id}.pdf
+    Upload generated PDF report to S3 at {databank_id}/data_readiness_report.pdf
     """
     logger.info(f"Uploading PDF report to S3: {reports_bucket_name}")
     
@@ -185,8 +184,8 @@ def upload_reports_to_s3(s3_client, temp_dir, folder_key, reports_bucket_name):
         logger.warning(f"PDF report not found in {output_reports_dir}")
         return 0
     
-    # Construct S3 key: dataReadiness/{databank_id}.pdf
-    s3_key = f"dataReadiness/{databank_id}.pdf"
+    # Construct S3 key: {databank_id}/data_readiness_report.pdf
+    s3_key = f"{databank_id}/data_readiness_report.pdf"
     
     logger.info(f"Uploading PDF report: {pdf_path} -> {reports_bucket_name}/{s3_key}")
     try:
@@ -231,14 +230,14 @@ def process_readiness_job(databank_id):
     logger.info(f"Processing readiness job for databank: {databank_id}")
     
     try:
-        # Get bucket names from environment variables
+        # Get bucket names from environment variables (reports go to DATAREADINESS_BUCKET only)
         bucket_name = os.environ.get('S3_BUCKET_NAME')
-        reports_bucket_name = os.environ.get('S3_REPORTS_BUCKET_NAME')
+        reports_bucket_name = os.environ.get('DATAREADINESS_BUCKET')
         
         if not bucket_name:
             raise ValueError("S3_BUCKET_NAME environment variable is required")
         if not reports_bucket_name:
-            raise ValueError("S3_REPORTS_BUCKET_NAME environment variable is required")
+            raise ValueError("DATAREADINESS_BUCKET environment variable is required for report uploads")
         
         folder_key = databank_id
         logger.info(f"Using bucket: {bucket_name}, folder: {folder_key}")
@@ -298,9 +297,8 @@ def process_readiness_job(databank_id):
             framework_start = time.time()
             
             # Set environment variables for the framework modules
-            # They expect certain paths and configurations
             os.environ['S3_BUCKET_NAME'] = bucket_name
-            os.environ['S3_REPORTS_BUCKET_NAME'] = reports_bucket_name
+            os.environ['DATAREADINESS_BUCKET'] = reports_bucket_name
             
             # Set WORKER_TEMP_DIR so get_output_dir can use it
             # This ensures reports are created in temp_dir/outputReports

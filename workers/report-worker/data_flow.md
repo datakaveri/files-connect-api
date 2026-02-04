@@ -61,7 +61,7 @@ graph TD
     S_Main --> Reports[Reports Generated<br/>JSON + PDF]
     U_Main --> Reports
     
-    Reports --> Upload[Upload PDF to S3<br/>dataReadiness/databankId.pdf]
+    Reports --> Upload[Upload PDF to S3<br/>{databankId}/data_readiness_report.pdf]
     Upload --> Update2[Update Status: completed]
     Update2 --> End([Job Complete])
     
