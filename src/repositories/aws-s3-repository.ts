@@ -440,12 +440,20 @@ export class AWSS3Repository implements StorageRepositoryInterface {
   ): Promise<string> {
     logger.debug('Creating presigned URL for upload part', { uploadId, key, partNumber, expiresIn });
 
+    // IMPORTANT:
+    // Do NOT set Body or ContentLength here when creating a presigned URL.
+    // If we sign the request with a specific content-length (e.g. 0 bytes),
+    // but the client later uploads a real part with a different content-length,
+    // S3 will calculate a different canonical request and the signature will not match,
+    // causing 403 SignatureDoesNotMatch for every part upload.
+    //
+    // By omitting Body/ContentLength, the presigned URL is not bound to a specific
+    // payload size, and the client can upload the actual part bytes safely.
     const command = new UploadPartCommand({
       Bucket: this.bucketName,
       Key: key,
       UploadId: uploadId,
       PartNumber: partNumber,
-      Body: new Uint8Array(0), // Signature uses UNSIGNED-PAYLOAD; client sends actual body when PUTting
     });
 
     return withRetry(
