@@ -4,13 +4,14 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../core/utils/logger';
-import { AuditServiceInterface, AuditContext } from '../services/audit-service';
+import { AuditServiceInterface, AuditContext, AuditLogType } from '../services/audit-service';
 
 // Create a logger for this module
 const logger = createLogger('AuditMiddleware');
 
 // Define which endpoints should be audited
 // These match the router-relative paths, not the full URL paths
+// Values now represent the 'action' field in the new audit schema
 const AUDITED_ENDPOINTS = {
   // Upload complete - matches /:databankId/uploads/:uploadId on databanks router
   'PUT_/:databankId/uploads/:uploadId': 'Upload',
@@ -22,7 +23,7 @@ const AUDITED_ENDPOINTS = {
   'POST_/:databankId/files/delete': 'File Delete'
 } as const;
 
-type AuditOperation = typeof AUDITED_ENDPOINTS[keyof typeof AUDITED_ENDPOINTS];
+type AuditAction = typeof AUDITED_ENDPOINTS[keyof typeof AUDITED_ENDPOINTS];
 
 export function createAuditMiddleware(auditService: AuditServiceInterface) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -32,23 +33,23 @@ export function createAuditMiddleware(auditService: AuditServiceInterface) {
     // Override the send method to intercept response
     res.send = function(body: any) {
       // Check if this endpoint should be audited
-      const operation = getAuditOperation(req);
+      const action = getAuditAction(req);
       
       logger.debug('Audit middleware intercepted response', {
         method: req.method,
         originalUrl: req.originalUrl || '',
         path: req.path || '',
         statusCode: res.statusCode,
-        operation,
+        action,
         shouldAudit: shouldAudit(res.statusCode)
       });
       
-      if (operation && shouldAudit(res.statusCode)) {
+      if (action && shouldAudit(res.statusCode)) {
         // Extract audit context from request and response
-        const auditContext = extractAuditContext(req, res, operation);
+        const auditContext = extractAuditContext(req, res, action);
         
         if (auditContext) {
-          logger.info('Publishing audit message', { operation, databankId: auditContext.databankId });
+          logger.info('Publishing audit message', { action, databankId: auditContext.databankId });
           // Publish audit message asynchronously (don't block response)
           setImmediate(async () => {
             try {
@@ -68,14 +69,14 @@ export function createAuditMiddleware(auditService: AuditServiceInterface) {
   };
 }
 
-function getAuditOperation(req: Request): AuditOperation | null {
+function getAuditAction(req: Request): AuditAction | null {
   // Create endpoint key from method and path pattern
   const method = req.method;
   // Use req.route.path for router-relative path, fallback to req.path
   const routePath = req.route?.path || req.path || '';
   const fullPath = req.originalUrl || req.url || '';
   
-  logger.debug('Checking audit operation for path', { 
+  logger.debug('Checking audit action for path', { 
     method, 
     routePath, 
     fullPath,
@@ -84,25 +85,25 @@ function getAuditOperation(req: Request): AuditOperation | null {
   });
   
   // Match against audited endpoints using router-relative path
-  for (const [pattern, operation] of Object.entries(AUDITED_ENDPOINTS)) {
+  for (const [pattern, action] of Object.entries(AUDITED_ENDPOINTS)) {
     const [patternMethod, patternPath] = pattern.split('_');
     
     if (method === patternMethod && patternPath) {
       // Simple pattern matching - could be enhanced with more sophisticated matching
       if (matchPath(routePath, patternPath)) {
-        logger.debug('Audit operation matched', { 
+        logger.debug('Audit action matched', { 
           method, 
           routePath, 
           fullPath, 
           pattern, 
-          operation 
+          action 
         });
-        return operation;
+        return action;
       }
     }
   }
   
-  logger.debug('No audit operation matched', { method, routePath, fullPath });
+  logger.debug('No audit action matched', { method, routePath, fullPath });
   return null;
 }
 
@@ -134,7 +135,31 @@ function shouldAudit(statusCode: number): boolean {
   return statusCode >= 200 && statusCode < 300;
 }
 
-function extractAuditContext(req: Request, res: Response, operation: AuditOperation): AuditContext | null {
+/**
+ * Extract client IP address from request
+ * Handles proxied requests with X-Forwarded-For header
+ */
+function extractClientIp(req: Request): string | undefined {
+  // Check X-Forwarded-For header (common with proxies/load balancers)
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    // X-Forwarded-For can be comma-separated list; take the first (original client)
+    const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    const clientIp = ips?.split(',')[0]?.trim();
+    if (clientIp) return clientIp;
+  }
+  
+  // Check X-Real-IP header (used by some proxies)
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    return Array.isArray(realIp) ? realIp[0] : realIp;
+  }
+  
+  // Fall back to socket remote address
+  return req.socket?.remoteAddress || req.ip;
+}
+
+function extractAuditContext(req: Request, res: Response, action: AuditAction): AuditContext | null {
   try {
     const databankId = req.params.databankId;
     // Access user info from res.locals which is set by auth middleware
@@ -146,16 +171,22 @@ function extractAuditContext(req: Request, res: Response, operation: AuditOperat
     // Extract authorization token from request headers
     const authToken = req.headers.authorization;
     
+    // Extract technical metadata for new schema
+    const ipAddress = extractClientIp(req);
+    const userAgent = req.headers['user-agent'];
+    
     logger.debug('Extracting audit context', { 
       databankId, 
       userId, 
       userRole, 
       orgId,
       orgName,
-      operation,
+      action,
       originalUrl: req.originalUrl || '',
       path: req.path || '',
-      hasAuthToken: !!authToken
+      hasAuthToken: !!authToken,
+      ipAddress,
+      hasUserAgent: !!userAgent
     });
     
     if (!databankId || !userId || !userRole) {
@@ -171,9 +202,10 @@ function extractAuditContext(req: Request, res: Response, operation: AuditOperat
       method: req.method,
       userId,
       role: userRole,
-      operation,
+      action,
       orgId,
-      orgName
+      orgName,
+      ipAddress
     });
     
     return {
@@ -182,10 +214,15 @@ function extractAuditContext(req: Request, res: Response, operation: AuditOperat
       method: req.method,
       userId,
       role: userRole,
-      operation,
+      action,
       authToken,
       orgId,
-      orgName
+      orgName,
+      // New fields for updated schema
+      ipAddress,
+      userAgent,
+      // Log type defaults to ASSET for file operations
+      logType: 'ASSET',
     };
   } catch (error) {
     logger.error('Failed to extract audit context', error as Error);

@@ -1,6 +1,7 @@
 /**
  * Audit Service
  * Handles creating and publishing audit messages
+ * Schema: V46__Create_user_activity_audit_log
  */
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
@@ -11,34 +12,102 @@ import { RabbitMQServiceInterface } from "./rabbitmq-service";
 // Create a logger for this module
 const logger = createLogger("AuditService");
 
+// Enum for audit log types matching database schema
+export type AuditLogType = "ASSET" | "USER_ACTION" | "COMPUTE";
+
+// Enum for HTTP methods
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
+
+// Audit message matching user_activity_audit_log schema
 export interface AuditMessage {
-  asset_id: string;
-  api: string;
-  method: string;
-  asset_type: string;
-  asset_name: string;
-  created_at: string;
+  // Primary key (auto-generated)
+  id: string;
+
+  // User context (mandatory)
   user_id: string;
   role: string;
-  operation: "Upload" | "Download" | "File Delete" | "View";
-  short_description: string;
-  myactivity_enabled: boolean;
-  id: string;
-  origin_server: string;
-  org_name?: string;
+  issuer: string;
+
+  // User context (optional)
   org_id?: string;
+  org_name?: string;
+  org_type?: string;
+
+  // Delegation (optional)
+  delegator_id?: string;
+  delegator_role?: string;
+
+  // API metadata (mandatory)
+  api: string;
+  method: HttpMethod;
+  action: string;
+  origin_server: string;
+
+  // Asset dimension (conditional - include if log_type is ASSET)
+  asset_id?: string;
+  asset_access_policy?: string;
+  asset_org_id?: string;
+  asset_org_name?: string;
+  asset_org_type?: string;
+  asset_provider_id?: string;
+  asset_provider_name?: string;
+
+  // Metrics / workflow
+  amount?: number;
+  request_id?: string;
+
+  // Classification (mandatory)
+  log_type: AuditLogType;
+
+  // Technical metadata (optional)
+  ip_address?: string;
+  user_agent?: string;
+
+  // Time (mandatory)
+  created_at: string;
+
+  // Extensible (optional)
+  context?: Record<string, any>;
 }
 
 export interface AuditContext {
+  // Asset/Databank ID
   databankId: string;
+
+  // API metadata
   api: string;
   method: string;
+  action: "Upload" | "Download" | "File Delete" | "View";
+
+  // User context (mandatory)
   userId: string;
   role: string;
-  operation: "Upload" | "Download" | "File Delete" | "View";
+
+  // Auth token for extracting issuer and fetching asset info
   authToken?: string;
+
+  // Organization info
   orgId?: string;
   orgName?: string;
+  orgType?: string;
+
+  // Delegation (optional)
+  delegatorId?: string;
+  delegatorRole?: string;
+
+  // Technical metadata
+  ipAddress?: string;
+  userAgent?: string;
+
+  // Metrics
+  amount?: number;
+  requestId?: string;
+
+  // Log type - defaults to ASSET
+  logType?: AuditLogType;
+
+  // Additional context (optional)
+  context?: Record<string, any>;
 }
 
 export interface CatalogueApiResponse {
@@ -50,9 +119,29 @@ export interface CatalogueApiResponse {
     label: string;
     shortDescription: string;
     type: string[];
+    accessPolicy?: string;
+    ownerUserId?: string;
+    provider?: {
+      id?: string;
+      name?: string;
+    };
+    resourceGroup?: string;
     [key: string]: any;
   }>;
   detail: string;
+}
+
+// Extended asset info including new fields from catalogue
+export interface AssetInfo {
+  asset_type: string;
+  asset_name: string;
+  short_description: string;
+  access_policy?: string;
+  asset_org_id?: string;
+  asset_org_name?: string;
+  asset_org_type?: string;
+  provider_id?: string;
+  provider_name?: string;
 }
 
 export interface AuditServiceInterface {
@@ -64,36 +153,86 @@ export class AuditService implements AuditServiceInterface {
 
   async publishAuditMessage(context: AuditContext): Promise<void> {
     try {
-      // Extract organization info from JWT token if available
-      let orgInfo = { orgId: context.orgId, orgName: context.orgName };
-      if (context.authToken && (!context.orgId || !context.orgName)) {
-        const tokenOrgInfo = this.decodeJWTToken(context.authToken);
-        orgInfo = {
-          orgId: context.orgId || tokenOrgInfo.orgId,
-          orgName: context.orgName || tokenOrgInfo.orgName
+      // Extract organization info and issuer from JWT token if available
+      let tokenInfo = {
+        orgId: context.orgId,
+        orgName: context.orgName,
+        orgType: context.orgType,
+        issuer: "",
+        delegatorId: context.delegatorId,
+        delegatorRole: context.delegatorRole,
+      };
+
+      if (context.authToken) {
+        const decodedTokenInfo = this.decodeJWTToken(context.authToken);
+        tokenInfo = {
+          orgId: context.orgId || decodedTokenInfo.orgId,
+          orgName: context.orgName || decodedTokenInfo.orgName,
+          orgType: context.orgType || decodedTokenInfo.orgType,
+          issuer: decodedTokenInfo.issuer || "",
+          delegatorId: context.delegatorId || decodedTokenInfo.delegatorId,
+          delegatorRole: context.delegatorRole || decodedTokenInfo.delegatorRole,
         };
       }
 
       // Fetch asset information from catalogue API
       const assetInfo = await this.fetchAssetInfo(context.databankId, context.authToken);
 
-      // Build audit message (only include org fields if they exist)
+      // Determine log type - default to ASSET for file operations
+      const logType: AuditLogType = context.logType || "ASSET";
+
+      // Build audit message matching user_activity_audit_log schema
       const auditMessage: AuditMessage = {
-        asset_id: context.databankId,
-        api: context.api,
-        method: context.method,
-        asset_type: assetInfo.asset_type,
-        asset_name: assetInfo.asset_name,
-        created_at: this.generateMicrosecondTimestamp(),
+        // Primary key
+        id: uuidv4(),
+
+        // User context (mandatory)
         user_id: context.userId,
         role: context.role.toLowerCase(),
-        operation: context.operation,
-        short_description: assetInfo.short_description,
-        myactivity_enabled: true,
-        id: uuidv4(),
-        origin_server: "File",
-        ...(orgInfo.orgName && { org_name: orgInfo.orgName }),
-        ...(orgInfo.orgId && { org_id: orgInfo.orgId }),
+        issuer: tokenInfo.issuer,
+
+        // User context (optional - include if present)
+        ...(tokenInfo.orgId && { org_id: tokenInfo.orgId }),
+        ...(tokenInfo.orgName && { org_name: tokenInfo.orgName }),
+        ...(tokenInfo.orgType && { org_type: tokenInfo.orgType }),
+
+        // Delegation (optional - include if present)
+        ...(tokenInfo.delegatorId && { delegator_id: tokenInfo.delegatorId }),
+        ...(tokenInfo.delegatorRole && { delegator_role: tokenInfo.delegatorRole }),
+
+        // API metadata (mandatory)
+        api: context.api,
+        method: context.method.toUpperCase() as HttpMethod,
+        action: context.action,
+        origin_server: "FILE",
+
+        // Asset dimension (include for ASSET log type)
+        ...(logType === "ASSET" && {
+          asset_id: context.databankId,
+          ...(assetInfo.access_policy && { asset_access_policy: assetInfo.access_policy }),
+          ...(assetInfo.asset_org_id && { asset_org_id: assetInfo.asset_org_id }),
+          ...(assetInfo.asset_org_name && { asset_org_name: assetInfo.asset_org_name }),
+          ...(assetInfo.asset_org_type && { asset_org_type: assetInfo.asset_org_type }),
+          ...(assetInfo.provider_id && { asset_provider_id: assetInfo.provider_id }),
+          ...(assetInfo.provider_name && { asset_provider_name: assetInfo.provider_name }),
+        }),
+
+        // Metrics / workflow (optional - include if present)
+        ...(context.amount !== undefined && context.amount > 0 && { amount: context.amount }),
+        ...(context.requestId && { request_id: context.requestId }),
+
+        // Classification (mandatory)
+        log_type: logType,
+
+        // Technical metadata (optional - include if present)
+        ...(context.ipAddress && { ip_address: context.ipAddress }),
+        ...(context.userAgent && { user_agent: context.userAgent }),
+
+        // Time (mandatory)
+        created_at: this.generateMicrosecondTimestamp(),
+
+        // Extensible context (optional - include if present)
+        ...(context.context && Object.keys(context.context).length > 0 && { context: context.context }),
       };
 
       // Publish to RabbitMQ
@@ -101,13 +240,14 @@ export class AuditService implements AuditServiceInterface {
 
       logger.info("Audit message published successfully", {
         auditId: auditMessage.id,
-        operation: context.operation,
+        action: context.action,
         assetId: context.databankId,
         userId: context.userId,
+        logType,
       });
     } catch (error) {
       logger.error("Failed to publish audit message", error as Error, {
-        operation: context.operation,
+        action: context.action,
         assetId: context.databankId,
         userId: context.userId,
       });
@@ -135,9 +275,16 @@ export class AuditService implements AuditServiceInterface {
   }
 
   /**
-   * Decode JWT token to extract organization information
+   * Extended token info extracted from JWT
    */
-  private decodeJWTToken(token: string): { orgId?: string; orgName?: string } {
+  private decodeJWTToken(token: string): {
+    orgId?: string;
+    orgName?: string;
+    orgType?: string;
+    issuer?: string;
+    delegatorId?: string;
+    delegatorRole?: string;
+  } {
     try {
       // Remove 'Bearer ' prefix if present
       const cleanToken = token.replace(/^Bearer\s+/i, '');
@@ -163,8 +310,17 @@ export class AuditService implements AuditServiceInterface {
       const decodedPayload = JSON.parse(Buffer.from(paddedPayload, 'base64').toString());
       
       return {
+        // Organization info
         orgId: decodedPayload.organisation_id,
-        orgName: decodedPayload.organisation_name
+        orgName: decodedPayload.organisation_name,
+        orgType: decodedPayload.organisation_type || decodedPayload.org_type,
+        
+        // Issuer (mandatory in new schema)
+        issuer: decodedPayload.iss,
+        
+        // Delegation info (optional) - check for act (actor) claim for delegation
+        delegatorId: decodedPayload.act?.sub,
+        delegatorRole: decodedPayload.act?.role || decodedPayload.delegator_role,
       };
     } catch (error) {
       logger.error('Failed to decode JWT token', error as Error);
@@ -172,11 +328,7 @@ export class AuditService implements AuditServiceInterface {
     }
   }
 
-  private async fetchAssetInfo(databankId: string, authToken?: string): Promise<{
-    asset_type: string;
-    asset_name: string;
-    short_description: string;
-  }> {
+  private async fetchAssetInfo(databankId: string, authToken?: string): Promise<AssetInfo> {
     try {
       logger.debug("Fetching asset info from catalogue API", { databankId });
 
@@ -206,10 +358,22 @@ export class AuditService implements AuditServiceInterface {
           } else if (typeof result.type === "string") {
             assetType = result.type;
           }
+
+          // Extract provider info if available
+          const providerInfo = result.provider || {};
+
           return {
             asset_type: assetType ?? "adex:DataBank",
             asset_name: result.label || (result as any).name || "Unknown Asset",
             short_description: result.shortDescription || "No description available",
+            
+            // New fields for the updated schema
+            access_policy: result.accessPolicy,
+            asset_org_id: result.ownerUserId,  // Owner user ID maps to asset_org_id
+            asset_org_name: (result as any).ownerOrgName || (result as any).organisationName,
+            asset_org_type: (result as any).ownerOrgType || (result as any).organisationType,
+            provider_id: providerInfo.id || (result as any).providerId,
+            provider_name: providerInfo.name || (result as any).providerName,
           };
         }
       } else {
@@ -222,7 +386,7 @@ export class AuditService implements AuditServiceInterface {
     }
   }
 
-  private getDefaultAssetInfo(): { asset_type: string; asset_name: string; short_description: string } {
+  private getDefaultAssetInfo(): AssetInfo {
     return {
       asset_type: "adex:DataBank",
       asset_name: "Unknown Asset",
