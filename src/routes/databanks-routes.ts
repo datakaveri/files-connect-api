@@ -626,6 +626,62 @@ databanksRoutes.post(
 );
 
 /**
+ * GET /databanks/:databankId/process/:jobId
+ * Get the status of a processing job
+ * Returns the current job status, progress, and result if completed
+ */
+databanksRoutes.get(
+  `/:databankId/${ApiPaths.DATABANK_PROCESS}/:jobId`,
+  authenticate,
+  authorize([UserRole.PROVIDER]),
+  asyncHandler(async (req: Request, res: Response) => {
+    const databankId = req.params.databankId;
+    const jobId = req.params.jobId;
+    
+    logger.info(`Get job status request: jobId=${jobId}, databankId=${databankId}`);
+    
+    // Validate the databankId parameter
+    if (!databankId) {
+      throw new ValidationError('Databank ID is required');
+    }
+    
+    // Validate job ID parameter
+    if (!jobId) {
+      throw new ValidationError('Job ID is required');
+    }
+    
+    try {
+      const job = await processingService.getJob(jobId, databankId);
+      
+      const response = buildResponse({
+        jobId: job.jobId,
+        status: job.status,
+        type: job.type,
+        createdAt: job.createdAt.toISOString(),
+        progress: job.progress,
+        completedAt: job.completedAt?.toISOString(),
+        error: job.error,
+        result: job.result
+      });
+      
+      res.json(response);
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        res.status(404).json({
+          success: false,
+          error: {
+            message: `Job not found: ${jobId}`,
+            code: 'RESOURCE_NOT_FOUND'
+          }
+        });
+      } else {
+        throw error; // Let the global error handler catch it
+      }
+    }
+  })
+);
+
+/**
  * PUT /databanks/:databankId/process/:jobId/status
  * Update the status of a processing job
  * This endpoint will be called from Lambda functions to update job status

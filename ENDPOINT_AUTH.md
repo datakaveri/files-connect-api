@@ -56,6 +56,7 @@ All paths below are under `/v1/databanks/:databankId/...`. Checks are listed in 
 | Method | Path | Auth checks (in order) |
 |--------|------|-------------------------|
 | POST | `.../process` | 1. **authenticate** 2. **authorize**(provider) |
+| GET | `.../process/:jobId` | 1. **authenticate** 2. **authorize**(provider) |
 | PUT | `.../process/:jobId/status` | 1. **authenticate** 2. **authorize**(provider) |
 
 ### Temporary access & download
@@ -84,7 +85,7 @@ Base path: `/v1/assets`. The router applies **authenticate** to all asset routes
 | Check | Endpoints using it |
 |-------|---------------------|
 | **None** | `GET /v1/health`, `POST .../files/metadata` |
-| **authenticate + authorize only** | Create process job, update job status |
+| **authenticate + authorize only** | Create process job, get job status, update job status |
 | **authenticate + authorize + checkItemAccess** | List files, file preview |
 | **authenticate + authorize + checkItemAccessWithDatabankAccess** | File download, query-access, databank download, report download |
 | **authenticate + authorize + checkIsOwner** | File delete, initiate/complete/cancel upload |
@@ -110,6 +111,7 @@ Legend: **Y** = role allowed, **-** = not allowed, **(owner)** = must own resour
 | PUT `/databanks/:databankId/uploads/:uploadId` | Y(owner) | - | Y(owner) | `authorize([provider])` + `checkIsOwner` → effective rule is "owner only". |
 | POST `/databanks/:databankId/uploads/:uploadId/cancel` | Y(owner) | - | Y(owner) | `authorize([provider])` + `checkIsOwner` → effective rule is "owner only". |
 | POST `/databanks/:databankId/process` | Y | - | Y | `authorize([provider])`. |
+| GET `/databanks/:databankId/process/:jobId` | Y | - | Y | `authorize([provider])`. |
 | PUT `/databanks/:databankId/process/:jobId/status` | Y | - | Y | `authorize([provider])`. |
 | GET `/databanks/:databankId/query-access` | Y | Y | Y | `authorize([provider, consumer])` + `checkItemAccessWithDatabankAccess`. |
 | GET `/databanks/:databankId/download` | Y | Y | Y | `authorize([provider, consumer])` + `checkItemAccessWithDatabankAccess`. |

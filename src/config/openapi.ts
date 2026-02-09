@@ -957,6 +957,53 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: 'get',
+  path: '/databanks/{databankId}/process/{jobId}',
+  tags: ['Databanks'],
+  summary: 'Get processing job status',
+  description:
+    'Retrieves the current status of a processing job for a databank.\n\n' +
+    '**Status Values:**\n' +
+    '- `pending`: Job queued, waiting for worker\n' +
+    '- `processing`: Worker is processing the job\n' +
+    '- `completed`: Job completed successfully\n' +
+    '- `failed`: Job failed with error\n\n' +
+    '**Result Field (for completed report jobs):**\n' +
+    'When a report job completes, the `result` field contains:\n' +
+    '- `success`: Boolean indicating success\n' +
+    '- `data_type`: Type of data processed (`structured` or `unstructured`)\n' +
+    '- `files_processed`: Number of files processed\n' +
+    '- `reports_uploaded`: Number of reports uploaded\n' +
+    '- `processing_time_seconds`: Total processing time\n\n' +
+    '**Access Control:**\n' +
+    '- Allowed Roles: `provider`',
+  request: {
+    params: z.object({
+      databankId: z.string().describe('Databank ID'),
+      jobId: z.string().describe('Job ID'),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Processing job status retrieved successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(ProcessingJobSchema),
+        },
+      },
+    },
+    404: {
+      description: 'Job not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
   method: 'put',
   path: '/databanks/{databankId}/process/{jobId}/status',
   tags: ['Databanks'],
