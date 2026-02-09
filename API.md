@@ -41,6 +41,7 @@ The API has been restructured to follow REST best practices, with all resources 
 | Endpoint | Method | Description | Auth Required | Roles |
 |----------|--------|-------------|--------------|-------|
 | `/v1/databanks/:databankId/process` | POST | Create a processing job (zip and/or report) | Yes | Provider |
+| `/v1/databanks/:databankId/process/:jobId` | GET | Get status of a processing job | Yes | Provider |
 | `/v1/databanks/:databankId/process/:jobId/status` | PUT | Update status of a processing job | Yes | Provider |
 
 ### Temporary Access APIs
