@@ -87,6 +87,10 @@ def main(directory, folder_key):
                 sample_size = len(df)
                 logging.info(f"Sample size for {dataset_name}: {sample_size} rows")
 
+                # Skip empty files to avoid unnecessary OpenAI calls and division-by-zero errors
+                if sample_size == 0 or df.shape[1] == 0:
+                    logging.warning(f"Skipping {dataset_name}: empty file ({sample_size} rows, {df.shape[1]} columns)")
+                    continue
 
                 file_path = os.path.dirname(file_path)
 

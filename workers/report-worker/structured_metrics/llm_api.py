@@ -3,6 +3,15 @@ import json
 import pandas as pd
 
 def infer_column_roles_openai(df, api_key):
+    # Guard against empty DataFrames — no point calling OpenAI with no data
+    if df is None or df.empty or df.shape[1] == 0:
+        return {
+            "region": None,
+            "date": {"column": None, "format": None},
+            "timestamp": {"column": None, "format": None},
+            "categorical": None
+        }
+
     # Initialize client
     client = openai.OpenAI(api_key=api_key)
 
