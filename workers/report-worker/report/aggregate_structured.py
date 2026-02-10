@@ -160,7 +160,7 @@ def generate_final_report(readiness_metrics_json_path):
             "documentation_presence": (
                 "Documentation includes comprehensive data dictionary files." if readiness_metrics_raw["detailed_scores"]["documentation_presence"] == max_scores["documentation_presence"] 
                 else 
-                "Dataset requires documentation to be added."
+                "None"
             )
         }
 
@@ -270,20 +270,20 @@ def generate_final_report(readiness_metrics_json_path):
                     "max_score": 0 if notes["date_or_timestamp_fields_found"] == "No datetime fields found." or detailed_scores["date_or_timestamp_fields_found"] == 0 else 10
                 }
             ]
-        },
-        {
-            "bucket": "Documentation",
-            "weight": 15,
-            "tests": [
-                {
-                    "id": "6.1",
-                    "key": "documentation_presence",
-                    "title": "Documentation Presence",
-                    "note": notes["documentation_presence"],
-                    "score": detailed_scores["documentation_presence"],
-                    "max_score": 15
-                }
-            ]
+        # },
+        # {
+        #     "bucket": "Documentation",
+        #     "weight": 15,
+        #     "tests": [
+        #         {
+        #             "id": "6.1",
+        #             "key": "documentation_presence",
+        #             "title": "Documentation Presence",
+        #             "note": notes["documentation_presence"],
+        #             "score": detailed_scores["documentation_presence"],
+        #             "max_score": 15
+        #         }
+        #     ]
         }
     ]
 
