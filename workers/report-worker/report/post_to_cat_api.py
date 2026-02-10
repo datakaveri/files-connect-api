@@ -19,8 +19,8 @@ def update_cat_readiness_score(uuid, score, username, password):
     try:
         score = float(score)
     except (TypeError, ValueError):
-        logger.warning(f"Score '{score}' could not be converted to float. Setting as None.")
-        score = None
+        logger.warning(f"Score '{score}' could not be converted to float. Setting as NA.")
+        score = "NA"
     # Check for missing credentials
     if not username or not password:
         logger.error("Elasticsearch credentials are missing. Username or password is None.")

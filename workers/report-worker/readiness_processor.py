@@ -200,23 +200,20 @@ def upload_reports_to_s3(s3_client, temp_dir, folder_key, reports_bucket_name):
 def determine_data_type(temp_dir):
     """
     Determine if the dataset is structured or unstructured based on file types
-    Returns: 'structured', 'unstructured', or 'unknown'
+    NOTE: Unstructured extensions are intentionally ignored. Anything not
+    matching structured extensions will be treated as 'unknown'.
+    Returns: 'structured' or 'unknown'
     """
     structured_extensions = ('.parquet', '.csv', '.json')
-    unstructured_extensions = ('.xlsx', '.xls', '.pdf', '.mp3', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.txt', '.md', '.dcm')
     
     files = []
     for root, dirs, filenames in os.walk(temp_dir):
         for filename in filenames:
             files.append(filename.lower())
-    
     has_structured = any(f.endswith(structured_extensions) for f in files)
-    has_unstructured = any(f.endswith(unstructured_extensions) for f in files)
-    
+
     if has_structured:
         return 'structured'
-    elif has_unstructured:
-        return 'unstructured'
     else:
         return 'unknown'
 
@@ -289,8 +286,19 @@ def process_readiness_job(databank_id):
             data_type = determine_data_type(temp_dir)
             logger.info(f"Detected data type: {data_type}")
             
-            if data_type == 'unknown':
-                raise ValueError("Could not determine data type. No recognized file formats found.")
+            # If the dataset is not structured, skip running any framework
+            # but update the catalogue with an 'unknown' readiness score.
+            if data_type != 'structured':
+                logger.info("Non-structured files detected; updating catalogue with 'unknown' readiness")
+                try:
+                    from report.post_to_cat_api import update_cat_readiness_score
+                    elastic_id = os.environ.get('ELASTIC_ID')
+                    elastic_pass = os.environ.get('ELASTIC_PASS')
+                    # Use folder_key as fallback uuid (same fallback used in structured_main)
+                    update_cat_readiness_score(folder_key, 'NA', elastic_id, elastic_pass)
+                    logger.info("Catalogue readiness score updated to 'NA' for unstructured dataset")
+                except Exception as e:
+                    logger.error(f"Failed to update catalogue readiness score: {e}", exc_info=True)
             
             # Run the appropriate readiness framework
             logger.info(f"Running {data_type} readiness framework")
@@ -325,9 +333,6 @@ def process_readiness_job(databank_id):
                 if data_type == 'structured':
                     from structured_main import main as structured_main
                     structured_main(temp_dir, folder_key)
-                else:  # unstructured
-                    from unstructured_main import main as unstructured_main
-                    unstructured_main(temp_dir, folder_key)
             finally:
                 # Restore original working directory
                 os.chdir(original_cwd)
