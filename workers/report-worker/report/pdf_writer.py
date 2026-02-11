@@ -115,7 +115,7 @@ class PDFReport(FPDF):
         for section in filtered_data:
             if any(test['max_score'] != 0 for test in section['tests']):
             # Bucket heading
-                self.set_fill_color(200, 240, 200)  # Light green
+                self.set_fill_color(91, 189, 140)  # Light green
                 self.set_text_color(0, 0, 0)  # Black text
                 self.set_font("Helvetica", 'B', 10)
                 self.cell(sum(col_widths), 8, f"{section['bucket']}", ln=True, fill=True, border=1)
@@ -163,7 +163,7 @@ class PDFReport(FPDF):
         
             # Total score for each bucket
             self.set_font("Helvetica", 'B', 10)
-            self.set_fill_color(200, 211, 211)  # Light gray
+            self.set_fill_color(177, 216, 75)  # Light gray
             self.cell(col_widths[0]+col_widths[1]+col_widths[2], 8, f"Subtotal", border=1, fill=True)
             self.cell(col_widths[3], 8, f"{sum(test['score'] for test in section['tests']):.2f}", border=1, align='C', fill=True)
             self.cell(col_widths[4], 8, f"{sum(test['max_score'] for test in section['tests']):.0f}", border=1, align='C', fill=True)
