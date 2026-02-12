@@ -22,6 +22,8 @@ const logger = createLogger("ProcessingService");
 export enum ProcessingJobType {
   ZIP = "zip",
   REPORT = "report",
+  /** Run both zip and report jobs; creates two jobs and returns both job IDs */
+  ALL = "all",
 }
 
 // Define processing job status
@@ -57,21 +59,28 @@ export interface JobTriggerResult {
   message: string;
 }
 
+/** Result when type is "all": both zip and report jobs are created */
+export interface AllProcessingJobResult {
+  type: ProcessingJobType.ALL;
+  zipJob: ProcessingJob;
+  reportJob: ProcessingJob;
+}
+
 // Define the processing service interface
 export interface ProcessingServiceInterface {
   /**
    * Create a new processing job
-   * @param type - Type of job (zip or report)
+   * @param type - Type of job: zip (zip only), report (report only), or all (both; returns two job IDs)
    * @param databankId - ID of the databank
    * @param prefix - Optional prefix for processing specific files
    * @param options - Optional processing options
-   * @returns The created job
+   * @returns The created job(s). For type "all", returns zipJob and reportJob.
    */
   createJob(
     type: string,
     databankId: string,
     options?: any
-  ): Promise<ProcessingJob>;
+  ): Promise<ProcessingJob | AllProcessingJobResult>;
 
   /**
    * Update the status of a processing job
@@ -122,27 +131,80 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
   }
 
   /**
-   * Create a new processing job and push it to the Redis queue
-   * @param type - Type of job (zip or report)
+   * Create a new processing job and push it to the Redis queue.
+   * When type is "all", creates both a zip and a report job and returns both.
+   * @param type - Type of job: zip (zip only), report (report only), or all (both)
    * @param databankId - ID of the databank
    * @param options - Optional processing options
-   * @returns The created job
+   * @returns The created job(s). For type "all", returns zipJob and reportJob with their job IDs.
    */
   async createJob(
     type: string,
     databankId: string,
     options?: any
-  ): Promise<ProcessingJob> {
+  ): Promise<ProcessingJob | AllProcessingJobResult> {
     // Validate job type
     if (!Object.values(ProcessingJobType).includes(type as ProcessingJobType)) {
       throw new ValidationError(`Invalid job type: ${type}`);
     }
 
-    // Create a new job
-    const jobId = uuidv4();
     const jobType = type as ProcessingJobType;
+
+    if (jobType === ProcessingJobType.ALL) {
+      // Create both zip and report jobs
+      const zipJobId = uuidv4();
+      const reportJobId = uuidv4();
+      const createdAt = new Date();
+
+      const zipJob: ProcessingJob = {
+        jobId: zipJobId,
+        type: ProcessingJobType.ZIP,
+        status: ProcessingJobStatus.PENDING,
+        databankId,
+        createdAt,
+        progress: 0,
+        options,
+      };
+      const reportJob: ProcessingJob = {
+        jobId: reportJobId,
+        type: ProcessingJobType.REPORT,
+        status: ProcessingJobStatus.PENDING,
+        databankId,
+        createdAt,
+        progress: 0,
+        options,
+      };
+
+      logger.info(`Created "all" processing jobs: zip=${zipJobId}, report=${reportJobId}`, {
+        databankId,
+      });
+
+      try {
+        await pushJob(ProcessingJobType.ZIP, zipJobId, databankId, options);
+        await pushJob(ProcessingJobType.REPORT, reportJobId, databankId, options);
+        logger.info(`Both jobs queued: zip=${zipJobId}, report=${reportJobId}`);
+      } catch (error) {
+        logger.error("Failed to push one or both jobs to queue", error as Error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        zipJob.status = ProcessingJobStatus.FAILED;
+        zipJob.error = errMsg;
+        reportJob.status = ProcessingJobStatus.FAILED;
+        reportJob.error = errMsg;
+        try {
+          await updateJobStatusInQueue(zipJobId, ProcessingJobStatus.FAILED, 0, errMsg);
+          await updateJobStatusInQueue(reportJobId, ProcessingJobStatus.FAILED, 0, errMsg);
+        } catch (updateError) {
+          logger.error("Failed to update job status after queue error", updateError as Error);
+        }
+      }
+
+      return { type: ProcessingJobType.ALL, zipJob, reportJob };
+    }
+
+    // Single job: zip or report
+    const jobId = uuidv4();
     const createdAt = new Date();
-    
+
     const job: ProcessingJob = {
       jobId,
       type: jobType,
@@ -153,40 +215,22 @@ class ProcessingServiceImpl implements ProcessingServiceInterface {
       options,
     };
 
-    // Log job creation
     logger.info(`Created processing job: ${jobId}`, {
       jobId,
       databankId,
       type: jobType,
     });
 
-    // Push job to Redis queue for processing
     try {
-      logger.info(`Pushing job to Redis queue: ${jobId}`, {
-        jobId,
-        type: jobType,
-      });
-      
+      logger.info(`Pushing job to Redis queue: ${jobId}`, { jobId, type: jobType });
       await pushJob(jobType, jobId, databankId, options);
-      
       logger.info(`Job successfully queued: ${jobId}`);
     } catch (error) {
-      // If queue push fails, mark job as failed
-      logger.error(
-        `Failed to push job to queue: ${jobId}`,
-        error as Error
-      );
+      logger.error(`Failed to push job to queue: ${jobId}`, error as Error);
       job.status = ProcessingJobStatus.FAILED;
       job.error = error instanceof Error ? error.message : String(error);
-      
-      // Still try to update status in Redis
       try {
-        await updateJobStatusInQueue(
-          jobId,
-          ProcessingJobStatus.FAILED,
-          0,
-          job.error
-        );
+        await updateJobStatusInQueue(jobId, ProcessingJobStatus.FAILED, 0, job.error);
       } catch (updateError) {
         logger.error("Failed to update job status after queue error", updateError as Error);
       }

@@ -99,8 +99,8 @@ export const initiateUploadSchema = z.object({
  * Schema for processing job creation request
  */
 export const createProcessingJobSchema = z.object({
-  /** Type of processing job (e.g. 'zip', 'report') */
-  type: z.string().min(1, 'Job type is required'),
+  /** Type of processing job: zip (zip only), report (report only), or all (both) */
+  type: z.enum(['zip', 'report', 'all']),
   
   /** Optional prefix to filter files in the databank */
   prefix: z.string().optional(),

@@ -99,7 +99,9 @@ python worker.py
 
 ### Job Queue Format
 
-Jobs are added to the Redis queue (`jobs:report` by default) with the following format:
+The API creates report jobs when `POST .../process` is called with body `type` equal to `report` or `all`. For `type: "all"`, the API creates both a zip job and a report job and returns two job IDs; only the report job is pushed to `jobs:report`.
+
+Jobs in the Redis queue (`jobs:report` by default) have the following format:
 
 ```json
 {
