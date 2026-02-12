@@ -18,7 +18,12 @@ import { StorageServiceInterface } from "../services/storage-service";
 import { FileService } from "../services/file-service";
 import { MultipartUploadServiceInterface } from "../services/multipart-upload-service";
 import { TemporaryAccessServiceInterface } from "../services/temporary-access-service";
-import { createProcessingService, ProcessingServiceInterface } from "../services/processing-service";
+import {
+  createProcessingService,
+  ProcessingServiceInterface,
+  ProcessingJobType,
+  AllProcessingJobResult,
+} from "../services/processing-service";
 import { env } from "../config/environment";
 import { createLogger } from "../core/utils/logger";
 import { ApiPaths, FileTypes } from "../config/constants";
@@ -608,17 +613,39 @@ databanksRoutes.post(
       }
       
       const job = await processingService.createJob(type, databankId, options || undefined);
-      
-      const response = buildResponse({
-        jobId: job.jobId,
-        status: job.status,
-        type: job.type,
-        createdAt: job.createdAt.toISOString(),
-        progress: job.progress
-      });
-      
-      // Return 202 Accepted since the job is being processed asynchronously
-      res.status(202).json(response);
+
+      if (job.type === ProcessingJobType.ALL && "zipJob" in job) {
+        const allResult = job as AllProcessingJobResult;
+        const response = buildResponse({
+          type: "all",
+          jobIds: {
+            zip: allResult.zipJob.jobId,
+            report: allResult.reportJob.jobId,
+          },
+          zip: {
+            jobId: allResult.zipJob.jobId,
+            status: allResult.zipJob.status,
+            createdAt: allResult.zipJob.createdAt.toISOString(),
+            progress: allResult.zipJob.progress,
+          },
+          report: {
+            jobId: allResult.reportJob.jobId,
+            status: allResult.reportJob.status,
+            createdAt: allResult.reportJob.createdAt.toISOString(),
+            progress: allResult.reportJob.progress,
+          },
+        });
+        res.status(202).json(response);
+      } else {
+        const response = buildResponse({
+          jobId: job.jobId,
+          status: job.status,
+          type: job.type,
+          createdAt: job.createdAt.toISOString(),
+          progress: job.progress,
+        });
+        res.status(202).json(response);
+      }
     } catch (error) {
       throw error; // Let the global error handler catch it
     }

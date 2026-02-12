@@ -495,6 +495,8 @@ curl -X POST https://your-api-url/v1/databanks/test-databank-id/process \
   }'
 ```
 
+To run both zip and report jobs in one request, use `"type": "all"`; the response will include `jobIds.zip` and `jobIds.report` to poll each job.
+
 ### Step 5: Monitor Job Processing
 
 ```bash

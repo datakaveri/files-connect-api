@@ -165,12 +165,19 @@ USE_SSL=true
 
 ## Job Queue Structure
 
+### Process endpoint job types
+The API `POST /v1/databanks/:databankId/process` accepts a body `type`:
+- **`zip`** – One job is created and pushed to `jobs:zip` (zip worker processes it).
+- **`report`** – One job is created and pushed to `jobs:report` (report worker processes it).
+- **`all`** – Two jobs are created: one pushed to `jobs:zip`, one to `jobs:report`. The response returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status.
+
 ### Queue Names
 - `jobs:zip` - Zip creation jobs
 - `jobs:readiness` - Data readiness assessment jobs
 - `jobs:report` - Report generation jobs (deprecated, use `jobs:readiness`)
 
 ### Job Data Format
+Each queue entry has the following shape (workers never see `type: "all"`; the API creates separate zip and report jobs):
 ```json
 {
   "jobId": "uuid-v4",
@@ -180,6 +187,7 @@ USE_SSL=true
   "createdAt": "2025-01-01T00:00:00.000Z"
 }
 ```
+Use `"type": "report"` for report jobs.
 
 ### Job Status Format (Redis Hash `job:{jobId}`)
 ```
@@ -356,11 +364,12 @@ docker run -p 9000:9000 -p 9001:9001 \
 cd workers/zip-worker
 python worker.py
 
-# Terminal 4: Test via API
+# Terminal 4: Test via API (type: zip | report | all)
 curl -X POST http://localhost:3000/v1/databanks/test-123/process \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"type": "zip"}'
+# For both zip and report: -d '{"type": "all"}' (response includes jobIds.zip and jobIds.report)
 ```
 
 ## Security Considerations
