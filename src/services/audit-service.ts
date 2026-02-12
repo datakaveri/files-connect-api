@@ -149,7 +149,7 @@ export interface AuditServiceInterface {
 }
 
 export class AuditService implements AuditServiceInterface {
-  constructor(private rabbitmqService: RabbitMQServiceInterface) {}
+  constructor(private rabbitmqService: RabbitMQServiceInterface) { }
 
   async publishAuditMessage(context: AuditContext): Promise<void> {
     try {
@@ -262,15 +262,15 @@ export class AuditService implements AuditServiceInterface {
   private generateMicrosecondTimestamp(): string {
     const now = new Date();
     const milliseconds = now.getMilliseconds().toString().padStart(3, '0');
-    
+
     // Generate additional 3 digits for microsecond precision
     // Using a combination of current microsecond counter and random for uniqueness
     const microsecondsExtra = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-    
+
     // Format: YYYY-MM-DDTHH:mm:ss.xxxxxx
     const isoString = now.toISOString();
     const datePart = isoString.slice(0, 19); // "2025-06-30T12:41:36"
-    
+
     return `${datePart}.${milliseconds}${microsecondsExtra}`;
   }
 
@@ -288,7 +288,7 @@ export class AuditService implements AuditServiceInterface {
     try {
       // Remove 'Bearer ' prefix if present
       const cleanToken = token.replace(/^Bearer\s+/i, '');
-      
+
       // JWT tokens have 3 parts separated by dots: header.payload.signature
       const parts = cleanToken.split('.');
       if (parts.length !== 3) {
@@ -302,22 +302,22 @@ export class AuditService implements AuditServiceInterface {
         logger.warn('JWT token missing payload');
         return {};
       }
-      
+
       // Add padding if necessary for base64 decoding
       const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-      
+
       // Decode base64 and parse JSON
       const decodedPayload = JSON.parse(Buffer.from(paddedPayload, 'base64').toString());
-      
+
       return {
         // Organization info
         orgId: decodedPayload.organisation_id,
         orgName: decodedPayload.organisation_name,
         orgType: decodedPayload.organisation_type || decodedPayload.org_type,
-        
+
         // Issuer (mandatory in new schema)
         issuer: decodedPayload.iss,
-        
+
         // Delegation info (optional) - check for act (actor) claim for delegation
         delegatorId: decodedPayload.act?.sub,
         delegatorRole: decodedPayload.act?.role || decodedPayload.delegator_role,
@@ -349,6 +349,14 @@ export class AuditService implements AuditServiceInterface {
         headers,
       });
 
+      // Validate that the response is JSON — if CAT_API_URL is misconfigured,
+      // it may return the frontend HTML page with a 200 status.
+      const contentType = (response.headers['content-type'] || '') as string;
+      if (!contentType.includes('application/json')) {
+        logger.error(`[fetchAssetInfo] Catalogue API returned non-JSON response (Content-Type: ${contentType}) for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}).`);
+        return this.getDefaultAssetInfo();
+      }
+
       if (response.data.result && response.data.result.length > 0) {
         const result = response.data.result[0];
         if (result) {
@@ -366,7 +374,7 @@ export class AuditService implements AuditServiceInterface {
             asset_type: assetType ?? "adex:DataBank",
             asset_name: result.label || (result as any).name || "Unknown Asset",
             short_description: result.shortDescription || "No description available",
-            
+
             // New fields for the updated schema
             access_policy: result.accessPolicy,
             asset_org_id: result.ownerUserId,  // Owner user ID maps to asset_org_id
@@ -377,11 +385,11 @@ export class AuditService implements AuditServiceInterface {
           };
         }
       } else {
-        logger.warn("No results found in catalogue API response", { databankId });
+        logger.warn(`[fetchAssetInfo] No results found in catalogue API response for databankId: ${databankId}. CAT_API_URL: ${env.CAT_API_URL}. Verify the databank is registered in the catalogue.`);
       }
       return this.getDefaultAssetInfo();
     } catch (error) {
-      logger.error("Failed to fetch asset info from catalogue API", error as Error, { databankId });
+      logger.error(`[fetchAssetInfo] Failed to fetch asset info from catalogue API for databankId: ${databankId}. CAT_API_URL: ${env.CAT_API_URL}`, error as Error, { databankId });
       return this.getDefaultAssetInfo();
     }
   }
