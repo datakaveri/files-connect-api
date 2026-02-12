@@ -10,6 +10,7 @@ data:
   S3_REGION: "ap-south-1"
   BUCKET_NAME: "s3-ap-south-1-tgdex-production"
   ASSETS_BUCKET_NAME: "s3-ap-south-1-tgdex-assets"
+  DATAREADINESS_BUCKET: "s3-ap-south-1-tgdex-production"  # Bucket for data readiness PDF reports
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: "1000"
   CORS_ORIGIN: "*"
   LOG_LEVEL: "debug"
@@ -19,7 +20,7 @@ data:
   ACL_APD_API_URL: "https://acl-apd.tgdex.telangana.gov.in/dx/apd/acl/v1/"
   ZIP_LAMBDA_URL: "https://gl6qmqp7ii5emmcdtqcxy2lihu0ddmjp.lambda-url.ap-south-1.on.aws/"
   LAMBDA_REGION: "ap-south-1"
-  CAT_API_URL: "https://dx.tgdex.telangana.gov.in/tgdex/cat/v1"
+  CAT_API_URL: "https://v2.dev.controlplane.iudx.io/iudx/v2/cat"
   REPORTS_LAMBDA_URL: "https://a6tttymcoyytfod7umoabkxsc40blzhi.lambda-url.ap-south-1.on.aws/"
   # Redis configuration for job queue
   REDIS_HOST: "redis"
