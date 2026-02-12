@@ -40,7 +40,7 @@ The API has been restructured to follow REST best practices, with all resources 
 
 | Endpoint | Method | Description | Auth Required | Roles |
 |----------|--------|-------------|--------------|-------|
-| `/v1/databanks/:databankId/process` | POST | Create a processing job (zip and/or report) | Yes | Provider |
+| `/v1/databanks/:databankId/process` | POST | Create a processing job. Body `type`: `zip` (zip only), `report` (report only), or `all` (both; returns `jobIds.zip` and `jobIds.report`) | Yes | Provider |
 | `/v1/databanks/:databankId/process/:jobId` | GET | Get status of a processing job | Yes | Provider |
 | `/v1/databanks/:databankId/process/:jobId/status` | PUT | Update status of a processing job | Yes | Provider |
 
@@ -66,7 +66,8 @@ The API has been restructured to follow REST best practices, with all resources 
 - File preview supports multiple formats: CSV, JSON, GeoJSON, XML, XLSX, and Parquet
 - Databank multipart uploads support only CSV, JSON, GeoJSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted
 - Multipart uploads are used for large file uploads and follow the AWS S3 multipart upload protocol
-- The processing APIs trigger background jobs for creating zip files and generating reports
+- The processing APIs trigger background jobs for creating zip files and/or generating reports
+- **Job type**: `zip` (zip only), `report` (report only), or `all` (both). For `all`, the API creates two jobs and returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status
 - Processing jobs run asynchronously and respond with 202 Accepted status
 - Zip creation jobs can be tracked and downloaded once complete via the databanks download API
 - Temporary access API generates AWS STS credentials for direct S3 access to databank files without proxying through the API

@@ -214,12 +214,32 @@ const UploadCompletionSchema = z.object({
 const ProcessingJobSchema = z.object({
   jobId: z.string(),
   status: z.string().describe('Job status: pending, processing, completed, or failed'),
-  type: z.string().describe('Job type: zip or report'),
+  type: z.string().describe('Job type: zip, report, or all'),
   createdAt: z.string(),
   progress: z.number().optional().describe('Progress percentage (0-100)'),
   completedAt: z.string().optional(),
   error: z.string().optional(),
   result: z.object({}).passthrough().optional().describe('Job result data (varies by job type)'),
+});
+
+const ProcessingJobAllResponseSchema = z.object({
+  type: z.literal('all'),
+  jobIds: z.object({
+    zip: z.string().describe('Job ID for the zip job; poll GET .../process/{jobId} with this ID'),
+    report: z.string().describe('Job ID for the report job; poll GET .../process/{jobId} with this ID'),
+  }),
+  zip: z.object({
+    jobId: z.string(),
+    status: z.string(),
+    createdAt: z.string(),
+    progress: z.number().optional(),
+  }),
+  report: z.object({
+    jobId: z.string(),
+    status: z.string(),
+    createdAt: z.string(),
+    progress: z.number().optional(),
+  }),
 });
 
 const ReportJobResultSchema = z.object({
@@ -905,10 +925,11 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Create a processing job for a databank',
   description:
-    'Creates a new processing job for a databank. Supports two job types:\n\n' +
+    'Creates a new processing job for a databank. Supports three job types:\n\n' +
     '**Job Types:**\n' +
-    '- `zip`: Creates a compressed zip archive of the databank files\n' +
-    '- `report`: Runs data readiness assessment on the databank, generating JSON and PDF reports\n\n' +
+    '- `zip`: Creates a compressed zip archive of the databank files (zip job only)\n' +
+    '- `report`: Runs data readiness assessment on the databank, generating JSON and PDF reports (report job only)\n' +
+    '- `all`: Runs both zip and report jobs; returns separate job IDs for each so you can poll status for each\n\n' +
     '**Report Job Details:**\n' +
     '- Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio, Excel, DICOM) datasets\n' +
     '- Runs comprehensive data quality assessment framework\n' +
@@ -927,8 +948,8 @@ registry.registerPath({
         'application/json': {
           schema: z.object({
             type: z
-              .enum(['zip', 'report'])
-              .describe('Type of processing job: zip (create zip archive) or report (data readiness assessment)'),
+              .enum(['zip', 'report', 'all'])
+              .describe('Type of processing job: zip (zip only), report (report only), or all (both zip and report)'),
             prefix: z.string().optional().describe('Optional prefix for processing specific files (not used for report jobs)'),
             options: z.object({}).passthrough().optional().describe('Optional processing options'),
           }),
@@ -938,10 +959,13 @@ registry.registerPath({
   },
   responses: {
     202: {
-      description: 'Processing job created successfully and queued for processing',
+      description:
+        'Processing job(s) created and queued. For type zip or report, returns a single job. For type all, returns jobIds.zip and jobIds.report so you can poll each job separately.',
       content: {
         'application/json': {
-          schema: SuccessResponseSchema(ProcessingJobSchema),
+          schema: SuccessResponseSchema(
+            z.union([ProcessingJobSchema, ProcessingJobAllResponseSchema])
+          ),
         },
       },
     },

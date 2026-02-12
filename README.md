@@ -206,7 +206,7 @@ The OpenAPI spec is also available at http://localhost:3000/openapi.json
   - `PUT /v1/databanks/{databankId}/uploads/{uploadId}` - Complete multipart upload
   - `POST /v1/databanks/{databankId}/files` - List files in databank
   - `POST /v1/databanks/{databankId}/files/download` - Download files
-  - `POST /v1/databanks/{databankId}/process` - Create processing job
+  - `POST /v1/databanks/{databankId}/process` - Create processing job (type: `zip`, `report`, or `all` for both)
   - `GET /v1/databanks/{databankId}/query-access` - Generate temporary S3 credentials
 
 - **Asset Operations**:
@@ -258,8 +258,10 @@ API (TypeScript) → Redis Queue → Worker (Python) → S3/MinIO
 ```
 
 ### Supported Jobs
-1. **Zip Creation**: Streams files from databank folders and creates compressed archives
-2. **Report Generation**: Creates data readiness reports (planned)
+**Job types** (request body `type` on `POST .../process`):
+- **`zip`** – Zip job only: streams files from the databank and creates a compressed archive.
+- **`report`** – Report job only: runs data readiness assessment and generates JSON and PDF reports.
+- **`all`** – Both: creates one zip job and one report job; response includes `jobIds.zip` and `jobIds.report` so you can poll each job separately.
 
 ### Features
 - **Memory Efficient**: Streams large files without loading into memory
