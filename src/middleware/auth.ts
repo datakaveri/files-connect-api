@@ -9,8 +9,8 @@ import { createLogger } from '../core/utils/logger';
 import { UserRole } from '../core/types/auth';
 import axios from 'axios';
 import { env } from '../config/environment';
-import { 
-  checkDatabankAccess, 
+import {
+  checkDatabankAccess,
   extractUserInfo
 } from '../core/utils/auth-utils';
 import { ServiceUnavailableError, ValidationError, NotFoundError } from '../core/errors/application-errors';
@@ -44,10 +44,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     // Use extractUserInfo to get user information from the request
     const userInfo = await extractUserInfo(req, res);
-    
+
     // Set user role based on provider status
     const userRole = userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER;
-    
+
     // Store user information in response locals for access in route handlers
     res.locals.userId = userInfo.userId;
     res.locals.userRole = userRole;
@@ -62,10 +62,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       id: userInfo.userId,
       role: userRole
     };
-    
+
     // Log successful authentication
     logger.info(`Authentication successful: userId=${userInfo.userId}, databankId=${userInfo.databankId}, roles=${userInfo.roles.join(',')}, isProvider=${userInfo.isProvider}, isConsumer=${userInfo.isConsumer}, isAdmin=${userInfo.isAdmin}`);
-    
+
     // Continue to next middleware or route handler
     next();
   } catch (err) {
@@ -73,14 +73,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     if (err instanceof AuthenticationError) {
       return next(err);
     }
-    
+
     // Log and create a new AuthenticationError
-    logger.warn('Authentication failed', { 
-      path: req.path, 
+    logger.warn('Authentication failed', {
+      path: req.path,
       method: req.method,
-      error: (err as Error).message 
+      error: (err as Error).message
     });
-    
+
     return next(new AuthenticationError((err as Error).message));
   }
 }
@@ -106,18 +106,18 @@ export function authorize(allowedRoles: UserRole[]) {
       const isProvider = res.locals.isProvider;
       const isConsumer = res.locals.isConsumer;
       const isAdmin = res.locals.isAdmin;
-      
+
       // Determine if this is an asset route by checking the originalUrl
       // This is more reliable than req.path which might be '/' in some middleware contexts
       const originalUrl = req.originalUrl || '';
       const isAssetRoute = originalUrl.includes('/assets');
-      
+
       // If not authenticated, try to authenticate
       if (!userId) {
         try {
           // Extract user information from request
           const userInfo = await extractUserInfo(req, res);
-          
+
           // Store user information in response locals
           res.locals.userId = userInfo.userId;
           res.locals.userRoles = userInfo.roles;
@@ -130,7 +130,7 @@ export function authorize(allowedRoles: UserRole[]) {
             id: userInfo.userId,
             role: userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER
           };
-          
+
           // For asset routes, we don't need a databank ID
           if (isAssetRoute) {
             res.locals.databankId = 'assets'; // Use a placeholder value
@@ -138,23 +138,23 @@ export function authorize(allowedRoles: UserRole[]) {
           } else {
             // For non-asset routes, get the databank ID from params or query
             const databankId = req.params.databankId || req.query.databankId?.toString();
-            
+
             if (!databankId) {
               logger.warn('Databank ID required but not provided', { path: originalUrl });
               return res.status(400).json({ error: 'Databank ID is required in the URL path' });
             }
-            
+
             res.locals.databankId = databankId;
           }
         } catch (authErr) {
           return next(new AuthenticationError('Authentication required'));
         }
       }
-      
+
       // Check if user has any of the allowed roles
       let hasAllowedRole = false;
       let roleForAccess: UserRole | null = null;
-      
+
       if (allowedRoles.includes(UserRole.PROVIDER) && isProvider) {
         hasAllowedRole = true;
         roleForAccess = UserRole.PROVIDER;
@@ -165,50 +165,50 @@ export function authorize(allowedRoles: UserRole[]) {
         hasAllowedRole = true;
         roleForAccess = UserRole.ADMIN;
       }
-      
+
       if (!hasAllowedRole || !roleForAccess) {
         return next(new AuthorizationError('Required role not found'));
       }
-      
+
       // Get the databank ID from locals
       const currentDatabankId = res.locals.databankId;
-      
+
       // Check if user has access to the databank
       // Skip databank access check for asset routes
       // We already determined if this is an asset route above, but check again here
       // in case the route path has changed during middleware execution
       const skipDatabankCheck = (req.originalUrl || '').includes('/assets');
-      
+
       if (!skipDatabankCheck) {
         const accessResult = await checkDatabankAccess(
-          userId as string, 
-          currentDatabankId as string, 
+          userId as string,
+          currentDatabankId as string,
           roleForAccess
         );
-        
+
         if (!accessResult.hasAccess) {
           return next(new AuthorizationError(
             accessResult.error || 'No access to databank'
           ));
         }
       }
-      
+
       // Set role for access in locals
       res.locals.roleForAccess = roleForAccess;
-      
+
       // Log successful authorization
       logger.info(`Authorization successful: userId=${userId}, role=${roleForAccess}, isAdmin=${isAdmin}`);
-      
+
       // Continue to next middleware or route handler
       next();
     } catch (err) {
       // Log error and pass to error handler
-      logger.warn('Authorization failed', { 
-        path: req.path, 
+      logger.warn('Authorization failed', {
+        path: req.path,
         method: req.method,
-        error: (err as Error).message 
+        error: (err as Error).message
       });
-      
+
       next(new AuthorizationError((err as Error).message));
     }
   };
@@ -257,50 +257,58 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
     }
 
     // Get databank ID from request (can be in params, query, or body)
-    const requestedDatabankId = 
-      req.params.databankId || 
-      (req.query.databankId as string) || 
+    const requestedDatabankId =
+      req.params.databankId ||
+      (req.query.databankId as string) ||
       (req.body && req.body.databankId);
-    
+
     // If no databank ID is requested, skip this check
     if (!requestedDatabankId) {
       return next();
     }
-    
+
     // Get user's databank ID from authentication
     const userDatabankId = res.locals.databankId;
-    
+
     // Admin users (providers) can access any databank
     // if (res.locals.isProvider) {
     //   return next();
     // }
-    
+
     // Get the authorization token from the request
     const authHeader = req.header('Authorization');
     if (!authHeader) {
       logger.warn('Missing authorization header for databank access check');
       return next(new AuthenticationError('Authorization token required'));
     }
-    
+
     // Check access using the ACL API
     try {
       const aclApiUrl = `${env.ACL_APD_API_URL}/access_request/has_access`;
-      
+
       logger.debug('Checking databank access with ACL API', {
         url: aclApiUrl,
         databankId: requestedDatabankId
       });
-      
+
       const response = await axios.post(
         aclApiUrl,
         { itemId: requestedDatabankId },
         { headers: { Authorization: authHeader } }
       );
-      
+
+      // Validate that the response is JSON — if ACL_APD_API_URL is misconfigured,
+      // it may return HTML or other non-JSON content with a 200 status.
+      const contentType = (response.headers['content-type'] || '') as string;
+      if (!contentType.includes('application/json')) {
+        logger.error(`[databankAccess] ACL API returned non-JSON response (Content-Type: ${contentType}). This may indicate a misconfigured ACL_APD_API_URL (currently: ${env.ACL_APD_API_URL}).`);
+        return checkIsOwner(req, res, next);
+      }
+
       const responseData = response.data;
-      
+
       logger.debug('ACL API response', { responseData });
-      
+
       // Check response type to determine access
       if (responseData.type === 'urn:dx:apdServerPanel:success') {
         // User has access, continue to next middleware
@@ -318,15 +326,20 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
           responseDetail: responseData.detail
         });
 
+        res.locals.aclDenied = true;
+        res.locals.aclDenialReason = responseData.detail || 'No ACL grant found for this user';
         return checkIsOwner(req, res, next);
       }
     } catch (error) {
-      // Handle API call errors
-      logger.error('Error calling ACL API', error as Error, {
+      // Handle API call errors — log the configured URL for easier debugging
+      logger.error(`Error calling ACL API (ACL_APD_API_URL: ${env.ACL_APD_API_URL})`, error as Error, {
         userId: res.locals.userId,
         databankId: requestedDatabankId
       });
-      
+
+      res.locals.aclDenied = true;
+      res.locals.aclDenialReason = 'ACL API call failed';
+
       // Fallback to the original check if ACL API fails
       if (userDatabankId !== requestedDatabankId) {
         logger.warn('Databank access denied (fallback check)', {
@@ -334,7 +347,7 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
           userDatabankId,
           requestedDatabankId
         });
-        
+
         return checkIsOwner(req, res, next);
       }
       return checkIsOwner(req, res, next);
@@ -384,13 +397,24 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
 
     const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
-    
+
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
     const headers = authHeader ? { Authorization: authHeader } : {};
     logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
-    
+
     const response = await axios.get(catalogApiUrl, { headers });
+
+    // Validate that the response is JSON — if the Catalogue API's reverse proxy is misconfigured,
+    // it may return the frontend HTML page with a 200 status, leading to misleading errors.
+    const contentType = (response.headers['content-type'] || '') as string;
+    if (!contentType.includes('application/json')) {
+      logger.error(`[checkItemAccess] Catalogue API returned non-JSON response (Content-Type: ${contentType}) for databankId: ${databankId}. This usually indicates a reverse proxy or ingress misconfiguration.`);
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Catalogue API returned unexpected content type: ${contentType}. Expected application/json.`,
+        databankId,
+      }));
+    }
 
     if (response.status !== 200) {
       logger.warn(`[checkItemAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
@@ -403,6 +427,7 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
     const catalogData = response.data;
     if (catalogData && catalogData.result && catalogData.result.length > 0) {
       const accessPolicy = catalogData.result[0].accessPolicy;
+      res.locals.accessPolicy = accessPolicy;
       logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
       if (accessPolicy === 'OPEN') {
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
@@ -424,52 +449,55 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
   } catch (error) {
     if (axios.isAxiosError(error)) {
       logger.error(`[checkItemAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
-      
+
       if (error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
-        
-        // Handle 404 - item not found in catalogue
+
+        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
         if (status === 404) {
-          logger.warn(`[checkItemAccess] Databank ${databankId} not found in Catalogue API`);
-          return next(new NotFoundError('Databank', databankId));
+          logger.error(`[checkItemAccess] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
+          return next(new ServiceUnavailableError('Catalogue API', {
+            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
+            databankId,
+          }));
         }
-        
+
         // Handle other 4xx errors - client errors
         if (status >= 400 && status < 500) {
           logger.warn(`[checkItemAccess] Catalogue API returned client error ${status} for databankId: ${databankId}`);
           return next(new ValidationError(
             `Invalid databank request: ${statusText}`,
-            { 
-              databankId, 
+            {
+              databankId,
               catalogueStatus: status,
               detail: `Catalogue API responded with status ${status} (${statusText}).`
             }
           ));
         }
-        
+
         // Handle 5xx errors - server errors
         logger.error(`[checkItemAccess] Catalogue API service error ${status} for databankId: ${databankId}`);
-        return next(new ServiceUnavailableError('Catalogue API', { 
+        return next(new ServiceUnavailableError('Catalogue API', {
           detail: `Catalogue API responded with status ${status} (${statusText}).`,
-          databankId 
+          databankId
         }));
       }
-      
+
       // Network error - no response from server
       logger.error(`[checkItemAccess] Failed to connect to Catalogue API for databankId: ${databankId}`);
-      return next(new ServiceUnavailableError('Catalogue API', { 
+      return next(new ServiceUnavailableError('Catalogue API', {
         detail: 'Failed to connect to Catalogue API.',
-        databankId 
+        databankId
       }));
     }
-    
+
     // Unexpected non-Axios error
     logger.error(`[checkItemAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
-    return next(new ServiceUnavailableError('Catalogue API', { 
+    return next(new ServiceUnavailableError('Catalogue API', {
       detail: 'An unexpected error occurred while verifying databank public access.',
       originalError: (error as Error).message,
-      databankId 
+      databankId
     }));
   }
 }
@@ -491,13 +519,24 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
   try {
     const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
-    
+
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
     const headers = authHeader ? { Authorization: authHeader } : {};
     logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
-    
+
     const response = await axios.get(catalogApiUrl, { headers });
+
+    // Validate that the response is JSON — if the Catalogue API's reverse proxy is misconfigured,
+    // it may return the frontend HTML page with a 200 status, leading to misleading errors.
+    const contentType = (response.headers['content-type'] || '') as string;
+    if (!contentType.includes('application/json')) {
+      logger.error(`[checkItemAccessWithDatabankAccess] Catalogue API returned non-JSON response (Content-Type: ${contentType}) for databankId: ${databankId}. This usually indicates a reverse proxy or ingress misconfiguration.`);
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Catalogue API returned unexpected content type: ${contentType}. Expected application/json.`,
+        databankId,
+      }));
+    }
 
     if (response.status !== 200) {
       logger.warn(`[checkItemAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
@@ -510,6 +549,7 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
     const catalogData = response.data;
     if (catalogData && catalogData.result && catalogData.result.length > 0) {
       const accessPolicy = catalogData.result[0].accessPolicy;
+      res.locals.accessPolicy = accessPolicy;
       logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
       if (accessPolicy === 'OPEN') {
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
@@ -531,52 +571,55 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
   } catch (error) {
     if (axios.isAxiosError(error)) {
       logger.error(`[checkItemAccess] Axios error calling Catalogue API for databankId: ${databankId}`, error);
-      
+
       if (error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
-        
-        // Handle 404 - item not found in catalogue
+
+        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
         if (status === 404) {
-          logger.warn(`[checkItemAccess] Databank ${databankId} not found in Catalogue API`);
-          return next(new NotFoundError('Databank', databankId));
+          logger.error(`[checkItemAccessWithDatabankAccess] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
+          return next(new ServiceUnavailableError('Catalogue API', {
+            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
+            databankId,
+          }));
         }
-        
+
         // Handle other 4xx errors - client errors
         if (status >= 400 && status < 500) {
           logger.warn(`[checkItemAccess] Catalogue API returned client error ${status} for databankId: ${databankId}`);
           return next(new ValidationError(
             `Invalid databank request: ${statusText}`,
-            { 
-              databankId, 
+            {
+              databankId,
               catalogueStatus: status,
               detail: `Catalogue API responded with status ${status} (${statusText}).`
             }
           ));
         }
-        
+
         // Handle 5xx errors - server errors
         logger.error(`[checkItemAccess] Catalogue API service error ${status} for databankId: ${databankId}`);
-        return next(new ServiceUnavailableError('Catalogue API', { 
+        return next(new ServiceUnavailableError('Catalogue API', {
           detail: `Catalogue API responded with status ${status} (${statusText}).`,
-          databankId 
+          databankId
         }));
       }
-      
+
       // Network error - no response from server
       logger.error(`[checkItemAccess] Failed to connect to Catalogue API for databankId: ${databankId}`);
-      return next(new ServiceUnavailableError('Catalogue API', { 
+      return next(new ServiceUnavailableError('Catalogue API', {
         detail: 'Failed to connect to Catalogue API.',
-        databankId 
+        databankId
       }));
     }
-    
+
     // Unexpected non-Axios error
     logger.error(`[checkItemAccess] Unexpected error while checking public access for databankId: ${databankId}`, error as Error);
-    return next(new ServiceUnavailableError('Catalogue API', { 
+    return next(new ServiceUnavailableError('Catalogue API', {
       detail: 'An unexpected error occurred while verifying databank public access.',
       originalError: (error as Error).message,
-      databankId 
+      databankId
     }));
   }
 }
@@ -624,13 +667,24 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
   try {
     const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
     logger.info(`[checkIsOwner] Calling Catalogue API: ${catalogApiUrl}`);
-    
+
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
     const headers = authHeader ? { Authorization: authHeader } : {};
     logger.debug(`[checkIsOwner] Forwarding authorization token to Catalogue API`);
-    
+
     const response = await axios.get(catalogApiUrl, { headers });
+
+    // Validate that the response is JSON — if the Catalogue API's reverse proxy is misconfigured,
+    // it may return the frontend HTML page with a 200 status, leading to misleading errors.
+    const contentType = (response.headers['content-type'] || '') as string;
+    if (!contentType.includes('application/json')) {
+      logger.error(`[checkIsOwner] Catalogue API returned non-JSON response (Content-Type: ${contentType}) for databankId: ${databankId}. This usually indicates a reverse proxy or ingress misconfiguration.`);
+      return next(new ServiceUnavailableError('Catalogue API', {
+        detail: `Catalogue API returned unexpected content type: ${contentType}. Expected application/json.`,
+        databankId,
+      }));
+    }
 
     if (response.status !== 200) {
       logger.warn(`[checkIsOwner] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
@@ -650,61 +704,89 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
         return next();
       } else {
         logger.warn(`[checkIsOwner] User ${userId} is not the owner of databank ${databankId}. Denying access.`);
-        return next(new AuthorizationError('You do not have permission to access this databank'));
+        const accessPolicy = res.locals.accessPolicy || 'UNKNOWN';
+        const aclDenied = res.locals.aclDenied || false;
+        const aclDenialReason = res.locals.aclDenialReason || null;
+
+        // Build actionable hint based on what checks failed
+        const hints: string[] = [];
+        if (accessPolicy !== 'OPEN') {
+          hints.push(`This databank has a ${accessPolicy} access policy.`);
+        }
+        hints.push('You are not the owner of this databank.');
+        if (aclDenied) {
+          hints.push(`ACL check also failed: ${aclDenialReason}.`);
+        }
+        hints.push('Request access from the databank owner or use an account that owns this databank.');
+
+        return next(new AuthorizationError('You do not have permission to access this databank', {
+          reason: 'NOT_OWNER',
+          databankId,
+          accessPolicy,
+          aclChecked: aclDenied,
+          hint: hints.join(' '),
+        }));
       }
     } else {
       logger.warn(`[checkIsOwner] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
-      return next(new AuthorizationError('You do not have permission to access this databank'));
+      return next(new AuthorizationError('You do not have permission to access this databank', {
+        reason: 'DATABANK_NOT_FOUND_IN_CATALOGUE',
+        databankId,
+        hint: 'The databank could not be found in the catalogue. Verify the databank ID is correct and the databank is registered.',
+      }));
     }
   } catch (error) {
     if (axios.isAxiosError(error)) {
       logger.error(`[checkIsOwner] Axios error calling Catalogue API for databankId: ${databankId}`, error);
-      
+
       if (error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
-        
-        // Handle 404 - item not found in catalogue
+
+        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
         if (status === 404) {
-          logger.warn(`[checkIsOwner] Databank ${databankId} not found in Catalogue API`);
-          return next(new NotFoundError('Databank', databankId));
+          logger.error(`[checkIsOwner] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
+          return next(new ServiceUnavailableError('Catalogue API', {
+            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
+            databankId,
+          }));
         }
-        
+
         // Handle other 4xx errors - client errors
         if (status >= 400 && status < 500) {
           logger.warn(`[checkIsOwner] Catalogue API returned client error ${status} for databankId: ${databankId}`);
           return next(new ValidationError(
             `Invalid databank request: ${statusText}`,
-            { 
-              databankId, 
+            {
+              databankId,
               catalogueStatus: status,
               detail: `Catalogue API responded with status ${status} (${statusText}).`
             }
           ));
         }
-        
+
         // Handle 5xx errors - server errors
         logger.error(`[checkIsOwner] Catalogue API service error ${status} for databankId: ${databankId}`);
-        return next(new ServiceUnavailableError('Catalogue API', { 
+        return next(new ServiceUnavailableError('Catalogue API', {
           detail: `Catalogue API responded with status ${status} (${statusText}).`,
-          databankId 
+          databankId
         }));
       }
-      
+
       // Network error - no response from server
       logger.error(`[checkIsOwner] Failed to connect to Catalogue API for databankId: ${databankId}`);
-      return next(new ServiceUnavailableError('Catalogue API', { 
+      return next(new ServiceUnavailableError('Catalogue API', {
         detail: 'Failed to connect to Catalogue API.',
-        databankId 
+        databankId
       }));
     }
-    
+
     // Unexpected non-Axios error
     logger.error(`[checkIsOwner] Unexpected error while checking ownership for databankId: ${databankId}`, error as Error);
-    return next(new ServiceUnavailableError('Catalogue API', { 
+    return next(new ServiceUnavailableError('Catalogue API', {
       detail: 'An unexpected error occurred while verifying databank ownership.',
       originalError: (error as Error).message,
-      databankId 
+      databankId
     }));
   }
 }
