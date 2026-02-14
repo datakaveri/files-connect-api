@@ -41,8 +41,9 @@ def get_s3_client():
             raise ValueError("S3_ENDPOINT must be set for MinIO")
 
         use_ssl = os.environ.get('USE_SSL', 'false').lower() == 'true'
+        verify_ssl = os.environ.get('S3_VERIFY_SSL', 'true').lower() == 'true'
 
-        logger.info(f"Configuring MinIO client: endpoint={endpoint}, use_ssl={use_ssl}")
+        logger.info(f"Configuring MinIO client: endpoint={endpoint}, use_ssl={use_ssl}, verify_ssl={verify_ssl}")
 
         # Create boto3 config with proper signature version and addressing style
         boto_config = Config(
@@ -66,20 +67,22 @@ def get_s3_client():
 
         logger.info(f"Using endpoint URL: {endpoint}")
 
+        verify = use_ssl and verify_ssl
         return boto3.client(
             's3',
             endpoint_url=endpoint,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
             config=boto_config,
-            verify=use_ssl
+            verify=verify
         )
     else:
-        # AWS S3
+        # AWS S3 or custom S3-compatible endpoint
         region = os.environ.get('S3_REGION', 'us-east-1')
         endpoint = os.environ.get('S3_ENDPOINT')
+        verify_ssl = os.environ.get('S3_VERIFY_SSL', 'true').lower() == 'true'
 
-        logger.info(f"Configuring S3 client: region={region}")
+        logger.info(f"Configuring S3 client: region={region}, verify_ssl={verify_ssl}")
 
         # Create boto3 config
         boto_config = Config(
@@ -90,7 +93,8 @@ def get_s3_client():
         config_params = {
             'aws_access_key_id': access_key,
             'aws_secret_access_key': secret_key,
-            'config': boto_config
+            'config': boto_config,
+            'verify': verify_ssl,
         }
 
         if endpoint:
