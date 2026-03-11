@@ -7,9 +7,9 @@ import { S3Client, HeadObjectCommand, NoSuchKey } from '@aws-sdk/client-s3';
 import { StorageRepositoryInterface } from '../core/types/storage';
 import { createLogger } from '../core/utils/logger';
 import { S3Constants } from '../config/constants';
-import { 
-  S3Object, 
-  FileMetadata, 
+import {
+  S3Object,
+  FileMetadata,
   FolderMetadata,
   MultipartUploadInit,
   MultipartUploadPart
@@ -27,7 +27,7 @@ namespace AWSS3Types {
     Size?: number;
     LastModified?: Date;
   }
-  
+
   export interface CommonPrefix {
     Prefix?: string;
   }
@@ -51,7 +51,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to an array of S3 objects
    */
   listObjects(prefix: string, databankId: string, maxKeys?: number, delimiter?: string, recursive?: boolean): Promise<S3Object[]>;
-  
+
   /**
    * Uploads an asset directly to S3 (without multipart)
    * @param key - The key to store the asset under
@@ -60,7 +60,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to the key of the uploaded asset
    */
   uploadAsset(key: string, data: Buffer, contentType?: string): Promise<string>;
-  
+
   /**
    * Creates a presigned URL for an asset
    * @param key - The key of the asset
@@ -68,7 +68,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to the presigned URL
    */
   createAssetPresignedUrl(key: string, expiresIn?: number): Promise<string>;
-  
+
   /**
    * Gets an object from the S3 bucket
    * @param key - The key of the object to get
@@ -76,7 +76,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to a readable stream of the object data
    */
   getObject(key: string, databankId: string): Promise<Readable>;
-  
+
   /**
    * Gets a partial object from the S3 bucket (first N bytes)
    * @param key - The key of the object to get
@@ -85,7 +85,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to a readable stream of the partial object data
    */
   getPartialObject(key: string, databankId: string, maxBytes: number): Promise<Readable>;
-  
+
   /**
    * Gets details about an object in the S3 bucket
    * @param key - The key of the object to get details for
@@ -93,7 +93,14 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to the object details
    */
   getObjectDetails(key: string, databankId: string): Promise<S3Object | null>;
-  
+
+  /**
+   * Gets details about an asset in the assets storage
+   * @param key - The full key of the asset (e.g., 'assets/userId/filename')
+   * @returns Promise resolving to the object details or null if not found
+   */
+  getAssetDetails(key: string): Promise<S3Object | null>;
+
   /**
    * Creates a folder in the S3 bucket
    * @param folderPath - The path of the folder to create
@@ -101,7 +108,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to the created folder metadata
    */
   createFolder(folderPath: string, databankId: string): Promise<FolderMetadata>;
-  
+
   /**
    * Deletes an object from the S3 bucket
    * @param key - The key of the object to delete
@@ -110,7 +117,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to void
    */
   deleteObject(key: string, databankId: string, recursive?: boolean): Promise<void>;
-  
+
   /**
    * Completes a multipart upload
    * @param key - The key of the object
@@ -120,12 +127,12 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to the key of the completed object
    */
   completeMultipartUpload(
-    key: string, 
-    uploadId: string, 
-    databankId: string, 
+    key: string,
+    uploadId: string,
+    databankId: string,
     parts: MultipartUploadPart[]
   ): Promise<string>;
-  
+
   /**
    * Aborts a multipart upload
    * @param key - The key of the object
@@ -134,7 +141,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to void
    */
   abortMultipartUpload(key: string, uploadId: string, databankId: string): Promise<void>;
-  
+
   /**
    * Creates a presigned URL for an object
    * @param key - The key of the object
@@ -143,7 +150,7 @@ export interface StorageServiceInterface {
    * @returns Promise resolving to the presigned URL
    */
   createPresignedUrl(key: string, databankId: string, expiresIn?: number): Promise<string>;
-  
+
   /**
    * Gets the underlying S3 client for direct operations
    * This should be used sparingly and only when the interface methods are insufficient
@@ -205,7 +212,7 @@ export class StorageService implements StorageServiceInterface {
 
     throw new Error('Unsupported body type returned from storage repository');
   }
-  
+
   /**
    * Uploads an asset directly to S3 (without multipart)
    * @param key - The key to store the asset under
@@ -215,20 +222,20 @@ export class StorageService implements StorageServiceInterface {
    */
   async uploadAsset(key: string, data: Buffer, contentType?: string): Promise<string> {
     logger.debug('Uploading asset', { key, contentType, size: data.length });
-    
+
     try {
       // Use the assets repository specifically for asset operations
       await this.assetsRepository.putObject(key, data, contentType);
-      
+
       logger.debug('Asset uploaded successfully', { key });
-      
+
       return key;
     } catch (error) {
       logger.error('Error uploading asset', error as Error, { key });
       throw error;
     }
   }
-  
+
   /**
    * Creates a presigned URL for an asset
    * @param key - The key of the asset
@@ -236,30 +243,79 @@ export class StorageService implements StorageServiceInterface {
    * @returns Promise resolving to the presigned URL
    */
   async createAssetPresignedUrl(
-    key: string, 
+    key: string,
     expiresIn: number = S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION
   ): Promise<string> {
     logger.info('Creating presigned URL for asset', { key, expiresIn });
-    
+
     try {
       // Use the assets repository specifically for asset operations
       const url = await this.assetsRepository.createPresignedUrl(key, expiresIn);
-      
-      logger.debug('Created presigned URL for asset successfully', { 
+
+      logger.debug('Created presigned URL for asset successfully', {
         key,
         expiresIn
       });
-      
+
       return url;
     } catch (error) {
-      logger.error('Error creating presigned URL for asset', error as Error, { 
+      logger.error('Error creating presigned URL for asset', error as Error, {
         key,
         expiresIn
       });
       throw error;
     }
   }
-  
+
+  /**
+   * Gets details about an asset in the assets storage
+   * Uses the assets repository directly (not the main s3Repository)
+   * @param key - The full key of the asset (e.g., 'assets/userId/filename')
+   * @returns Promise resolving to the object details or null if not found
+   */
+  async getAssetDetails(key: string): Promise<S3Object | null> {
+    try {
+      logger.info(`Getting asset details: key=${key}`);
+
+      try {
+        // Use the assets repository specifically for asset operations
+        const response = await this.assetsRepository.getObject(key);
+
+        // Check if it's a folder
+        const isDir = isFolder(key);
+
+        if (isDir) {
+          const folder: FolderMetadata = {
+            key,
+            lastModified: response.LastModified || new Date(),
+            childCount: 0,
+            isFile: false
+          };
+          return folder;
+        } else {
+          const file: FileMetadata = {
+            key,
+            size: response.ContentLength || 0,
+            lastModified: response.LastModified || new Date(),
+            contentType: response.ContentType || 'application/octet-stream',
+            isFile: true
+          };
+          return file;
+        }
+      } catch (error) {
+        if (error instanceof Error &&
+          (error.name === 'NotFound' || error.name === 'NoSuchKey')) {
+          logger.warn(`Asset not found: ${key}`);
+          return null;
+        }
+        throw error;
+      }
+    } catch (error) {
+      logger.error(`Error getting asset details: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
   /**
    * Normalizes a prefix with the databank ID
    * @param prefix - The prefix to normalize
@@ -269,20 +325,20 @@ export class StorageService implements StorageServiceInterface {
   private normalizePrefix(prefix: string, databankId: string): string {
     // Log the incoming prefix and databank ID for debugging
     logger.debug('Normalizing prefix', { prefix, databankId });
-    
+
     // Ensure prefix starts with databank ID
     if (!prefix.startsWith(`${databankId}/`)) {
       prefix = `${databankId}/${prefix}`;
     }
-    
+
     // Ensure prefix ends with slash
     if (!prefix.endsWith('/')) {
       prefix = `${prefix}/`;
     }
-    
+
     return prefix;
   }
-  
+
   /**
    * Ensures a key starts with the databank ID
    * @param key - The key to normalize
@@ -294,10 +350,10 @@ export class StorageService implements StorageServiceInterface {
     if (!key.startsWith(`${databankId}/`)) {
       key = `${databankId}/${key}`;
     }
-    
+
     return key;
   }
-  
+
   /**
    * Lists all objects recursively, including those in subdirectories
    * @param prefix - The prefix to filter objects by
@@ -404,7 +460,7 @@ export class StorageService implements StorageServiceInterface {
       throw error;
     }
   }
-  
+
   /**
    * Converts AWS S3 objects to our S3Object model
    * @param contents - The contents from AWS S3
@@ -413,12 +469,12 @@ export class StorageService implements StorageServiceInterface {
    * @returns Array of S3Object models
    */
   private convertToS3Objects(
-    contents: AWSS3Types.Object[] = [], 
+    contents: AWSS3Types.Object[] = [],
     commonPrefixes: AWSS3Types.CommonPrefix[] = [],
     prefix: string = ''
   ): S3Object[] {
     const objects: S3Object[] = [];
-    
+
     // Helper function to remove the prefix from a key
     const removePrefix = (key: string): string => {
       if (prefix && key.startsWith(prefix)) {
@@ -426,7 +482,7 @@ export class StorageService implements StorageServiceInterface {
       }
       return key;
     };
-    
+
     logger.info('Converting S3 objects with details', {
       contentsCount: contents.length,
       prefixesCount: commonPrefixes.length,
@@ -434,13 +490,13 @@ export class StorageService implements StorageServiceInterface {
       contentKeys: contents.map(item => item.Key),
       commonPrefixKeys: commonPrefixes.map(item => item.Prefix)
     });
-    
+
     // Process files
     for (const item of contents) {
       if (item.Key) {
         const isDir = isFolder(item.Key);
         const normalizedKey = removePrefix(item.Key);
-        
+
         if (isDir) {
           // It's a folder
           objects.push({
@@ -461,12 +517,12 @@ export class StorageService implements StorageServiceInterface {
         }
       }
     }
-    
+
     // Process folders
     for (const prefixItem of commonPrefixes) {
       if (prefixItem.Prefix) {
         const normalizedKey = removePrefix(prefixItem.Prefix);
-        
+
         objects.push({
           key: normalizedKey,
           lastModified: new Date(),
@@ -475,10 +531,10 @@ export class StorageService implements StorageServiceInterface {
         });
       }
     }
-    
+
     return objects;
   }
-  
+
   /**
    * Determines the content type based on the file extension
    * @param key - The key of the file
@@ -486,7 +542,7 @@ export class StorageService implements StorageServiceInterface {
    */
   private getContentTypeFromKey(key: string): string {
     const extension = getFileExtension(key).toLowerCase();
-    
+
     switch (extension) {
       case 'jpg':
       case 'jpeg':
@@ -515,7 +571,7 @@ export class StorageService implements StorageServiceInterface {
         return 'application/octet-stream';
     }
   }
-  
+
   /**
    * Checks if a key represents a folder
    * @param key - The key to check
@@ -524,7 +580,7 @@ export class StorageService implements StorageServiceInterface {
   private isKeyFolder(key: string): boolean {
     return key.endsWith('/');
   }
-  
+
   /**
    * Lists objects in the S3 bucket with the given prefix
    * @param prefix - The prefix to filter objects by
@@ -536,58 +592,58 @@ export class StorageService implements StorageServiceInterface {
   async listObjects(prefix: string, databankId: string, maxKeys: number = 1000, delimiter: string = '/', recursive: boolean = false): Promise<S3Object[]> {
     // Normalize prefix with databank ID
     let normalizedPrefix = '';
-    
+
     // If prefix is empty, just use the databank ID as the prefix
     if (!prefix || prefix.trim() === '') {
       normalizedPrefix = `${databankId}/`;
     } else {
       normalizedPrefix = this.normalizePrefix(prefix, databankId);
     }
-    
-    logger.info('Listing objects with details', { 
+
+    logger.info('Listing objects with details', {
       originalPrefix: prefix,
-      normalizedPrefix, 
-      maxKeys, 
+      normalizedPrefix,
+      maxKeys,
       delimiter,
-      databankId 
+      databankId
     });
-    
+
     try {
       // If recursive is true, use a different approach to get all objects
       if (recursive) {
         return await this.listObjectsRecursively(normalizedPrefix, databankId, maxKeys);
       }
-      
+
       // Standard non-recursive listing
       const response = await this.s3Repository.listObjects(normalizedPrefix, maxKeys, delimiter);
-      
-      logger.debug('Listed objects successfully', { 
-        prefix: normalizedPrefix, 
-        maxKeys, 
+
+      logger.debug('Listed objects successfully', {
+        prefix: normalizedPrefix,
+        maxKeys,
         delimiter,
         databankId,
         contentCount: response.Contents?.length || 0,
         prefixCount: response.CommonPrefixes?.length || 0
       });
-      
+
       const objects = this.convertToS3Objects(
-        response.Contents as AWSS3Types.Object[], 
+        response.Contents as AWSS3Types.Object[],
         response.CommonPrefixes as AWSS3Types.CommonPrefix[],
         normalizedPrefix
       );
-      
+
       return objects;
     } catch (error) {
-      logger.error('Error listing objects', error as Error, { 
-        prefix: normalizedPrefix, 
-        maxKeys, 
+      logger.error('Error listing objects', error as Error, {
+        prefix: normalizedPrefix,
+        maxKeys,
         delimiter,
-        databankId 
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Gets an object from the S3 bucket
    * @param key - The key of the object to get
@@ -597,35 +653,35 @@ export class StorageService implements StorageServiceInterface {
   async getObject(key: string, databankId: string): Promise<Readable> {
     // Normalize key with databank ID
     const normalizedKey = this.normalizeKey(key, databankId);
-    
-    logger.debug('Getting object', { 
-      key: normalizedKey, 
-      databankId 
+
+    logger.debug('Getting object', {
+      key: normalizedKey,
+      databankId
     });
-    
+
     try {
       // Get the object from the repository
       const response = await this.s3Repository.getObject(normalizedKey);
-      
+
       if (!response.Body) {
         throw new Error(`Object not found: ${normalizedKey}`);
       }
-      
-      logger.debug('Got object successfully', { 
-        key: normalizedKey, 
-        databankId 
+
+      logger.debug('Got object successfully', {
+        key: normalizedKey,
+        databankId
       });
-      
+
       return this.normalizeToReadable(response.Body);
     } catch (error) {
-      logger.error('Error getting object', error as Error, { 
-        key: normalizedKey, 
-        databankId 
+      logger.error('Error getting object', error as Error, {
+        key: normalizedKey,
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Gets a partial object from the S3 bucket (first N bytes)
    * @param key - The key of the object to get
@@ -636,39 +692,39 @@ export class StorageService implements StorageServiceInterface {
   async getPartialObject(key: string, databankId: string, maxBytes: number): Promise<Readable> {
     // Normalize key with databank ID
     const normalizedKey = this.normalizeKey(key, databankId);
-    
-    logger.debug('Getting partial object', { 
-      key: normalizedKey, 
+
+    logger.debug('Getting partial object', {
+      key: normalizedKey,
       databankId,
-      maxBytes 
+      maxBytes
     });
-    
+
     try {
       // Get the partial object from the repository
       const response = await this.s3Repository.getPartialObject(normalizedKey, maxBytes);
-      
+
       if (!response.Body) {
         throw new Error(`Object not found: ${normalizedKey}`);
       }
-      
-      logger.debug('Got partial object successfully', { 
-        key: normalizedKey, 
+
+      logger.debug('Got partial object successfully', {
+        key: normalizedKey,
         databankId,
         maxBytes,
         contentLength: response.ContentLength
       });
-      
+
       return this.normalizeToReadable(response.Body);
     } catch (error) {
-      logger.error('Error getting partial object', error as Error, { 
-        key: normalizedKey, 
+      logger.error('Error getting partial object', error as Error, {
+        key: normalizedKey,
         databankId,
-        maxBytes 
+        maxBytes
       });
       throw error;
     }
   }
-  
+
   /**
    * Gets details about an object in the S3 bucket
    * @param key - The key of the object to get details for
@@ -679,16 +735,16 @@ export class StorageService implements StorageServiceInterface {
     try {
       // Normalize the key with the databank ID
       const normalizedKey = this.normalizeKey(key, databankId);
-      
+
       logger.info(`Getting object details: key=${normalizedKey}`);
-      
+
       try {
         // Get the object metadata using the repository
         const response = await this.s3Repository.getObject(normalizedKey);
-        
+
         // Check if it's a folder
         const isDir = isFolder(normalizedKey);
-        
+
         if (isDir) {
           // It's a folder
           const folder: FolderMetadata = {
@@ -711,12 +767,12 @@ export class StorageService implements StorageServiceInterface {
         }
       } catch (error) {
         // If the object doesn't exist, return null
-        if (error instanceof Error && 
-            (error.name === 'NotFound' || error.name === 'NoSuchKey')) {
+        if (error instanceof Error &&
+          (error.name === 'NotFound' || error.name === 'NoSuchKey')) {
           logger.warn(`Object not found: ${normalizedKey}`);
           return null;
         }
-        
+
         // Re-throw other errors
         throw error;
       }
@@ -725,7 +781,7 @@ export class StorageService implements StorageServiceInterface {
       throw error;
     }
   }
-  
+
   /**
    * Creates a folder in the S3 bucket
    * @param folderPath - The path of the folder to create
@@ -734,25 +790,25 @@ export class StorageService implements StorageServiceInterface {
    */
   async createFolder(folderPath: string, databankId: string): Promise<FolderMetadata> {
     let normalizedPath = this.normalizeKey(folderPath, databankId);
-    
+
     // Ensure path ends with slash for folders
     if (!normalizedPath.endsWith('/')) {
       normalizedPath = `${normalizedPath}/`;
     }
-    
-    logger.debug('Creating folder', { 
-      folderPath: normalizedPath, 
-      databankId 
+
+    logger.debug('Creating folder', {
+      folderPath: normalizedPath,
+      databankId
     });
-    
+
     try {
       await this.s3Repository.putObject(normalizedPath, Buffer.from(''), 'application/x-directory');
-      
-      logger.debug('Created folder successfully', { 
-        folderPath: normalizedPath, 
-        databankId 
+
+      logger.debug('Created folder successfully', {
+        folderPath: normalizedPath,
+        databankId
       });
-      
+
       return {
         key: normalizedPath,
         lastModified: new Date(),
@@ -760,14 +816,14 @@ export class StorageService implements StorageServiceInterface {
         isFile: false
       };
     } catch (error) {
-      logger.error('Error creating folder', error as Error, { 
-        folderPath: normalizedPath, 
-        databankId 
+      logger.error('Error creating folder', error as Error, {
+        folderPath: normalizedPath,
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Deletes an object from the S3 bucket
    * @param key - The key of the object to delete
@@ -778,50 +834,50 @@ export class StorageService implements StorageServiceInterface {
   async deleteObject(key: string, databankId: string, recursive: boolean = false): Promise<void> {
     // Normalize key with databank ID
     const normalizedKey = this.normalizeKey(key, databankId);
-    
-    logger.debug('Deleting object', { 
-      key: normalizedKey, 
-      recursive, 
-      databankId 
+
+    logger.debug('Deleting object', {
+      key: normalizedKey,
+      recursive,
+      databankId
     });
-    
+
     try {
       // Check if key is a folder
       const isKeyFolder = this.isKeyFolder(normalizedKey);
-      
+
       if (isKeyFolder && recursive) {
         // List all objects in the folder
         const objects = await this.listObjects(normalizedKey, databankId);
-        
+
         // Delete all objects in the folder
         for (const object of objects) {
           await this.s3Repository.deleteObject(object.key);
-          
-          logger.debug('Deleted nested object', { 
-            key: object.key, 
-            databankId 
+
+          logger.debug('Deleted nested object', {
+            key: object.key,
+            databankId
           });
         }
       }
-      
+
       // Delete the object/folder itself
       await this.s3Repository.deleteObject(normalizedKey);
-      
-      logger.debug('Deleted object successfully', { 
-        key: normalizedKey, 
-        recursive, 
-        databankId 
+
+      logger.debug('Deleted object successfully', {
+        key: normalizedKey,
+        recursive,
+        databankId
       });
     } catch (error) {
-      logger.error('Error deleting object', error as Error, { 
-        key: normalizedKey, 
-        recursive, 
-        databankId 
+      logger.error('Error deleting object', error as Error, {
+        key: normalizedKey,
+        recursive,
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Completes a multipart upload
    * @param key - The key of the object
@@ -831,48 +887,48 @@ export class StorageService implements StorageServiceInterface {
    * @returns Promise resolving to the key of the completed object
    */
   async completeMultipartUpload(
-    key: string, 
-    uploadId: string, 
-    databankId: string, 
+    key: string,
+    uploadId: string,
+    databankId: string,
     parts: MultipartUploadPart[]
   ): Promise<string> {
     // Normalize key with databank ID
     const normalizedKey = this.normalizeKey(key, databankId);
-    
-    logger.debug('Completing multipart upload', { 
-      key: normalizedKey, 
-      uploadId, 
-      partsCount: parts.length, 
-      databankId 
+
+    logger.debug('Completing multipart upload', {
+      key: normalizedKey,
+      uploadId,
+      partsCount: parts.length,
+      databankId
     });
-    
+
     try {
       await this.s3Repository.completeMultipartUpload(
-        normalizedKey, 
-        uploadId, 
-        parts.map(part => ({ 
-          PartNumber: part.PartNumber, 
-          ETag: part.ETag 
+        normalizedKey,
+        uploadId,
+        parts.map(part => ({
+          PartNumber: part.PartNumber,
+          ETag: part.ETag
         }))
       );
-      
-      logger.debug('Completed multipart upload successfully', { 
-        key: normalizedKey, 
-        uploadId, 
-        databankId 
+
+      logger.debug('Completed multipart upload successfully', {
+        key: normalizedKey,
+        uploadId,
+        databankId
       });
-      
+
       return normalizedKey;
     } catch (error) {
-      logger.error('Error completing multipart upload', error as Error, { 
-        key: normalizedKey, 
-        uploadId, 
-        databankId 
+      logger.error('Error completing multipart upload', error as Error, {
+        key: normalizedKey,
+        uploadId,
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Aborts a multipart upload
    * @param key - The key of the object
@@ -883,31 +939,31 @@ export class StorageService implements StorageServiceInterface {
   async abortMultipartUpload(key: string, uploadId: string, databankId: string): Promise<void> {
     // Normalize key with databank ID
     const normalizedKey = this.normalizeKey(key, databankId);
-    
-    logger.debug('Aborting multipart upload', { 
-      key: normalizedKey, 
-      uploadId, 
-      databankId 
+
+    logger.debug('Aborting multipart upload', {
+      key: normalizedKey,
+      uploadId,
+      databankId
     });
-    
+
     try {
       await this.s3Repository.abortMultipartUpload(normalizedKey, uploadId);
-      
-      logger.debug('Aborted multipart upload successfully', { 
-        key: normalizedKey, 
-        uploadId, 
-        databankId 
+
+      logger.debug('Aborted multipart upload successfully', {
+        key: normalizedKey,
+        uploadId,
+        databankId
       });
     } catch (error) {
-      logger.error('Error aborting multipart upload', error as Error, { 
-        key: normalizedKey, 
-        uploadId, 
-        databankId 
+      logger.error('Error aborting multipart upload', error as Error, {
+        key: normalizedKey,
+        uploadId,
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Creates a presigned URL for an object
    * @param key - The key of the object
@@ -916,33 +972,33 @@ export class StorageService implements StorageServiceInterface {
    * @returns Promise resolving to the presigned URL
    */
   async createPresignedUrl(
-    key: string, 
-    databankId: string, 
+    key: string,
+    databankId: string,
     expiresIn: number = S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION
   ): Promise<string> {
     const normalizedKey = this.normalizeKey(key, databankId);
     logger.info('Creating presigned URL', { key: normalizedKey, expiresIn, databankId });
-    
+
     try {
       const url = await this.s3Repository.createPresignedUrl(normalizedKey, expiresIn);
-      
-      logger.debug('Created presigned URL successfully', { 
-        key: normalizedKey, 
-        expiresIn, 
-        databankId 
+
+      logger.debug('Created presigned URL successfully', {
+        key: normalizedKey,
+        expiresIn,
+        databankId
       });
-      
+
       return url;
     } catch (error) {
-      logger.error('Error creating presigned URL', error as Error, { 
-        key: normalizedKey, 
-        expiresIn, 
-        databankId 
+      logger.error('Error creating presigned URL', error as Error, {
+        key: normalizedKey,
+        expiresIn,
+        databankId
       });
       throw error;
     }
   }
-  
+
   /**
    * Gets the underlying S3 client for direct operations
    * This should be used sparingly and only when the interface methods are insufficient
