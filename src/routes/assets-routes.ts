@@ -30,7 +30,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
 
   // Apply authentication middleware to all routes
   assetsRoutes.use(authenticate);
-  
+
   // Apply file upload middleware
   assetsRoutes.use(fileUpload);
 
@@ -47,9 +47,9 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
         if (!req.file) {
           throw new ValidationError('No file uploaded');
         }
-        
+
         const { originalname, mimetype, buffer } = req.file;
-        
+
         // Define allowed file types (as a backup validation)
         const allowedFileTypes = [
           // PDF
@@ -64,26 +64,26 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
           'image/tiff',
           'image/bmp'
         ];
-        
+
         // Double-check file type validation
         if (!allowedFileTypes.includes(mimetype)) {
           logger.warn('Invalid file type detected', { mimetype, filename: originalname });
           throw new ValidationError('File type not allowed. Only PDF and image files are accepted.');
         }
-        
+
         logger.debug('Uploading asset via multipart/form-data', { filename: originalname, size: buffer.length });
-        
+
         // Generate a unique key for the asset using UUID
         const key = `${Date.now()}-${uuidv4()}-${originalname}`;
-        
+
         // Use S3 service to upload the file directly
         const fullKey = `assets/${res.locals.userId}/${key}`;
-        
+
         // Upload the file directly to S3
         await s3Service.uploadAsset(fullKey, buffer, mimetype);
-        
+
         logger.debug('Asset uploaded successfully via multipart/form-data', { key: fullKey });
-        
+
         // Return the key to the client
         return successResponse({
           key: `${res.locals.userId}/${key}`,
@@ -114,9 +114,9 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
         const { key, expiresIn: expiresInParam } = req.body;
         // Use the provided expiresIn or default to the constant
         const expiresIn = expiresInParam || S3Constants.DEFAULT_PRESIGNED_URL_EXPIRATION;
-        
+
         logger.debug('Getting presigned URL for asset', { key, expiresIn });
-        
+
         // The key provided by the client doesn't include the 'assets/' prefix, so add it
         const fullKey = `assets/${key}`;
 
@@ -125,20 +125,20 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
             throw new AuthorizationError('You are not authorized to access this asset');
           }
         }
-        
+
         // Check if the asset exists first
         try {
-          await s3Service.getObjectDetails(fullKey, '');
+          await s3Service.getAssetDetails(fullKey);
         } catch (error) {
           logger.error('Asset not found', error as Error, { fullPath: fullKey });
           throw new NotFoundError('Asset', key);
         }
-        
+
         // Generate a presigned URL for the asset
         const url = await s3Service.createAssetPresignedUrl(fullKey, expiresIn);
-        
+
         logger.debug('Presigned URL generated successfully', { key: fullKey });
-        
+
         // Return the presigned URL to the client
         return successResponse({
           url,
