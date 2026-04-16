@@ -71,7 +71,10 @@ const envSchema = z.object({
   CORS_ORIGIN: z
     .string()
     .trim()
-    .transform((val) => (typeof val === "string" ? val.split(",") : val))
+    .transform((val) => {
+      if (val === "*") return true;
+      return typeof val === "string" ? val.split(",").map((v) => v.trim()) : val;
+    })
     .default("*"),
 
   // API version
