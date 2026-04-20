@@ -9,6 +9,7 @@ import { AuthConstants } from '../../config/constants';
 import { isDecodedToken } from './type-guards';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { jwksResolver } from './jwks-resolver';
 
 // Create a logger for this module
 const logger = createLogger('AuthUtils');
@@ -68,25 +69,50 @@ export function extractToken(authHeader: string | undefined): string {
  */
 export async function decodeToken(token: string): Promise<DecodedToken> {
   try {
-    // Verify the token with Keycloak's public key/secret
-    // Use proper verification for production environment
-    let decoded: jwt.JwtPayload | string | null;
+    let decoded: jwt.JwtPayload | string | null = null;
     
-    if (!env.KEYCLOAK_PUBLIC_KEY) {
-      throw new Error('KEYCLOAK_PUBLIC_KEY is not configured');
+    // Check if dynamic IDP is configured
+    if (env.ISSUER_CONFIG) {
+      // Decode unverified token to extract kid and iss
+      const unverifiedDecoded = jwt.decode(token, { complete: true });
+      if (!unverifiedDecoded || typeof unverifiedDecoded !== 'object') {
+        throw new Error('Invalid token structure');
+      }
+      
+      const header = unverifiedDecoded.header;
+      const payload = unverifiedDecoded.payload as any;
+      const iss = payload.iss;
+      const kid = header.kid;
+      
+      if (!iss || !kid) {
+        throw new Error('Token is missing iss or kid');
+      }
+      
+      const config = env.ISSUER_CONFIG as Record<string, any>;
+      const pemPublicKey = await jwksResolver.resolve(iss, kid, config);
+      
+      decoded = jwt.verify(token, pemPublicKey, {
+        algorithms: ['RS256', 'ES256'],
+        issuer: iss
+      });
+      logger.debug('Token verified successfully using dynamic multi-IDP JWKS');
+    } else {
+      // Legacy static Keycloak logic
+      if (!env.KEYCLOAK_PUBLIC_KEY) {
+        throw new Error('KEYCLOAK_PUBLIC_KEY or ISSUER_CONFIG must be configured');
+      }
+      
+      // Format the public key properly (add BEGIN/END lines if needed)
+      const formattedPublicKey = env.KEYCLOAK_PUBLIC_KEY.includes('BEGIN PUBLIC KEY') ?
+        env.KEYCLOAK_PUBLIC_KEY : 
+        `-----BEGIN PUBLIC KEY-----\n${env.KEYCLOAK_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
+      
+      // Verify token with Keycloak's public key
+      decoded = jwt.verify(token, formattedPublicKey, { 
+        algorithms: ['RS256'] // Use appropriate algorithm as configured in Keycloak
+      });
+      logger.debug('Token verified successfully using static configuration');
     }
-    
-    // Format the public key properly (add BEGIN/END lines if needed)
-    const formattedPublicKey = env.KEYCLOAK_PUBLIC_KEY.includes('BEGIN PUBLIC KEY') ?
-      env.KEYCLOAK_PUBLIC_KEY : 
-      `-----BEGIN PUBLIC KEY-----\n${env.KEYCLOAK_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
-    
-    // Verify token with Keycloak's public key
-    decoded = jwt.verify(token, formattedPublicKey, { 
-      algorithms: ['RS256'] // Use appropriate algorithm as configured in Keycloak
-    });
-    
-    logger.debug('Token verified successfully');
     
     if (!decoded || typeof decoded !== 'object') {
       throw new Error('Invalid token format');

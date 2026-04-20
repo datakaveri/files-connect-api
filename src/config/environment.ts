@@ -52,8 +52,22 @@ const envSchema = z.object({
   // Authentication configuration
   KEYCLOAK_AUTH_URL: z.string().url(),
   KEYCLOAK_CLIENT_ID: z.string(),
-  KEYCLOAK_PUBLIC_KEY: z.string(),
-  KEYCLOAK_REALM: z.string(),
+  KEYCLOAK_PUBLIC_KEY: z.string().optional(),
+  KEYCLOAK_REALM: z.string().optional(),
+  
+  // Multiple IDP configuration
+  ISSUER_CONFIG: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val) return null;
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        throw new Error('ISSUER_CONFIG must be a valid JSON string');
+      }
+    }),
+    
   // Auth feature toggles
   AUTH_ENABLED: z
     .string()
