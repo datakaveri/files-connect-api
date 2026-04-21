@@ -13,6 +13,7 @@ import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
   CreateMultipartUploadCommand,
@@ -287,6 +288,31 @@ export class AWSS3Repository implements StorageRepositoryInterface {
    * @param key - The key of the object to delete
    * @returns Promise resolving to the delete object command output
    */
+  async headObject(key: string): Promise<{ ContentLength?: number; ContentType?: string; LastModified?: Date } | null> {
+    logger.debug('Heading object', { key });
+    const command = new HeadObjectCommand({ Bucket: this.bucketName, Key: key });
+    return withRetry(
+      async () => {
+        try {
+          const response = await this.s3Client.send(command);
+          return {
+            ContentLength: response.ContentLength,
+            ContentType: response.ContentType,
+            LastModified: response.LastModified,
+          };
+        } catch (error: any) {
+          const statusCode = error?.$metadata?.httpStatusCode || error?.statusCode;
+          if (statusCode === 404 || error?.name === 'NotFound' || error?.name === 'NoSuchKey') {
+            return null;
+          }
+          throw error;
+        }
+      },
+      this.retryOptions,
+      { operation: 'headObject', key }
+    );
+  }
+
   async deleteObject(key: string): Promise<DeleteObjectCommandOutput> {
     logger.debug('Deleting object', { key });
     

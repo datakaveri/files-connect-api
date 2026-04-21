@@ -41,6 +41,7 @@ import { UserRole } from "../core/types/auth";
 import { FileType } from "../core/types/file";
 import { buildResponse } from "../core/utils/route-utils";
 import {
+  ApplicationError,
   NotFoundError,
   ValidationError
 } from "../core/errors/application-errors";
@@ -157,6 +158,19 @@ databanksRoutes.post(
       if (!key) {
         throw new ValidationError('Key is required');
       }
+
+      // Check if the file exists before generating presigned URL
+      const fileDetails = await s3Service.getObjectDetails(key, databankId);
+      if (!fileDetails) {
+        logger.error('File not found', undefined, { key, databankId });
+        throw new ApplicationError(
+          `File '${key}' not found. Please check the key name once`,
+          404,
+          'RESOURCE_NOT_FOUND',
+          { resource: 'File', id: key }
+        );
+      }
+
       const presignedUrl = await s3Service.createPresignedUrl(key, databankId);
       
       const response = buildResponse({

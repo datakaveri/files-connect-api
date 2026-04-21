@@ -48,6 +48,7 @@ export interface StorageRepositoryInterface {
   listObjects(prefix: string, maxKeys?: number, delimiter?: string): Promise<any>;
   listObjectsWithToken(prefix: string, maxKeys?: number, delimiter?: string, continuationToken?: string): Promise<any>;
   getObject(key: string): Promise<any>;
+  headObject(key: string): Promise<{ ContentLength?: number; ContentType?: string; LastModified?: Date } | null>;
   getPartialObject(key: string, maxBytes: number): Promise<any>;
   putObject(key: string, body: any, contentType?: string): Promise<any>;
   deleteObject(key: string): Promise<any>;

@@ -9,7 +9,7 @@ import { createLogger } from '../core/utils/logger';
 import { validateBody } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
 import { successResponse } from '../core/utils/response';
-import { AuthorizationError, NotFoundError, ValidationError } from '../core/errors';
+import { ApplicationError, AuthorizationError, ValidationError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -127,11 +127,15 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
         }
 
         // Check if the asset exists first
-        try {
-          await s3Service.getAssetDetails(fullKey);
-        } catch (error) {
-          logger.error('Asset not found', error as Error, { fullPath: fullKey });
-          throw new NotFoundError('Asset', key);
+        const assetDetails = await s3Service.getAssetDetails(fullKey);
+        if (!assetDetails) {
+          logger.error('Asset not found', undefined, { fullPath: fullKey });
+          throw new ApplicationError(
+            `Asset '${key}' not found. Please check the key name once`,
+            404,
+            'RESOURCE_NOT_FOUND',
+            { resource: 'Asset', id: key }
+          );
         }
 
         // Generate a presigned URL for the asset
