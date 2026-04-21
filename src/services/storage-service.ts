@@ -277,38 +277,30 @@ export class StorageService implements StorageServiceInterface {
     try {
       logger.info(`Getting asset details: key=${key}`);
 
-      try {
-        // Use the assets repository specifically for asset operations
-        const response = await this.assetsRepository.getObject(key);
+      const meta = await this.assetsRepository.headObject(key);
 
-        // Check if it's a folder
-        const isDir = isFolder(key);
+      if (!meta) {
+        logger.warn(`Asset not found: ${key}`);
+        return null;
+      }
 
-        if (isDir) {
-          const folder: FolderMetadata = {
-            key,
-            lastModified: response.LastModified || new Date(),
-            childCount: 0,
-            isFile: false
-          };
-          return folder;
-        } else {
-          const file: FileMetadata = {
-            key,
-            size: response.ContentLength || 0,
-            lastModified: response.LastModified || new Date(),
-            contentType: response.ContentType || 'application/octet-stream',
-            isFile: true
-          };
-          return file;
-        }
-      } catch (error) {
-        if (error instanceof Error &&
-          (error.name === 'NotFound' || error.name === 'NoSuchKey')) {
-          logger.warn(`Asset not found: ${key}`);
-          return null;
-        }
-        throw error;
+      if (isFolder(key)) {
+        const folder: FolderMetadata = {
+          key,
+          lastModified: meta.LastModified || new Date(),
+          childCount: 0,
+          isFile: false
+        };
+        return folder;
+      } else {
+        const file: FileMetadata = {
+          key,
+          size: meta.ContentLength || 0,
+          lastModified: meta.LastModified || new Date(),
+          contentType: meta.ContentType || 'application/octet-stream',
+          isFile: true
+        };
+        return file;
       }
     } catch (error) {
       logger.error(`Error getting asset details: ${error instanceof Error ? error.message : String(error)}`);
@@ -738,43 +730,30 @@ export class StorageService implements StorageServiceInterface {
 
       logger.info(`Getting object details: key=${normalizedKey}`);
 
-      try {
-        // Get the object metadata using the repository
-        const response = await this.s3Repository.getObject(normalizedKey);
+      const meta = await this.s3Repository.headObject(normalizedKey);
 
-        // Check if it's a folder
-        const isDir = isFolder(normalizedKey);
+      if (!meta) {
+        logger.warn(`Object not found: ${normalizedKey}`);
+        return null;
+      }
 
-        if (isDir) {
-          // It's a folder
-          const folder: FolderMetadata = {
-            key,
-            lastModified: response.LastModified || new Date(),
-            childCount: 0,
-            isFile: false
-          };
-          return folder;
-        } else {
-          // It's a file
-          const file: FileMetadata = {
-            key,
-            size: response.ContentLength || 0,
-            lastModified: response.LastModified || new Date(),
-            contentType: response.ContentType || 'application/octet-stream',
-            isFile: true
-          };
-          return file;
-        }
-      } catch (error) {
-        // If the object doesn't exist, return null
-        if (error instanceof Error &&
-          (error.name === 'NotFound' || error.name === 'NoSuchKey')) {
-          logger.warn(`Object not found: ${normalizedKey}`);
-          return null;
-        }
-
-        // Re-throw other errors
-        throw error;
+      if (isFolder(normalizedKey)) {
+        const folder: FolderMetadata = {
+          key,
+          lastModified: meta.LastModified || new Date(),
+          childCount: 0,
+          isFile: false
+        };
+        return folder;
+      } else {
+        const file: FileMetadata = {
+          key,
+          size: meta.ContentLength || 0,
+          lastModified: meta.LastModified || new Date(),
+          contentType: meta.ContentType || 'application/octet-stream',
+          isFile: true
+        };
+        return file;
       }
     } catch (error) {
       logger.error(`Error getting object details: ${error instanceof Error ? error.message : String(error)}`);

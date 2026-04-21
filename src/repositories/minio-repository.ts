@@ -195,6 +195,24 @@ export class MinIORepository implements StorageRepositoryInterface {
     }, this.config.retryOptions);
   }
 
+  async headObject(key: string): Promise<{ ContentLength?: number; ContentType?: string; LastModified?: Date } | null> {
+    return withRetry(async () => {
+      try {
+        const stat = await this.minioClient.statObject(this.bucketName, key);
+        return {
+          ContentLength: stat.size,
+          ContentType: stat.metaData?.['content-type'],
+          LastModified: stat.lastModified,
+        };
+      } catch (error: any) {
+        if (error?.code === 'NotFound' || error?.code === 'NoSuchKey' || error?.message === 'Not Found') {
+          return null;
+        }
+        throw error;
+      }
+    }, this.config.retryOptions);
+  }
+
   /**
    * Gets a partial object from the MinIO bucket (first N bytes)
    */
