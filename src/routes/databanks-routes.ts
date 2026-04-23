@@ -976,11 +976,11 @@ databanksRoutes.get(
     
     logger.info(`Report PDF download request received for databankId: ${databankId}`);
     
-    // Construct the report PDF location in the reports bucket.
+    // Construct the report PDF location in the main bucket.
     // Reports are uploaded by the readiness worker to:
-    //   {DATAREADINESS_BUCKET}/{databankId}/data_readiness_report.pdf
-    const reportsBucket = env.DATAREADINESS_BUCKET || env.BUCKET_NAME;
-    const pdfKey = `${databankId}/data_readiness_report.pdf`;
+    //   {BUCKET_NAME}/reports/{databankId}/data_readiness_report.pdf
+    const reportsBucket = env.BUCKET_NAME;
+    const pdfKey = `reports/${databankId}/data_readiness_report.pdf`;
     
     // Check if the PDF file exists and generate presigned URL
     try {

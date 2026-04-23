@@ -5,9 +5,8 @@ Quick reference checklist for deploying report-worker to Development Environment
 ## Pre-Deployment
 
 - [ ] Verify Redis service is running and accessible
-- [ ] Verify S3/MinIO buckets exist:
-  - [ ] Input bucket: `{BUCKET_NAME}`
-  - [ ] Reports bucket: `{DATAREADINESS_BUCKET}`
+- [ ] Verify S3/MinIO bucket exists:
+  - [ ] `{BUCKET_NAME}` (single bucket for all operations)
 - [ ] Obtain OpenAI API key with sufficient credits
 - [ ] Verify Docker registry access
 - [ ] Verify Kubernetes cluster access
@@ -25,7 +24,6 @@ Quick reference checklist for deploying report-worker to Development Environment
   - [ ] `STORAGE_REGION` (for S3)
   - [ ] `STORAGE_USE_SSL`
   - [ ] `BUCKET_NAME`
-  - [ ] `DATAREADINESS_BUCKET`
 
 ## Build & Push Image
 
@@ -51,7 +49,7 @@ Quick reference checklist for deploying report-worker to Development Environment
 - [ ] Create test job via API
 - [ ] Verify job is picked up by worker
 - [ ] Verify job completes successfully
-- [ ] Verify PDF report is uploaded to `DATAREADINESS_BUCKET` at `{databankId}/data_readiness_report.pdf`
+- [ ] Verify PDF report is uploaded to `BUCKET_NAME` at `reports/{databankId}/data_readiness_report.pdf`
 
 ## Post-Deployment
 

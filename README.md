@@ -106,10 +106,37 @@ STORAGE_USE_SSL=false
 # STORAGE_ACCESS_KEY=your-aws-access-key
 # STORAGE_SECRET_KEY=your-aws-secret-key
 
-# Bucket configuration
-BUCKET_NAME=your-bucket-name
+# Bucket configuration (see Storage Buckets section below)
+BUCKET_NAME=your-main-bucket
 MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=5
 ```
+
+## Storage Buckets
+
+### Buckets Required
+
+Only **one bucket** needs to be created. Everything lives under `BUCKET_NAME` using path prefixes to separate concerns:
+
+| Env Var | Purpose |
+|---|---|
+| `BUCKET_NAME` | Single bucket for all operations — databank files, assets, zips, and PDF reports |
+
+> **Note:** The bucket must be accessible by the API and both Python workers using the same credentials (`STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`).
+
+### Upload & Read Paths
+
+| Operation | Component | Bucket | Key Path |
+|---|---|---|---|
+| Databank file upload | API (multipart) | `BUCKET_NAME` | `{databankId}/{filename}` |
+| Databank file download | API | `BUCKET_NAME` | `{databankId}/{filename}` |
+| Asset upload (PDF/image) | API | `BUCKET_NAME` | `assets/{userId}/{timestamp}-{uuid}-{filename}` |
+| Asset download | API | `BUCKET_NAME` | `assets/{userId}/{timestamp}-{uuid}-{filename}` |
+| Zip creation (read) | Zip worker | `BUCKET_NAME` | `{databankId}/*` |
+| Zip upload (write) | Zip worker | `BUCKET_NAME` | `zips/{databankId}.zip` |
+| Zip download URL | API | `BUCKET_NAME` | `zips/{databankId}.zip` |
+| Report generation (read) | Report worker | `BUCKET_NAME` | `{databankId}/*` |
+| Report PDF upload (write) | Report worker | `BUCKET_NAME` | `reports/{databankId}/data_readiness_report.pdf` |
+| Report PDF download URL | API | `BUCKET_NAME` | `reports/{databankId}/data_readiness_report.pdf` |
 
 ### Authentication Configuration
 ```

@@ -57,11 +57,6 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: BUCKET_NAME
-        - name: DATAREADINESS_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: files-connect-config
-              key: DATAREADINESS_BUCKET
         - name: S3_REGION
           valueFrom:
             configMapKeyRef:

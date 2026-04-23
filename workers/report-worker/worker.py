@@ -190,7 +190,7 @@ def worker_loop():
     logger.info("Starting readiness worker...")
     
     # Validate required environment variables
-    required_vars = ['BUCKET_NAME', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'DATAREADINESS_BUCKET']
+    required_vars = ['BUCKET_NAME', 'S3_ACCESS_KEY', 'S3_SECRET_KEY']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
 
     if missing_vars:

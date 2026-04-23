@@ -60,7 +60,7 @@ TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
 3. Worker downloads files from S3 input bucket
 4. Worker runs data readiness assessment framework
 5. Worker generates JSON and PDF reports
-6. Worker uploads PDF to S3 reports bucket (`{databankId}/data_readiness_report.pdf` in `DATAREADINESS_BUCKET`)
+6. Worker uploads PDF to `BUCKET_NAME` at `reports/{databankId}/data_readiness_report.pdf`
 7. Worker updates job status in Redis
 
 ---
@@ -75,8 +75,7 @@ TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
 | `REDIS_PORT` | Redis server port | `6379` |
 | `REDIS_DB` | Redis database number | `0` |
 | `READINESS_QUEUE_NAME` | Queue name to listen on | `jobs:report` |
-| `BUCKET_NAME` | Input bucket containing datasets | `files-connect-bucket` |
-| `DATAREADINESS_BUCKET` | Output bucket for PDF reports | `data-readiness-staging` |
+| `BUCKET_NAME` | Single bucket for all operations (datasets, zips, and PDF reports) | `files-connect-bucket` |
 | `S3_ACCESS_KEY` | Storage access key | `minioadmin` or AWS access key |
 | `S3_SECRET_KEY` | Storage secret key | `minioadmin` or AWS secret key |
 | `STORAGE_PROVIDER` | Storage provider type | `s3` or `minio` |
@@ -178,7 +177,6 @@ kubectl create configmap files-connect-config \
   --from-literal=STORAGE_REGION=us-east-1 \
   --from-literal=STORAGE_USE_SSL=true \
   --from-literal=BUCKET_NAME=files-connect-bucket \
-  --from-literal=DATAREADINESS_BUCKET=data-readiness-staging \
   --namespace=default
 ```
 
@@ -260,11 +258,6 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: BUCKET_NAME
-        - name: DATAREADINESS_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: files-connect-config
-              key: DATAREADINESS_BUCKET
         - name: S3_REGION
           valueFrom:
             configMapKeyRef:
@@ -415,14 +408,11 @@ The worker listens on the queue specified by `READINESS_QUEUE_NAME` (default: `j
 
 ### Storage Buckets
 
-1. **Input Bucket** (`BUCKET_NAME`):
-   - Contains databank datasets
-   - Structure: `{databankId}/file1.csv`, `{databankId}/file2.parquet`, etc.
-
-2. **Reports Bucket** (`DATAREADINESS_BUCKET`):
-   - Stores generated PDF reports
-   - Structure: `{databankId}/data_readiness_report.pdf`
-   - Ensure bucket exists and worker has write permissions
+**Single bucket** (`BUCKET_NAME`) used for all operations:
+   - Databank datasets: `{databankId}/file1.csv`, `{databankId}/file2.parquet`, etc.
+   - Zip archives: `zips/{databankId}.zip`
+   - PDF reports: `reports/{databankId}/data_readiness_report.pdf`
+   - Ensure the bucket exists and the worker has read/write permissions
 
 ### OpenAI API Key
 
@@ -524,7 +514,8 @@ s3 = boto3.client(
     aws_secret_access_key=os.environ['S3_SECRET_KEY']
 )
 reports = s3.list_objects_v2(
-    Bucket=os.environ['DATAREADINESS_BUCKET'],
+    Bucket=os.environ['BUCKET_NAME'],
+    Prefix='reports/',
     Prefix=''
 )
 print('Reports:', [obj['Key'] for obj in reports.get('Contents', [])])
@@ -728,7 +719,7 @@ kubectl logs -l app=report-worker | grep -i error
 
 3. **Check Bucket Permissions:**
    - Ensure worker has read access to input bucket
-   - Ensure worker has write access to `DATAREADINESS_BUCKET`
+   - Ensure worker has read/write access to `BUCKET_NAME`
 
 ### OpenAI API Issues
 
@@ -838,14 +829,14 @@ Before considering deployment complete:
 
 - [ ] Redis is accessible and queue name matches
 - [ ] S3/MinIO credentials are correct
-- [ ] Input bucket and `DATAREADINESS_BUCKET` exist and are accessible
+- [ ] `BUCKET_NAME` bucket exists and is accessible
 - [ ] OpenAI API key is valid and has credits
 - [ ] Worker pods are running and healthy
 - [ ] Worker logs show successful Redis connection
 - [ ] Worker logs show "Listening on queue: jobs:report"
 - [ ] Test job can be created via API
 - [ ] Test job is processed successfully
-- [ ] PDF report is generated and uploaded to `DATAREADINESS_BUCKET`
+- [ ] PDF report is generated and uploaded to `BUCKET_NAME` at `reports/{databankId}/data_readiness_report.pdf`
 - [ ] Job status updates correctly in Redis
 - [ ] Monitoring and logging are configured
 - [ ] HPA is configured (if using auto-scaling)

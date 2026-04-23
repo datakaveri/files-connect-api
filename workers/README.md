@@ -110,12 +110,24 @@ export STORAGE_PROVIDER=minio
 export S3_ENDPOINT=http://localhost:9000
 export S3_ACCESS_KEY=minioadmin
 export S3_SECRET_KEY=minioadmin
-export BUCKET_NAME=files-connect-bucket
+export BUCKET_NAME=files-connect-local
 export USE_SSL=false
 
 # Run worker
 python worker.py
 ```
+
+## Storage Buckets
+
+Only **one bucket** is required. Both workers use `BUCKET_NAME` — the same bucket as the API — with path prefixes to separate concerns.
+
+| Env Var | Used By | Operation | Key Path |
+|---|---|---|---|
+| `BUCKET_NAME` | Zip worker, Report worker | **Read** databank files | `{databankId}/*` |
+| `BUCKET_NAME` | Zip worker | **Write** zip archive | `zips/{databankId}.zip` |
+| `BUCKET_NAME` | Report worker | **Write** PDF report | `reports/{databankId}/data_readiness_report.pdf` |
+
+> `BUCKET_NAME` must match what the API is configured with — all components share the same bucket and credentials.
 
 ## Environment Variables
 
@@ -124,12 +136,11 @@ python worker.py
 **For all workers:**
 - `REDIS_HOST` - Redis server hostname
 - `REDIS_PORT` - Redis server port (default: 6379)
-- `BUCKET_NAME` - S3/MinIO bucket name
+- `BUCKET_NAME` - S3/MinIO bucket (same bucket the API uses)
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
 
-**For readiness worker:**
-- `DATAREADINESS_BUCKET` - S3/MinIO bucket name for storing data readiness PDF reports
+**For readiness worker only:**
 - `OPENAI_API_KEY` - OpenAI API key for column/role inference (required)
 
 ### Storage Configuration
