@@ -308,9 +308,9 @@ def process_zip_job(databankId):
     
     try:
         # Get bucket name from environment variable
-        bucket_name = os.environ.get('S3_BUCKET_NAME')
+        bucket_name = os.environ.get('BUCKET_NAME')
         if not bucket_name:
-            raise ValueError("S3_BUCKET_NAME environment variable is required")
+            raise ValueError("BUCKET_NAME environment variable is required")
         
         folder_key = databankId
         logger.info(f"Using bucket: {bucket_name}, folder: {folder_key}")

@@ -1009,7 +1009,6 @@ export function createS3Service(): StorageServiceInterface {
   logger.info('Storage service created', {
     provider: config.provider,
     mainBucket: config.bucketName,
-    assetsBucket: config.assetsBucketName || config.bucketName,
     endpoint: config.endpoint
   });
 

@@ -18,7 +18,6 @@ export interface StorageConfig {
   accessKey: string;
   secretKey: string;
   bucketName: string;
-  assetsBucketName?: string;
   forcePathStyle?: boolean; // Required for MinIO
   useSSL?: boolean; // SSL configuration
   port?: number; // Port for MinIO

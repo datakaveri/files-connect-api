@@ -47,7 +47,7 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: STORAGE_ENDPOINT
-        - name: S3_BUCKET_NAME
+        - name: BUCKET_NAME
           valueFrom:
             configMapKeyRef:
               name: files-connect-config

@@ -108,7 +108,6 @@ STORAGE_USE_SSL=false
 
 # Bucket configuration
 BUCKET_NAME=your-bucket-name
-ASSETS_BUCKET_NAME=your-assets-bucket
 MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=5
 ```
 

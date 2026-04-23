@@ -190,7 +190,7 @@ def worker_loop():
     logger.info("Starting zip worker...")
     
     # Validate required environment variables
-    required_vars = ['S3_BUCKET_NAME', 'S3_ACCESS_KEY', 'S3_SECRET_KEY']
+    required_vars = ['BUCKET_NAME', 'S3_ACCESS_KEY', 'S3_SECRET_KEY']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
     
     if missing_vars:

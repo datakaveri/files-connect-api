@@ -93,12 +93,12 @@ def lambda_handler(event, context):
                 folder_keys = folder_key
 
             # Get bucket name from environment variable
-            bucket_name = os.environ.get('S3_BUCKET_NAME')
+            bucket_name = os.environ.get('BUCKET_NAME')
             if not bucket_name:
-                logger.error("Missing required environment variable: S3_BUCKET_NAME")
+                logger.error("Missing required environment variable: BUCKET_NAME")
                 return {
                     'statusCode': 500,
-                    'body': json.dumps({'error': 'Server configuration error: Missing S3_BUCKET_NAME'})
+                    'body': json.dumps({'error': 'Server configuration error: Missing BUCKET_NAME'})
                 }
             
             logger.info(f"Using bucket: {bucket_name}")

@@ -44,7 +44,6 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
   BUCKET_NAME: z.string(),
-  ASSETS_BUCKET_NAME: z.string(),
   // Optional separate bucket for data readiness reports
   DATAREADINESS_BUCKET: z.string().optional(),
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform((val) => parseInt(val, 10)),

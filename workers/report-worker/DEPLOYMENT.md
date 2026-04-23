@@ -75,7 +75,7 @@ TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
 | `REDIS_PORT` | Redis server port | `6379` |
 | `REDIS_DB` | Redis database number | `0` |
 | `READINESS_QUEUE_NAME` | Queue name to listen on | `jobs:report` |
-| `S3_BUCKET_NAME` | Input bucket containing datasets | `files-connect-bucket` |
+| `BUCKET_NAME` | Input bucket containing datasets | `files-connect-bucket` |
 | `DATAREADINESS_BUCKET` | Output bucket for PDF reports | `data-readiness-staging` |
 | `S3_ACCESS_KEY` | Storage access key | `minioadmin` or AWS access key |
 | `S3_SECRET_KEY` | Storage secret key | `minioadmin` or AWS secret key |
@@ -255,7 +255,7 @@ spec:
               name: files-connect-config
               key: STORAGE_ENDPOINT
               optional: true
-        - name: S3_BUCKET_NAME
+        - name: BUCKET_NAME
           valueFrom:
             configMapKeyRef:
               name: files-connect-config
@@ -415,7 +415,7 @@ The worker listens on the queue specified by `READINESS_QUEUE_NAME` (default: `j
 
 ### Storage Buckets
 
-1. **Input Bucket** (`S3_BUCKET_NAME`):
+1. **Input Bucket** (`BUCKET_NAME`):
    - Contains databank datasets
    - Structure: `{databankId}/file1.csv`, `{databankId}/file2.parquet`, etc.
 

@@ -54,7 +54,7 @@ The worker requires the following environment variables:
 - `READINESS_QUEUE_NAME` - Queue name to listen on (default: `jobs:report`)
 
 **Storage Configuration:**
-- `S3_BUCKET_NAME` - S3/MinIO bucket name containing datasets
+- `BUCKET_NAME` - S3/MinIO bucket name containing datasets
 - `DATAREADINESS_BUCKET` - S3/MinIO bucket name for storing generated PDF reports (e.g. `data-readiness-staging`)
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
@@ -113,7 +113,7 @@ Jobs in the Redis queue (`jobs:report` by default) have the following format:
 ```
 
 The worker automatically:
-1. Downloads files from `S3_BUCKET_NAME/{databankId}/`
+1. Downloads files from `BUCKET_NAME/{databankId}/`
 2. Detects data type (structured vs unstructured)
 3. Runs appropriate assessment framework
 4. Generates JSON and PDF reports

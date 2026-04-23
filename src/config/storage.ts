@@ -28,7 +28,6 @@ export function createStorageConfig(): StorageConfig {
     accessKey: env.STORAGE_ACCESS_KEY || env.S3_ACCESS_KEY || '',
     secretKey: env.STORAGE_SECRET_KEY || env.S3_SECRET_KEY || '',
     bucketName: env.BUCKET_NAME,
-    assetsBucketName: env.ASSETS_BUCKET_NAME,
     forcePathStyle: env.STORAGE_FORCE_PATH_STYLE || (provider === StorageProvider.MINIO),
     useSSL: env.STORAGE_USE_SSL,
     port: env.STORAGE_PORT

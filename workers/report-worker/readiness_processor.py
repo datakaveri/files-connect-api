@@ -232,11 +232,11 @@ def process_readiness_job(databank_id):
     
     try:
         # Get bucket names from environment variables (reports go to DATAREADINESS_BUCKET only)
-        bucket_name = os.environ.get('S3_BUCKET_NAME')
+        bucket_name = os.environ.get('BUCKET_NAME')
         reports_bucket_name = os.environ.get('DATAREADINESS_BUCKET')
-        
+
         if not bucket_name:
-            raise ValueError("S3_BUCKET_NAME environment variable is required")
+            raise ValueError("BUCKET_NAME environment variable is required")
         if not reports_bucket_name:
             raise ValueError("DATAREADINESS_BUCKET environment variable is required for report uploads")
         
@@ -309,7 +309,7 @@ def process_readiness_job(databank_id):
             framework_start = time.time()
             
             # Set environment variables for the framework modules
-            os.environ['S3_BUCKET_NAME'] = bucket_name
+            os.environ['BUCKET_NAME'] = bucket_name
             os.environ['DATAREADINESS_BUCKET'] = reports_bucket_name
             
             # Set WORKER_TEMP_DIR so get_output_dir can use it

@@ -550,6 +550,19 @@ databanksRoutes.put(
   })
 );
 
+databanksRoutes.put(
+  `/:databankId/${ApiPaths.DATABANK_UPLOADS}`,
+  authenticate,
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.status(400).json({
+      error: {
+        message: 'Upload ID is required. Use PUT /databanks/:databankId/uploads/:uploadId',
+        status: 400
+      }
+    });
+  })
+);
+
 /**
  * POST /databanks/:databankId/uploads/:uploadId/cancel
  * Cancel a multipart upload

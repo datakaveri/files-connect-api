@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # # Set required environment variables for local test
-# data_folder = os.getenv("S3_BUCKET_NAME")
+# data_folder = os.getenv("BUCKET_NAME")
 
 # Example event (simulate API Gateway event)
 event = {

@@ -6,7 +6,7 @@ Quick reference checklist for deploying report-worker to Development Environment
 
 - [ ] Verify Redis service is running and accessible
 - [ ] Verify S3/MinIO buckets exist:
-  - [ ] Input bucket: `{S3_BUCKET_NAME}`
+  - [ ] Input bucket: `{BUCKET_NAME}`
   - [ ] Reports bucket: `{DATAREADINESS_BUCKET}`
 - [ ] Obtain OpenAI API key with sufficient credits
 - [ ] Verify Docker registry access

@@ -110,7 +110,7 @@ export STORAGE_PROVIDER=minio
 export S3_ENDPOINT=http://localhost:9000
 export S3_ACCESS_KEY=minioadmin
 export S3_SECRET_KEY=minioadmin
-export S3_BUCKET_NAME=files-connect-bucket
+export BUCKET_NAME=files-connect-bucket
 export USE_SSL=false
 
 # Run worker
@@ -124,7 +124,7 @@ python worker.py
 **For all workers:**
 - `REDIS_HOST` - Redis server hostname
 - `REDIS_PORT` - Redis server port (default: 6379)
-- `S3_BUCKET_NAME` - S3/MinIO bucket name
+- `BUCKET_NAME` - S3/MinIO bucket name
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
 

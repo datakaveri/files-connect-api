@@ -47,7 +47,7 @@ python worker.py
 - `READINESS_QUEUE_NAME` - Queue name (default: `jobs:report`)
 
 **Storage:**
-- `S3_BUCKET_NAME` - Bucket containing datasets
+- `BUCKET_NAME` - Bucket containing datasets
 - `DATAREADINESS_BUCKET` - Bucket for PDF reports (e.g. `data-readiness-staging`)
 - `S3_ACCESS_KEY` - Storage access key
 - `S3_SECRET_KEY` - Storage secret key
@@ -81,7 +81,7 @@ Jobs are queued in Redis with format:
 ```
 
 The worker:
-1. Downloads files from `S3_BUCKET_NAME/{databankId}/`
+1. Downloads files from `BUCKET_NAME/{databankId}/`
 2. Auto-detects data type (structured/unstructured)
 3. Runs assessment framework
 4. Generates JSON and PDF reports
