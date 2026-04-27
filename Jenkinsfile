@@ -28,7 +28,7 @@ pipeline {
             triggeredBy cause: 'UserIdCause'
           }
           expression {
-            return env.BRANCH_NAME == 'dev';
+            return env.BRANCH_NAME == 'dev' || env.BRANCH_NAME.startsWith('PR-');
           }
         }
       }
@@ -56,32 +56,47 @@ pipeline {
             }
           }
         }
-
-        stage('Trivy Scan - High and Critical') {
+        
+        stage('Trivy Scan and Report') {
           steps {
             script {
               try {
+                // Scan main image
                 sh """
-                trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}
-                trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}
-                trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}
+                trivy image \
+                  --exit-code 1 \
+                  --severity HIGH,CRITICAL \
+                  --ignore-unfixed \
+                  ${mainImage.imageName()}
                 """
-              } catch (Exception e) {
-                echo "Trivy scan failed due to high or critical vulnerabilities."
-                throw e
-              }
-            }
-          }
-        }
 
-        stage('Trivy Docker Image Scan and Report') {
-          steps {
-            script {
-              sh """
-              trivy image --output trivy-main-report.txt ${mainImage.imageName()}
-              trivy image --output trivy-report-worker-report.txt ${reportImage.imageName()}
-              trivy image --output trivy-zip-worker-report.txt ${zipImage.imageName()}
-              """
+                 // Scan report worker image
+                 sh """
+                 trivy image \
+                   --exit-code 1 \
+                   --severity HIGH,CRITICAL \
+                   --ignore-unfixed \
+                   ${reportImage.imageName()}
+                 """
+
+                 // Scan zip worker image
+                 sh """
+                 trivy image \
+                   --exit-code 1 \
+                   --severity HIGH,CRITICAL \
+                   --ignore-unfixed \
+                   ${zipImage.imageName()}
+                 """
+
+                // Reports
+                sh "trivy image --output trivy-main.txt ${mainImage.imageName()}"
+                sh "trivy image --output trivy-report.txt ${reportImage.imageName()}"
+                sh "trivy image --output trivy-zip.txt ${zipImage.imageName()}"
+
+               } catch (Exception e) {
+               echo "Trivy scan failed due to high or critical vulnerabilities."
+               throw e
+              }
             }
           }
           post {
@@ -91,14 +106,20 @@ pipeline {
                 allowMissing: true,
                 keepAll: true,
                 reportDir: '.',
-                reportFiles: 'trivy-fs-report.txt, trivy-main-report.txt, trivy-report-worker-report.txt, trivy-zip-worker-report.txt',
+                reportFiles: 'trivy-fs-report.txt, trivy-main.txt, trivy-report.txt, trivy-zip.txt'
                 reportName: 'Trivy Reports'
               ])
             }
           }
         }
+      } 
 
         stage('Continuous Deployment') {
+          when {
+            expression {
+              return env.BRANCH_NAME == 'dev'
+            }
+          }
 
           stages {
 
