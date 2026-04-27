@@ -106,7 +106,7 @@ pipeline {
                 allowMissing: true,
                 keepAll: true,
                 reportDir: '.',
-                reportFiles: 'trivy-fs-report.txt, trivy-main.txt, trivy-report.txt, trivy-zip.txt'
+                reportFiles: 'trivy-fs-report.txt, trivy-main.txt, trivy-report.txt, trivy-zip.txt',
                 reportName: 'Trivy Reports'
               ])
             }
