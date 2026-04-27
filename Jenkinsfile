@@ -61,41 +61,17 @@ pipeline {
           steps {
             script {
               try {
-                // Scan main image
-                sh """
-                trivy image \
-                  --exit-code 1 \
-                  --severity HIGH,CRITICAL \
-                  --ignore-unfixed \
-                  ${mainImage.imageName()}
-                """
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}"""
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}"""
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}"""
 
-                 // Scan report worker image
-                 sh """
-                 trivy image \
-                   --exit-code 1 \
-                   --severity HIGH,CRITICAL \
-                   --ignore-unfixed \
-                   ${reportImage.imageName()}
-                 """
-
-                 // Scan zip worker image
-                 sh """
-                 trivy image \
-                   --exit-code 1 \
-                   --severity HIGH,CRITICAL \
-                   --ignore-unfixed \
-                   ${zipImage.imageName()}
-                 """
-
-                // Reports
                 sh "trivy image --output trivy-main.txt ${mainImage.imageName()}"
                 sh "trivy image --output trivy-report.txt ${reportImage.imageName()}"
                 sh "trivy image --output trivy-zip.txt ${zipImage.imageName()}"
 
-               } catch (Exception e) {
-               echo "Trivy scan failed due to high or critical vulnerabilities."
-               throw e
+              } catch (Exception e) {
+                echo "Trivy scan failed due to high or critical vulnerabilities."
+                throw e
               }
             }
           }
@@ -112,7 +88,6 @@ pipeline {
             }
           }
         }
-      } 
 
         stage('Continuous Deployment') {
           when {
@@ -138,7 +113,6 @@ pipeline {
             stage('Docker Swarm deployment') {
               steps {
                 script {
-
                   sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_file-server-minio-iudx-v2 --image ghcr.io/datakaveri/file-connect-api-minio:1.0.1-${env.GIT_HASH}'"
 
                   sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_filer-server-iudx-v2-report-worker --image ghcr.io/datakaveri/file-connect-api-minio-worker-1:1.0.1-${env.GIT_HASH}'"
@@ -172,6 +146,7 @@ pipeline {
         }
 
       }
+
     }
 
   }
