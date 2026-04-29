@@ -3,7 +3,7 @@
  * Handles file operations like preview and processing
  */
 import { Readable } from "stream";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 // Use any type for papaparse to avoid type errors
 import * as Papa from "papaparse";
 import { XMLParser } from "fast-xml-parser";
@@ -506,9 +506,7 @@ export class FileService implements FileServiceInterface {
 
     try {
       const buffer = await this.streamToBuffer(stream);
-      return await new Promise((resolve, reject) => {
-        this.processXLSXBuffer(buffer, maxLines, resolve, reject);
-      });
+      return await this.processXLSXBuffer(buffer, maxLines);
     } catch (err) {
       logger.error(
         "Error processing XLSX file",
@@ -522,62 +520,80 @@ export class FileService implements FileServiceInterface {
    * Processes an XLSX buffer
    * @param buffer - The XLSX buffer
    * @param maxLines - Maximum number of lines to return
-   * @param resolve - Promise resolve function
-   * @param reject - Promise reject function
    */
-  private processXLSXBuffer(
+  private async processXLSXBuffer(
     buffer: Buffer,
     maxLines: number,
-    resolve: (value: XLSXPreviewResult) => void,
-    reject: (reason?: any) => void,
-  ): void {
-    try {
-      // Parse XLSX
-      const workbook = XLSX.read(buffer, { type: "buffer" });
+  ): Promise<XLSXPreviewResult> {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
 
-      // Get the first sheet
-      const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.worksheets[0];
 
-      if (!firstSheetName) {
-        return reject(new Error("No sheets found in workbook"));
-      }
-
-      const worksheet = workbook.Sheets[firstSheetName];
-
-      if (!worksheet) {
-        return reject(new Error("Sheet not found"));
-      }
-
-      // Get the data as an array of arrays
-      const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-      // Extract headers (first row)
-      const headers = sheetData.length > 0 ? (sheetData[0] as string[]) : [];
-
-      // Extract data rows (skip header row)
-      const dataRows = sheetData.slice(1).map((row: any) => {
-        const rowData: Record<string, any> = {};
-
-        // Map each cell to its corresponding header
-        (row as any[]).forEach((cell, index) => {
-          if (index < headers.length) {
-            rowData[headers[index] as string] = cell;
-          }
-        });
-
-        return rowData;
-      });
-
-      // Return the data
-      resolve({
-        data: dataRows.slice(0, maxLines),
-        headers,
-        sheets: workbook.SheetNames,
-        totalRows: dataRows.length,
-      });
-    } catch (err) {
-      reject(err);
+    if (!worksheet) {
+      throw new Error("No sheets found in workbook");
     }
+
+    const headers: string[] = [];
+    worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      headers[colNumber - 1] = this.getExcelCellValue(cell.value);
+    });
+
+    const dataRows: Record<string, any>[] = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        return;
+      }
+
+      const rowData: Record<string, any> = {};
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        const header = headers[colNumber - 1];
+        if (header) {
+          rowData[header] = this.getExcelCellValue(cell.value);
+        }
+      });
+
+      dataRows.push(rowData);
+    });
+
+    return {
+      data: dataRows.slice(0, maxLines),
+      headers,
+      sheets: workbook.worksheets.map((sheet) => sheet.name),
+      totalRows: dataRows.length,
+    };
+  }
+
+  private getExcelCellValue(value: ExcelJS.CellValue): any {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    if (value instanceof Date) {
+      return value;
+    }
+
+    if (typeof value !== "object") {
+      return value;
+    }
+
+    if ("text" in value) {
+      return value.text;
+    }
+
+    if ("result" in value) {
+      return value.result;
+    }
+
+    if ("richText" in value) {
+      return value.richText.map((item) => item.text).join("");
+    }
+
+    if ("hyperlink" in value && "text" in value) {
+      return value.text;
+    }
+
+    return String(value);
   }
 
   /**

@@ -1,18 +1,22 @@
 # Use Python 3.11 slim image
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
+      ca-certificates \
+      curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+
+# Keep Python packaging tooling patched before installing runtime deps.
+RUN pip install --no-cache-dir --upgrade pip setuptools==82.0.1 wheel==0.47.0
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
