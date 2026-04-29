@@ -1,0 +1,8 @@
+node_modules
+build
+.git
+.claude
+.pnpm-store
+coverage
+trivy-*.txt
+*.log
