@@ -28,7 +28,7 @@ pipeline {
             triggeredBy cause: 'UserIdCause'
           }
           expression {
-            return env.BRANCH_NAME == 'stable/v2.2'
+            return env.BRANCH_NAME == 'stable/v2.2' || env.BRANCH_NAME.startsWith('PR-')
           }
         }
       }
@@ -57,45 +57,21 @@ pipeline {
           }
         }
 
-        stage('Trivy Scan - High and Critical') {
+        stage('Trivy Scan and Report') {
           steps {
             script {
               try {
-                sh """
-                trivy image \\
-                  --exit-code 1 \\
-                  --severity HIGH,CRITICAL \\
-                  --ignore-unfixed \\
-                  ${mainImage.imageName()}
+                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}"
+                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}"
+                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}"
 
-                trivy image \\
-                  --exit-code 1 \\
-                  --severity HIGH,CRITICAL \\
-                  --ignore-unfixed \\
-                  ${reportImage.imageName()}
-
-                trivy image \\
-                  --exit-code 1 \\
-                  --severity HIGH,CRITICAL \\
-                  --ignore-unfixed \\
-                  ${zipImage.imageName()}
-                """
+                sh "trivy image --output trivy-main-report.txt ${mainImage.imageName()}"
+                sh "trivy image --output trivy-report-worker-report.txt ${reportImage.imageName()}"
+                sh "trivy image --output trivy-zip-worker-report.txt ${zipImage.imageName()}"
               } catch (Exception e) {
                 echo "Trivy scan failed due to high or critical vulnerabilities."
                 throw e
               }
-            }
-          }
-        }
-
-        stage('Trivy Docker Image Scan and Report') {
-          steps {
-            script {
-              sh """
-              trivy image --output trivy-main-report.txt ${mainImage.imageName()}
-              trivy image --output trivy-report-worker-report.txt ${reportImage.imageName()}
-              trivy image --output trivy-zip-worker-report.txt ${zipImage.imageName()}
-              """
             }
           }
           post {
@@ -113,6 +89,11 @@ pipeline {
         }
 
         stage('Push Images') {
+          when {
+            expression {
+              return env.BRANCH_NAME == 'stable/v2.2'
+            }
+          }
           steps {
             script {
               docker.withRegistry(registryUri, registryCredential) {
