@@ -28,7 +28,7 @@ pipeline {
             triggeredBy cause: 'UserIdCause'
           }
           expression {
-            return env.BRANCH_NAME == 'stable/v2.2'
+            return env.BRANCH_NAME == 'dev' || env.BRANCH_NAME.startsWith('PR-');
           }
         }
       }
@@ -56,46 +56,23 @@ pipeline {
             }
           }
         }
-
-        stage('Trivy Scan - High and Critical') {
+        
+        stage('Trivy Scan and Report') {
           steps {
             script {
               try {
-                sh """
-                trivy image \\
-                  --exit-code 1 \\
-                  --severity HIGH,CRITICAL \\
-                  --ignore-unfixed \\
-                  ${mainImage.imageName()}
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}"""
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}"""
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}"""
 
-                trivy image \\
-                  --exit-code 1 \\
-                  --severity HIGH,CRITICAL \\
-                  --ignore-unfixed \\
-                  ${reportImage.imageName()}
+                sh "trivy image --output trivy-main.txt ${mainImage.imageName()}"
+                sh "trivy image --output trivy-report.txt ${reportImage.imageName()}"
+                sh "trivy image --output trivy-zip.txt ${zipImage.imageName()}"
 
-                trivy image \\
-                  --exit-code 1 \\
-                  --severity HIGH,CRITICAL \\
-                  --ignore-unfixed \\
-                  ${zipImage.imageName()}
-                """
               } catch (Exception e) {
                 echo "Trivy scan failed due to high or critical vulnerabilities."
                 throw e
               }
-            }
-          }
-        }
-
-        stage('Trivy Docker Image Scan and Report') {
-          steps {
-            script {
-              sh """
-              trivy image --output trivy-main-report.txt ${mainImage.imageName()}
-              trivy image --output trivy-report-worker-report.txt ${reportImage.imageName()}
-              trivy image --output trivy-zip-worker-report.txt ${zipImage.imageName()}
-              """
             }
           }
           post {
@@ -105,26 +82,71 @@ pipeline {
                 allowMissing: true,
                 keepAll: true,
                 reportDir: '.',
-                reportFiles: 'trivy-fs-report.txt, trivy-main-report.txt, trivy-report-worker-report.txt, trivy-zip-worker-report.txt',
+                reportFiles: 'trivy-fs-report.txt, trivy-main.txt, trivy-report.txt, trivy-zip.txt',
                 reportName: 'Trivy Reports'
               ])
             }
           }
         }
 
-        stage('Push Images') {
-          steps {
-            script {
-              docker.withRegistry(registryUri, registryCredential) {
-                mainImage.push("v2.2.RC1-${env.GIT_HASH}")
-                reportImage.push("v2.2.RC1-${env.GIT_HASH}")
-                zipImage.push("v2.2.RC1-${env.GIT_HASH}")
+        stage('Continuous Deployment') {
+          when {
+            expression {
+              return env.BRANCH_NAME == 'dev'
+            }
+          }
+
+          stages {
+
+            stage('Push Images') {
+              steps {
+                script {
+                  docker.withRegistry(registryUri, registryCredential) {
+                    mainImage.push("1.0.1-${env.GIT_HASH}")
+                    reportImage.push("1.0.1-${env.GIT_HASH}")
+                    zipImage.push("1.0.1-${env.GIT_HASH}")
+                  }
+                }
               }
             }
+
+            stage('Docker Swarm deployment') {
+              steps {
+                script {
+                  sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_file-server-minio-iudx-v2 --image ghcr.io/datakaveri/file-connect-api-minio:1.0.1-${env.GIT_HASH}'"
+
+                  sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_filer-server-iudx-v2-report-worker --image ghcr.io/datakaveri/file-connect-api-minio-worker-1:1.0.1-${env.GIT_HASH}'"
+
+                  sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_filer-server-iudx-v2-zip-worker --image ghcr.io/datakaveri/file-connect-api-minio-worker:1.0.1-${env.GIT_HASH}'"
+
+                  sh 'sleep 15'
+
+                  sh '''#!/bin/bash 
+                  response_code=$(curl -s -o /dev/null -w '%{http_code}\\n' --connect-timeout 5 --retry 5 --retry-connrefused -XGET https://v2.dev.file.iudx.io/apis)
+
+                  if [[ "$response_code" -ne "200" ]]
+                  then
+                    echo "Health check failed"
+                    exit 1
+                  else
+                    echo "Health check complete; Server is up."
+                    exit 0
+                  fi
+                  '''
+                }
+              }
+              post{
+                failure{
+                  error "Failed to deploy image in Docker Swarm"
+                }
+              }
+            }
+
           }
         }
 
       }
+
     }
 
   }
@@ -132,7 +154,7 @@ pipeline {
   post{
     failure{
       script{
-        if (env.BRANCH_NAME == 'stable/v2.2')
+        if (env.BRANCH_NAME == 'dev')
         emailext recipientProviders: [buildUser(), developers()],
         to: '$AAA_RECIPIENTS, $DEFAULT_RECIPIENTS',
         subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!',
