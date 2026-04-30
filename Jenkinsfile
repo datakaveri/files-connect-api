@@ -28,7 +28,7 @@ pipeline {
             triggeredBy cause: 'UserIdCause'
           }
           expression {
-            return env.BRANCH_NAME == 'dev';
+            return env.BRANCH_NAME == 'dev' || env.BRANCH_NAME.startsWith('PR-');
           }
         }
       }
@@ -56,32 +56,23 @@ pipeline {
             }
           }
         }
-
-        stage('Trivy Scan - High and Critical') {
+        
+        stage('Trivy Scan and Report') {
           steps {
             script {
               try {
-                sh """
-                trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}
-                trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}
-                trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}
-                """
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}"""
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}"""
+                sh """trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}"""
+
+                sh "trivy image --output trivy-main.txt ${mainImage.imageName()}"
+                sh "trivy image --output trivy-report.txt ${reportImage.imageName()}"
+                sh "trivy image --output trivy-zip.txt ${zipImage.imageName()}"
+
               } catch (Exception e) {
                 echo "Trivy scan failed due to high or critical vulnerabilities."
                 throw e
               }
-            }
-          }
-        }
-
-        stage('Trivy Docker Image Scan and Report') {
-          steps {
-            script {
-              sh """
-              trivy image --output trivy-main-report.txt ${mainImage.imageName()}
-              trivy image --output trivy-report-worker-report.txt ${reportImage.imageName()}
-              trivy image --output trivy-zip-worker-report.txt ${zipImage.imageName()}
-              """
             }
           }
           post {
@@ -91,7 +82,7 @@ pipeline {
                 allowMissing: true,
                 keepAll: true,
                 reportDir: '.',
-                reportFiles: 'trivy-fs-report.txt, trivy-main-report.txt, trivy-report-worker-report.txt, trivy-zip-worker-report.txt',
+                reportFiles: 'trivy-fs-report.txt, trivy-main.txt, trivy-report.txt, trivy-zip.txt',
                 reportName: 'Trivy Reports'
               ])
             }
@@ -99,6 +90,11 @@ pipeline {
         }
 
         stage('Continuous Deployment') {
+          when {
+            expression {
+              return env.BRANCH_NAME == 'dev'
+            }
+          }
 
           stages {
 
@@ -117,7 +113,6 @@ pipeline {
             stage('Docker Swarm deployment') {
               steps {
                 script {
-
                   sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_file-server-minio-iudx-v2 --image ghcr.io/datakaveri/file-connect-api-minio:1.0.1-${env.GIT_HASH}'"
 
                   sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_filer-server-iudx-v2-report-worker --image ghcr.io/datakaveri/file-connect-api-minio-worker-1:1.0.1-${env.GIT_HASH}'"
@@ -151,6 +146,7 @@ pipeline {
         }
 
       }
+
     }
 
   }
