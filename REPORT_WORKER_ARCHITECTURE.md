@@ -492,9 +492,9 @@ The Kubernetes manifest reads common configuration from `files-connect-config` a
 
    The API still exposes `PUT /process/:jobId/status`, but the Python worker updates Redis directly rather than calling back to this endpoint.
 
-10. Queue naming docs are inconsistent.
+10. Queue naming is configurable but currently standardized on `jobs:report`.
 
-   Runtime configuration uses `jobs:report`. Some docs mention `jobs:readiness` as preferred and `jobs:report` as deprecated. The active API code pushes report jobs to `jobs:report`.
+   Runtime configuration defaults to `jobs:report`, and the active API code pushes report jobs to `jobs:report`.
 
 ## Operational Notes
 

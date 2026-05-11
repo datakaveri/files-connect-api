@@ -170,7 +170,7 @@ USE_SSL=true
 - `CAT_PASSWORD` - CAT API password
 
 **For readiness worker:**
-- `READINESS_QUEUE_NAME` - Custom queue name (default: `jobs:readiness`)
+- `READINESS_QUEUE_NAME` - Custom queue name (default: `jobs:report`)
 - `ELASTIC_ID` - Elasticsearch ID for CAT API updates
 - `ELASTIC_PASS` - Elasticsearch password for CAT API updates
 
@@ -184,8 +184,7 @@ The API `POST /v1/databanks/:databankId/process` accepts a body `type`:
 
 ### Queue Names
 - `jobs:zip` - Zip creation jobs
-- `jobs:readiness` - Data readiness assessment jobs
-- `jobs:report` - Report generation jobs (deprecated, use `jobs:readiness`)
+- `jobs:report` - Report generation and data readiness assessment jobs
 
 ### Job Data Format
 Each queue entry has the following shape (workers never see `type: "all"`; the API creates separate zip and report jobs):
@@ -229,7 +228,7 @@ redis-cli -h localhost -p 6379
 
 # Check queue length
 LLEN jobs:zip
-LLEN jobs:readiness
+LLEN jobs:report
 
 # View job status
 HGETALL job:your-job-id-here
@@ -276,7 +275,7 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
 2. Verify queue has jobs:
    ```bash
    redis-cli LLEN jobs:zip
-   redis-cli LLEN jobs:readiness
+   redis-cli LLEN jobs:report
    ```
 
 3. Check worker logs:
