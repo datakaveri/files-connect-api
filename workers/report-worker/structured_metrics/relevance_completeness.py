@@ -15,7 +15,7 @@ def check_coverage_region(df, imputed_columns=None):
         or "Null values present" if all values in the region column are null.
     """
     region_col = imputed_columns.get("region", []) if imputed_columns else [
-        col for col in df.columns if any(keyword in col.lower() for keyword in ['district', 'state', 'city', 'region', 'subdistrict'])
+        col for col in df.columns if isinstance(col, str) and any(keyword in col.lower() for keyword in ['district', 'state', 'city', 'region', 'subdistrict'])
     ]
     
     if not region_col:

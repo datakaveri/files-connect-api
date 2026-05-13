@@ -111,6 +111,10 @@ def check_row_duplicates(df):
         duplicated = df.duplicated()
     except (TypeError, ValueError):
         duplicated = df.astype(str).duplicated()
+    except Exception:
+        # ArrowNotImplementedError: dictionary_encode has no kernel for struct types
+        # (e.g. GeoJSON location columns with struct<coordinates, type>)
+        duplicated = df.astype(str).duplicated()
 
     count = int(duplicated.sum())
     percentage = round(duplicated.mean() * 100, 1) if count > 0 else 0.0

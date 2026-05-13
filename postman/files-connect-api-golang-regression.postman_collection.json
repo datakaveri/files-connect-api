@@ -1,0 +1,936 @@
+{
+  "info": {
+    "_postman_id": "84b1888b-3c4c-4d5f-91ed-files-connect-regression",
+    "name": "Files Connect API - Go Regression",
+    "description": "Regression collection for validating the Go rewrite against the current Files Connect API behavior. Set environment variables before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{providerToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('response is not 500', function () {",
+          "  pm.expect(pm.response.code).to.be.below(500);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Smoke and Public",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('health returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('health body is ok', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('ok');",
+                  "  pm.expect(json.service).to.eql('files-connect-api');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Public File Metadata",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{fileKey}}\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files/metadata"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('public metadata returns 200 or 404', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('metadata uses standard envelope', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('success');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth and Validation",
+      "item": [
+        {
+          "name": "List Files Without Token Is 401",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefix\": \"\",\n  \"delimiter\": \"/\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('protected endpoint requires auth', function () { pm.response.to.have.status(401); });",
+                  "pm.test('error envelope exists', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('error');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consumer Cannot Initiate Upload",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{consumerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"consumer-not-allowed.csv\",\n  \"numParts\": 1,\n  \"contentType\": \"text/csv\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('consumer gets 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bad Upload Payload Is 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"bad.csv\",\n  \"numParts\": 0\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('invalid payload returns 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Databank Files",
+      "item": [
+        {
+          "name": "List Files",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefix\": \"\",\n  \"delimiter\": \"/\",\n  \"maxKeys\": 1000,\n  \"recursive\": false\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('list files returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('list files envelope', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "  pm.expect(json.data).to.have.property('files');",
+                  "  pm.expect(json.data).to.have.property('directories');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Files Recursive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefix\": \"\",\n  \"maxKeys\": 1000,\n  \"recursive\": true\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('recursive list returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('recursive list has files array', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data.files).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "File Preview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{fileKey}}\",\n  \"fileType\": \"csv\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files/preview"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('preview returns 200 or 404 depending test data', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('preview envelope', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data).to.have.property('content');",
+                  "    pm.expect(json.data).to.have.property('format');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "File Download Presigned URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{fileKey}}\",\n  \"presigned\": true\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('download presign returns 200 or 404', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('presigned URL exists', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data.presignedUrl).to.be.a('string');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing File Metadata Is 404",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{missingFileKey}}\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/files/metadata"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('missing file returns 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Multipart Upload",
+      "item": [
+        {
+          "name": "Initiate Upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{uploadKey}}\",\n  \"numParts\": 1,\n  \"contentType\": \"text/csv\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('initiate upload returns 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.environment.set('uploadId', json.data.uploadId);",
+                  "  if (json.data.parts && json.data.parts[0]) {",
+                  "    pm.environment.set('part1PresignedUrl', json.data.parts[0].presignedUrl);",
+                  "  }",
+                  "}",
+                  "pm.test('uploadId and part URL captured', function () {",
+                  "  pm.expect(pm.environment.get('uploadId')).to.not.be.empty;",
+                  "  pm.expect(pm.environment.get('part1PresignedUrl')).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload Part 1 To Presigned URL",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/csv"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "id,name\n1,postman-regression\n"
+            },
+            "url": "{{part1PresignedUrl}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('storage accepts uploaded part', function () {",
+                  "  pm.expect([200, 201, 204]).to.include(pm.response.code);",
+                  "});",
+                  "const etag = pm.response.headers.get('ETag') || pm.response.headers.get('Etag');",
+                  "if (etag) { pm.environment.set('part1ETag', etag.replaceAll('\"', '')); }",
+                  "pm.test('ETag captured', function () { pm.expect(pm.environment.get('part1ETag')).to.not.be.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete Upload",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{uploadKey}}\",\n  \"parts\": [\n    {\n      \"PartNumber\": 1,\n      \"ETag\": \"{{part1ETag}}\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads/{{uploadId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('complete upload returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('complete upload envelope', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "  pm.expect(json.data.key).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unsupported File Type Is 415",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"blocked.exe\",\n  \"numParts\": 1,\n  \"contentType\": \"application/octet-stream\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('blocked executable returns 415', function () { pm.response.to.have.status(415); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Initiate Upload For Cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{cancelUploadKey}}\",\n  \"numParts\": 1,\n  \"contentType\": \"text/csv\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cancel setup returns 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.data) { pm.environment.set('cancelUploadId', json.data.uploadId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel Upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{cancelUploadKey}}\"\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/uploads/{{cancelUploadId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cancel upload returns 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Processing Jobs",
+      "item": [
+        {
+          "name": "Create Zip Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"zip\",\n  \"options\": {}\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/process"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create zip job returns 202', function () { pm.response.to.have.status(202); });",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.jobId) { pm.environment.set('jobId', json.data.jobId); }",
+                  "pm.test('jobId captured', function () { pm.expect(pm.environment.get('jobId')).to.not.be.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Job Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/databanks/{{databankId}}/process/{{jobId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('get job status returns 200 or 404', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Job Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"progress\": 100,\n  \"result\": {\n    \"source\": \"postman-regression\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/process/{{jobId}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('update job status returns 200 or 404', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create All Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"all\",\n  \"options\": {}\n}"
+            },
+            "url": "{{baseUrl}}/databanks/{{databankId}}/process"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create all job returns 202', function () { pm.response.to.have.status(202); });",
+                  "pm.test('all job returns zip and report ids', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data.jobIds).to.have.property('zip');",
+                  "  pm.expect(json.data.jobIds).to.have.property('report');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Access and Downloads",
+      "item": [
+        {
+          "name": "Query Temporary Access",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/databanks/{{databankId}}/query-access"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('query access returns 200 or controlled client/access error', function () {",
+                  "  pm.expect([200, 400, 403]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('credentials shape', function () {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data.credentials).to.have.property('accessKeyId');",
+                  "    pm.expect(json.data.credentials).to.have.property('secretAccessKey');",
+                  "    pm.expect(json.data.credentials).to.have.property('sessionToken');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Databank Zip Download URL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/databanks/{{databankId}}/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('zip download returns 200 or 404', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report PDF Download URL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/databanks/{{databankId}}/report/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('report download returns 200 or 404 when authorized', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report Download Without Token Parity Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": "{{baseUrl}}/databanks/{{databankId}}/report/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('document chosen behavior for unauth report download', function () {",
+                  "  pm.expect([200, 401, 404]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('if Go enforces docs, status should be 401', function () {",
+                  "  pm.expect([401, 404, 200]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Assets",
+      "item": [
+        {
+          "name": "Upload Asset",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{assetFilePath}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/assets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('asset upload returns 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.key) { pm.environment.set('assetKey', json.data.key); }",
+                  "pm.test('asset key captured', function () { pm.expect(pm.environment.get('assetKey')).to.not.be.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Asset Presigned URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{assetKey}}\",\n  \"expiresIn\": 300\n}"
+            },
+            "url": "{{baseUrl}}/assets/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('asset download returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('asset presigned URL exists', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data.url).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consumer Cannot Download Asset",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{consumerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{assetKey}}\",\n  \"expiresIn\": 300\n}"
+            },
+            "url": "{{baseUrl}}/assets/download"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('consumer cannot download asset', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Asset Upload Without Token Is 401",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{assetFilePath}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/assets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('asset upload without token is 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

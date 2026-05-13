@@ -8,8 +8,26 @@ import pyarrow as pa
 from pyarrow.parquet import ParquetFile
 import csv
 import sys
+import json as _json
 print("Importing modules completed in input_handler.py")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def _flatten_complex_columns(df):
+    """
+    Convert columns containing dicts, lists, or other unhashable/nested objects
+    into JSON strings so that downstream operations (duplicated, value_counts,
+    convert_dtypes) do not trigger ArrowNotImplementedError on struct types.
+    """
+    for col in df.columns:
+        if df[col].dtype == object and not df[col].empty:
+            sample = df[col].dropna().iloc[0] if df[col].notna().any() else None
+            if isinstance(sample, (dict, list)):
+                df[col] = df[col].apply(
+                    lambda x: _json.dumps(x, ensure_ascii=False) if isinstance(x, (dict, list)) else x
+                )
+                logging.info(f"Flattened complex column '{col}' to JSON string")
+    return df
 
 
 def load_data_from_directory(directory):
@@ -96,9 +114,11 @@ def load_data_from_directory(directory):
                 if sample:
                     df = pd.read_json(file_path, chunksize=1000000)
                     df = pd.concat([chunk for chunk in df])
+                    df = _flatten_complex_columns(df)
                     df = df.infer_objects()  # Convert dtypes to pandas dtypes
                 else:
                     df = pd.read_json(file_path)
+                    df = _flatten_complex_columns(df)
                     df = df.infer_objects()  # Convert dtypes to pandas dtypes
             data.append((df, file_path, sample))
             logging.info(f"Loaded file: {file_path}")
@@ -168,9 +188,11 @@ def load_data_from_directory(directory):
                     if sample:
                         df = pd.read_json(file_path, chunksize=1000000)
                         df = pd.concat([chunk for chunk in df])
+                        df = _flatten_complex_columns(df)
                         df = df.infer_objects()  # Convert dtypes to pandas dtypes
                     else:
                         df = pd.read_json(file_path)
+                        df = _flatten_complex_columns(df)
                         df = df.infer_objects()  # Convert dtypes to pandas dtypes
                 data.append((df, file_path, sample))
                 logging.info(f"Loaded file: {file_path}")
