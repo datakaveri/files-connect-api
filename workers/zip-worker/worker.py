@@ -205,7 +205,7 @@ def worker_loop():
         sys.exit(1)
     
     # Queue name
-    queue_name = 'jobs:zip'
+    queue_name = os.environ.get('ZIP_QUEUE_NAME', 'jobs:zip')
     logger.info(f"Listening on queue: {queue_name}")
     
     # Main loop

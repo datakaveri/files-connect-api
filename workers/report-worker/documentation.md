@@ -51,7 +51,7 @@ The worker requires the following environment variables:
 - `REDIS_PORT` - Redis server port (default: `6379`)
 - `REDIS_DB` - Redis database number (default: `0`)
 - `REDIS_PASSWORD` - Redis password (optional, if authentication enabled)
-- `READINESS_QUEUE_NAME` - Queue name to listen on (default: `jobs:report`)
+- `REPORT_QUEUE_NAME` - Queue name to listen on (default: `jobs:report`; `READINESS_QUEUE_NAME` is still accepted as a legacy alias)
 
 **Storage Configuration:**
 - `BUCKET_NAME` - Single S3/MinIO bucket for all operations (datasets, zips, and PDF reports)

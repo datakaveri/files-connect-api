@@ -115,6 +115,9 @@ const envSchema = z.object({
     .string()
     .transform((val) => val === "true")
     .default("false"),
+  ZIP_QUEUE_NAME: z.string().default("jobs:zip"),
+  REPORT_QUEUE_NAME: z.string().optional(),
+  READINESS_QUEUE_NAME: z.string().optional(),
 
   //Lambda Configs (optional for backward compatibility)
   ZIP_LAMBDA_URL: z.string().url().optional(),
@@ -128,7 +131,10 @@ const envSchema = z.object({
     .string()
     .transform((val) => parseInt(val, 10))
     .default("900"), // Default 15 minutes (900 seconds)
-});
+}).transform((env) => ({
+  ...env,
+  REPORT_QUEUE_NAME: env.REPORT_QUEUE_NAME || env.READINESS_QUEUE_NAME || "jobs:report",
+}));
 
 // Export type definition
 export type Env = z.infer<typeof envSchema>;

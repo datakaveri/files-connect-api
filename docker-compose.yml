@@ -50,6 +50,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
+      ZIP_QUEUE_NAME: jobs:zip
       
       # Storage configuration (MinIO for local development)
       STORAGE_PROVIDER: minio
@@ -83,7 +84,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
-      READINESS_QUEUE_NAME: jobs:report
+      REPORT_QUEUE_NAME: jobs:report
       
       # Storage configuration (MinIO for local development)
       STORAGE_PROVIDER: minio

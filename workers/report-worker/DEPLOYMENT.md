@@ -74,7 +74,7 @@ TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
 | `REDIS_HOST` | Redis server hostname | `redis` or `redis-service.default.svc.cluster.local` |
 | `REDIS_PORT` | Redis server port | `6379` |
 | `REDIS_DB` | Redis database number | `0` |
-| `READINESS_QUEUE_NAME` | Queue name to listen on | `jobs:report` |
+| `REPORT_QUEUE_NAME` | Queue name to listen on (`READINESS_QUEUE_NAME` is still accepted as a legacy alias) | `jobs:report` |
 | `BUCKET_NAME` | Single bucket for all operations (datasets, zips, and PDF reports) | `files-connect-bucket` |
 | `S3_ACCESS_KEY` | Storage access key | `minioadmin` or AWS access key |
 | `S3_SECRET_KEY` | Storage secret key | `minioadmin` or AWS secret key |
@@ -231,7 +231,7 @@ spec:
           value: "6379"
         - name: REDIS_DB
           value: "0"
-        - name: READINESS_QUEUE_NAME
+        - name: REPORT_QUEUE_NAME
           value: "jobs:report"
         
         # Redis password (if using authentication)
@@ -402,7 +402,7 @@ kubectl logs -f -l app=report-worker
 
 ### Redis Queue Name
 
-The worker listens on the queue specified by `READINESS_QUEUE_NAME` (default: `jobs:report`).
+The worker listens on the queue specified by `REPORT_QUEUE_NAME` (default: `jobs:report`; `READINESS_QUEUE_NAME` is still accepted as a legacy alias).
 
 **Important:** Ensure the API is configured to use the same queue name when creating report jobs.
 

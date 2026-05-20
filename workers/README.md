@@ -170,7 +170,7 @@ USE_SSL=true
 - `CAT_PASSWORD` - CAT API password
 
 **For readiness worker:**
-- `READINESS_QUEUE_NAME` - Custom queue name (default: `jobs:report`)
+- `REPORT_QUEUE_NAME` - Custom report queue name (default: `jobs:report`; `READINESS_QUEUE_NAME` is still accepted as a legacy alias)
 - `ELASTIC_ID` - Elasticsearch ID for CAT API updates
 - `ELASTIC_PASS` - Elasticsearch password for CAT API updates
 
@@ -178,13 +178,13 @@ USE_SSL=true
 
 ### Process endpoint job types
 The API `POST /v1/databanks/:databankId/process` accepts a body `type`:
-- **`zip`** – One job is created and pushed to `jobs:zip` (zip worker processes it).
-- **`report`** – One job is created and pushed to `jobs:report` (report worker processes it).
-- **`all`** – Two jobs are created: one pushed to `jobs:zip`, one to `jobs:report`. The response returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status.
+- **`zip`** – One job is created and pushed to `ZIP_QUEUE_NAME` (default: `jobs:zip`).
+- **`report`** – One job is created and pushed to `REPORT_QUEUE_NAME` (default: `jobs:report`).
+- **`all`** – Two jobs are created: one pushed to each configured queue. The response returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status.
 
 ### Queue Names
-- `jobs:zip` - Zip creation jobs
-- `jobs:report` - Report generation and data readiness assessment jobs
+- `ZIP_QUEUE_NAME` - Zip creation jobs (default: `jobs:zip`)
+- `REPORT_QUEUE_NAME` - Report generation and data readiness assessment jobs (default: `jobs:report`)
 
 ### Job Data Format
 Each queue entry has the following shape (workers never see `type: "all"`; the API creates separate zip and report jobs):

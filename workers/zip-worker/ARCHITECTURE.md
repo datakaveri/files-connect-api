@@ -359,6 +359,7 @@ The current worker does not retry an individual failed job by requeueing it. Ret
 | `REDIS_DB` | `0` | Redis database for standalone Redis |
 | `REDIS_PASSWORD` | unset | Optional Redis password |
 | `REDIS_CLUSTER` | unset / false | Use Redis Cluster client when true |
+| `ZIP_QUEUE_NAME` | `jobs:zip` | Queue list name |
 
 ### Storage
 
@@ -600,7 +601,7 @@ There are currently no dedicated tests under `workers/zip-worker/`.
 
 | # | Limitation | Detail |
 |---|---|---|
-| 1 | Queue name is hard-coded | The worker always listens to `jobs:zip`; there is no `ZIP_QUEUE_NAME` environment override. |
+| 1 | Queue name mismatch | The API and worker must use the same `ZIP_QUEUE_NAME` value. |
 | 2 | No per-file progress | Redis progress moves from `0` to `100`; chunk/file progress is logged but not written to Redis. |
 | 3 | No job-level retry | A failed job is marked failed and is not requeued automatically. |
 | 4 | Local ZIP staging required | Source files are streamed from S3, but the complete ZIP is written to local temporary storage before upload. Very large databanks can exhaust pod ephemeral storage. |

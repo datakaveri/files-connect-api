@@ -38,8 +38,11 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: REDIS_DB
-        - name: READINESS_QUEUE_NAME
-          value: "jobs:report"
+        - name: REPORT_QUEUE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REPORT_QUEUE_NAME
 
         # Storage configuration - from ConfigMap
         - name: STORAGE_PROVIDER

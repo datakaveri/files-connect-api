@@ -4,13 +4,14 @@
  */
 import { getRedisClient } from "./redis-client";
 import { createLogger } from "./logger";
+import { env } from "../../config/environment";
 
 const logger = createLogger("JobQueue");
 
 // Job queue names
 export const JOB_QUEUES = {
-  ZIP: "jobs:zip",
-  REPORT: "jobs:report",
+  ZIP: env.ZIP_QUEUE_NAME,
+  REPORT: env.REPORT_QUEUE_NAME,
 } as const;
 
 /**

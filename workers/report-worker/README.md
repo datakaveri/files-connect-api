@@ -44,7 +44,7 @@ python worker.py
 **Redis:**
 - `REDIS_HOST` - Redis hostname (default: `localhost`)
 - `REDIS_PORT` - Redis port (default: `6379`)
-- `READINESS_QUEUE_NAME` - Queue name (default: `jobs:report`)
+- `REPORT_QUEUE_NAME` - Queue name (default: `jobs:report`; `READINESS_QUEUE_NAME` is still accepted as a legacy alias)
 
 **Storage:**
 - `BUCKET_NAME` - Single bucket for all operations (datasets, zips, and PDF reports)

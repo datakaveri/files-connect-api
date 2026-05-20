@@ -284,7 +284,7 @@ REDIS_PORT            6379
 REDIS_DB              0
 REDIS_PASSWORD        (optional)
 REDIS_CLUSTER         false | true  — enables cluster-aware client for K8s
-READINESS_QUEUE_NAME  jobs:report
+REPORT_QUEUE_NAME     jobs:report
 ```
 
 ---
@@ -625,7 +625,7 @@ Accessible via API at: `GET /v1/databanks/{databankId}/report/download`
 | `REDIS_PASSWORD` | — | Redis AUTH password |
 | `REDIS_DB` | `0` | Redis database number |
 | `REDIS_CLUSTER` | `false` | Cluster-aware client (K8s) |
-| `READINESS_QUEUE_NAME` | `jobs:report` | Queue list name |
+| `REPORT_QUEUE_NAME` | `jobs:report` | Queue list name (`READINESS_QUEUE_NAME` is still accepted as a legacy alias) |
 | `S3_ENDPOINT` | AWS default | Custom endpoint (MinIO) |
 | `S3_REGION` | `us-east-1` | AWS region |
 | `USE_SSL` | `true` (S3) / `false` (MinIO) | TLS for storage |

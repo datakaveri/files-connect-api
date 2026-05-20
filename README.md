@@ -49,6 +49,11 @@ For local development with MinIO, Redis, and workers, use the provided Docker Co
 docker-compose up -d
 ```
 
+when new changes
+```bash
+docker-compose build zip-worker
+```
+
 This starts:
 - **MinIO** - S3-compatible object storage (ports 9000, 9001)
 - **Redis** - Job queue server (port 6379)
