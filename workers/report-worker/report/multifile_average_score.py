@@ -83,8 +83,11 @@ def calculate_average_readiness(reports):
                 average_report[key] = value
         count += 1
 
+    #for key in average_keys:
+    #    if key in average_report and count > 0:
+    #        average_report[key] = average_report[key] / count
     for key in average_keys:
-        if key in average_report and count > 0:
+        if key in average_report and count > 0 and isinstance(average_report[key], (int, float)):
             average_report[key] = average_report[key] / count
 
     for key, default in sentinel_defaults.items():

@@ -41,7 +41,11 @@ class PDFReport(FPDF):
             self.dataset_name = f"{self.true_name} (Sampled - {self.sample_size} rows)"
         else:
             self.dataset_name = self.true_name
-        self.percent_score = total_percentage
+        #self.percent_score = total_percentage
+        try:
+            self.percent_score = float(total_percentage)
+        except (TypeError, ValueError):
+            self.percent_score = 0.0
         self.logo_path = logo_path
         self.set_auto_page_break(auto=True, margin=15)
         self.add_page()

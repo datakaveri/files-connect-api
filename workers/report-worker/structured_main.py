@@ -106,7 +106,9 @@ def main(directory, folder_key):
                 # Compute the aggregate score
                 final_score = log_and_call(scoring.compute_aggregate_score, init_report, df)
                 final_percentage = final_score.get("total_percentage")
-                final_percentage = str(final_percentage) if final_percentage is not None else "unknown"
+                #final_percentage = str(final_percentage) if final_percentage is not None else "unknown"
+                raw_pct = final_score.get("total_percentage")
+                final_percentage = float(raw_pct) if raw_pct is not None else "unknown"
 
                 # Create a directory to hold all the generated files
                 output_dir = get_output_dir(directory)
