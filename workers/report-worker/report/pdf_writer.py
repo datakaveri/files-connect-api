@@ -38,7 +38,7 @@ class PDFReport(FPDF):
         self.sample_size = sample_size
         self.true_name = self.sanitize_text(true_name)
         if self.average_report:
-            self.dataset_name = f"{self.true_name} - Average Report"
+            self.dataset_name = f"{self.true_name}"
         elif self.sample:
             self.dataset_name = f"{self.true_name} (Sampled - {self.sample_size} rows)"
         else:
@@ -68,6 +68,14 @@ class PDFReport(FPDF):
 
         self.set_font("Helvetica", '', 10)
         self.set_xy(9, 35)
+        self.cell(
+            0,
+            10,
+            f"Report Generated On: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d-%b-%Y %I:%M %p IST')}",
+            ln=True,
+            align='L'
+        )
+
         self.cell(
             0,
             10,
