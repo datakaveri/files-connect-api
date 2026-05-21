@@ -1,6 +1,8 @@
 from fpdf import FPDF
 import json
 import datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 class PDFReport(FPDF):
     @staticmethod
@@ -67,12 +69,12 @@ class PDFReport(FPDF):
         self.set_font("Helvetica", '', 10)
         self.set_xy(9, 35)
         self.cell(
-    0,
-    10,
-    f"Report Generated On: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d-%b-%Y %I:%M %p IST')}",
-    ln=True,
-    align='L'
-)
+            0,
+            10,
+            f"Report Generated On: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d-%b-%Y %I:%M %p IST')}",
+            ln=True,
+            align='L'
+        )
 
         # self.set_font("Helvetica", 'B', 12)
         # self.set_xy(160, 30)
