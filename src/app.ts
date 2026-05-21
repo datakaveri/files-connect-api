@@ -39,6 +39,14 @@ const app: Express = express();
 let logger: any;
 let httpLogger: any;
 
+function redactRequestHeaders(headers: Record<string, any>) {
+  const redactedHeaders = { ...headers };
+  if (redactedHeaders.authorization) {
+    redactedHeaders.authorization = '[REDACTED]';
+  }
+  return redactedHeaders;
+}
+
 if (process.env.NODE_ENV === 'test') {
   // Simple console logger for tests
   logger = {
@@ -77,7 +85,7 @@ if (process.env.NODE_ENV === 'test') {
       req: (req: any) => ({
         method: req.method,
         url: req.url,
-        headers: req.headers
+        headers: redactRequestHeaders(req.headers)
       }),
       res: (res: any) => ({
         statusCode: res.statusCode

@@ -10,7 +10,14 @@ import { createLogger } from "./logger";
 const logger = createLogger("RedisClient");
 
 // Union type for both client types
-type RedisConnection = RedisClientType | RedisClusterType;
+export type RedisConnection = RedisClientType | RedisClusterType;
+
+function isClientClosedError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "ClientClosedError" || error.message === "The client is closed")
+  );
+}
 
 class RedisClient {
   private static instance: RedisClient;
@@ -51,6 +58,29 @@ class RedisClient {
     }
 
     return this.connect();
+  }
+
+  /**
+   * Execute a Redis operation and recover once from a stale closed client.
+   */
+  public async execute<T>(
+    operationName: string,
+    operation: (client: RedisConnection) => Promise<T>
+  ): Promise<T> {
+    try {
+      return await operation(await this.getClient());
+    } catch (error) {
+      if (!isClientClosedError(error)) {
+        throw error;
+      }
+
+      logger.warn("Redis client was closed during operation; reconnecting and retrying once", {
+        operationName,
+      });
+
+      await this.resetClient();
+      return operation(await this.getClient());
+    }
   }
 
   /**
@@ -124,8 +154,6 @@ class RedisClient {
         },
         ...(env.REDIS_PASSWORD && { password: env.REDIS_PASSWORD }),
       },
-      // Use replicas for read operations when available
-      useReplicas: true,
     };
 
     return createCluster(clusterOptions) as RedisClusterType;
@@ -187,6 +215,7 @@ class RedisClient {
       return this.client;
     } catch (error) {
       this.isConnecting = false;
+      this.client = null;
       logger.error("Failed to connect to Redis", error as Error);
       throw error;
     }
@@ -219,6 +248,22 @@ class RedisClient {
     }
   }
 
+  private async resetClient(): Promise<void> {
+    const client = this.client;
+    this.client = null;
+    this.isConnecting = false;
+
+    if (client?.isOpen) {
+      try {
+        await client.disconnect();
+      } catch (error) {
+        logger.warn("Error disconnecting stale Redis client", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
   /**
    * Check if connected
    */
@@ -231,6 +276,14 @@ class RedisClient {
 export const getRedisClient = async (): Promise<RedisConnection> => {
   const redisClient = RedisClient.getInstance();
   return redisClient.getClient();
+};
+
+export const executeRedisCommand = async <T>(
+  operationName: string,
+  operation: (client: RedisConnection) => Promise<T>
+): Promise<T> => {
+  const redisClient = RedisClient.getInstance();
+  return redisClient.execute(operationName, operation);
 };
 
 // Export connect function for eager connection on startup

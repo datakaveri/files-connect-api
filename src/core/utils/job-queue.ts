@@ -2,7 +2,7 @@
  * Job Queue Manager
  * Manages job queues and status using Redis
  */
-import { getRedisClient } from "./redis-client";
+import { executeRedisCommand } from "./redis-client";
 import { createLogger } from "./logger";
 import { env } from "../../config/environment";
 
@@ -66,8 +66,6 @@ export async function pushJob(
   databankId: string,
   options?: any
 ): Promise<void> {
-  const redis = await getRedisClient();
-
   // Determine the queue based on job type
   const queueKey = getQueueKey(type);
 
@@ -81,22 +79,28 @@ export async function pushJob(
   };
 
   // Push job to queue (left push, workers pop from right)
-  await redis.lPush(queueKey, JSON.stringify(jobData));
+  await executeRedisCommand("pushJob.lPush", (redis) =>
+    redis.lPush(queueKey, JSON.stringify(jobData))
+  );
 
   // Initialize job status in Redis hash
   const statusKey = `job:${jobId}`;
-  await redis.hSet(statusKey, {
-    jobId,
-    type,
-    status: "pending",
-    databankId,
-    progress: "0",
-    createdAt: jobData.createdAt,
-    options: options ? JSON.stringify(options) : "",
-  });
+  await executeRedisCommand("pushJob.hSet", (redis) =>
+    redis.hSet(statusKey, {
+      jobId,
+      type,
+      status: "pending",
+      databankId,
+      progress: "0",
+      createdAt: jobData.createdAt,
+      options: options ? JSON.stringify(options) : "",
+    })
+  );
 
   // Set expiration for job status (7 days)
-  await redis.expire(statusKey, 7 * 24 * 60 * 60);
+  await executeRedisCommand("pushJob.expire", (redis) =>
+    redis.expire(statusKey, 7 * 24 * 60 * 60)
+  );
 
   logger.info(`Job pushed to queue: ${jobId}`, {
     jobId,
@@ -121,11 +125,12 @@ export async function updateJobStatus(
   error?: string,
   result?: any
 ): Promise<void> {
-  const redis = await getRedisClient();
   const statusKey = `job:${jobId}`;
 
   // Check if job exists
-  const exists = await redis.exists(statusKey);
+  const exists = await executeRedisCommand("updateJobStatus.exists", (redis) =>
+    redis.exists(statusKey)
+  );
   if (!exists) {
     logger.warn(`Attempted to update non-existent job: ${jobId}`);
     throw new Error(`Job not found: ${jobId}`);
@@ -154,7 +159,7 @@ export async function updateJobStatus(
   }
 
   // Update job status
-  await redis.hSet(statusKey, updateData);
+  await executeRedisCommand("updateJobStatus.hSet", (redis) => redis.hSet(statusKey, updateData));
 
   logger.info(`Job status updated: ${jobId}`, {
     jobId,
@@ -169,18 +174,21 @@ export async function updateJobStatus(
  * @returns Job status or null if not found
  */
 export async function getJobStatus(jobId: string): Promise<JobStatus | null> {
-  const redis = await getRedisClient();
   const statusKey = `job:${jobId}`;
 
   // Check if job exists
-  const exists = await redis.exists(statusKey);
+  const exists = await executeRedisCommand("getJobStatus.exists", (redis) =>
+    redis.exists(statusKey)
+  );
   if (!exists) {
     logger.debug(`Job not found: ${jobId}`);
     return null;
   }
 
   // Get all job data
-  const jobData = await redis.hGetAll(statusKey);
+  const jobData = await executeRedisCommand("getJobStatus.hGetAll", (redis) =>
+    redis.hGetAll(statusKey)
+  );
 
   if (!jobData || Object.keys(jobData).length === 0) {
     return null;
@@ -234,9 +242,8 @@ export async function getJobStatus(jobId: string): Promise<JobStatus | null> {
  * @returns Number of jobs in the queue
  */
 export async function getQueueLength(type: string): Promise<number> {
-  const redis = await getRedisClient();
   const queueKey = getQueueKey(type);
-  return await redis.lLen(queueKey);
+  return await executeRedisCommand("getQueueLength.lLen", (redis) => redis.lLen(queueKey));
 }
 
 /**
@@ -244,9 +251,7 @@ export async function getQueueLength(type: string): Promise<number> {
  * @param jobId - Job ID to clear
  */
 export async function clearJob(jobId: string): Promise<void> {
-  const redis = await getRedisClient();
   const statusKey = `job:${jobId}`;
-  await redis.del(statusKey);
+  await executeRedisCommand("clearJob.del", (redis) => redis.del(statusKey));
   logger.debug(`Job cleared: ${jobId}`);
 }
-
