@@ -77,7 +77,9 @@ def update_cat_readiness_score(uuid, score, username, password):
                     "dataReadiness": score,
                     "dataUploadStatus": True,
                     "publishStatus": "ACTIVE",
-                    "lastUpdated": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B, %Y - %I:%M %p")
+                    "lastUpdated": datetime.now(
+                        ZoneInfo("Asia/Kolkata")
+                    ).isoformat()
                 }
             }
 
