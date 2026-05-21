@@ -62,7 +62,7 @@ def main(directory, folder_key):
     # directory = input("Enter the directory containing data files: ")
 
     # Initialize variables that may be used outside the try block
-    final_percentage = "unknown"
+    final_percentage = None
     uuid = None
     true_name = os.path.basename(directory)
 
@@ -108,7 +108,8 @@ def main(directory, folder_key):
                 final_percentage = final_score.get("total_percentage")
                 #final_percentage = str(final_percentage) if final_percentage is not None else "unknown"
                 raw_pct = final_score.get("total_percentage")
-                final_percentage = float(raw_pct) if raw_pct is not None else "unknown"
+                #final_percentage = float(raw_pct) if raw_pct is not None else "unknown"
+                final_percentage = float(raw_pct) if raw_pct is not None else None
 
                 # Create a directory to hold all the generated files
                 output_dir = get_output_dir(directory)
@@ -149,16 +150,25 @@ def main(directory, folder_key):
             logo_path = "plots/pretty/mahaagx-logo-dark.png"  # Set this to None if not needed
             log_and_call(generate_pdf_from_json, f"{output_dir}/average_score_final_readiness_report.json", pdf_output, uuid, raw_avg_report["total_percentage"], output_dir, true_name, logo_path, sample_size, average_report=True)
             logging.info("Average score report generated for all datasets")
-            final_percentage = average_percentage if average_percentage is not None else "unknown"
+            #final_percentage = average_percentage if average_percentage is not None else "unknown"
+            final_percentage = float(average_percentage) if average_percentage is not None else None
         elif len(all_scores) == 1:
             # Single file processed successfully, final_percentage was set in the loop
             pass
         
         # Only update CAT readiness score if we have a valid uuid and processed at least one file
-        if uuid and len(all_scores) > 0:
+        if uuid and len(all_scores) > 0 and final_percentage is not None:
             update_cat_readiness_score(uuid, final_percentage, elastic_id, elastic_pass)
         else:
-            logging.warning(f"Skipping CAT readiness score update: uuid={uuid}, files_processed={len(all_scores)}")
+            logging.warning(
+                f"Skipping CAT readiness score update: "
+                f"uuid={uuid}, files_processed={len(all_scores)}, "
+                f"final_percentage={final_percentage}"
+            )
+        #if uuid and len(all_scores) > 0:
+        #    update_cat_readiness_score(uuid, final_percentage, elastic_id, elastic_pass)
+        #else:
+        #    logging.warning(f"Skipping CAT readiness score update: uuid={uuid}, files_processed={len(all_scores)}")
         return
     except Exception as e:
         logging.error(f"Error: {e}")
