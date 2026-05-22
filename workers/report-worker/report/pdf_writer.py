@@ -76,14 +76,6 @@ class PDFReport(FPDF):
             align='L'
         )
 
-        self.cell(
-            0,
-            10,
-            f"Report Generated On: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d-%b-%Y %I:%M %p IST')}",
-            ln=True,
-            align='L'
-        )
-
         # self.set_font("Helvetica", 'B', 12)
         # self.set_xy(160, 30)
         # self.cell(0, 10, f"Score: {self.total_score:.2f} / {self.total_weights:.2f}", ln=True, align='L')
