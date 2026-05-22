@@ -19,6 +19,7 @@ def _flatten_complex_columns(df):
     into JSON strings so that downstream operations (duplicated, value_counts,
     convert_dtypes) do not trigger ArrowNotImplementedError on struct types.
     """
+    print(df)
     for col in df.columns:
         if df[col].dtype == object and not df[col].empty:
             sample = df[col].dropna().iloc[0] if df[col].notna().any() else None
