@@ -13,22 +13,20 @@ def calculate_average_readiness(reports):
         'date_or_timestamp_issues_percentage',
     }
     sum_keys = {
-        'column_missing_count',
-        'number_of_columns',
         'row_missing_count',
         'number_of_rows',
         'exact_row_duplicates_count',
+    }
+    schema_avg_keys = {
+        'column_missing_count',
+        'number_of_columns',
         'number_of_numeric_columns',
         'number_of_categorical_columns',
         'number_of_date_columns',
         'number_of_timestamp_columns',
     }
-    list_keys = {
+    mergeable_keys = {
         'region_column',
-        'low_variance_numeric_columns',
-        'numeric_columns',
-        'dominant_categorical_columns',
-        'categorical_columns',
         'date_column',
         'timestamp_column',
         'date_or_timestamp_fields_found',
@@ -61,16 +59,34 @@ def calculate_average_readiness(reports):
                     averaged_detailed_scores[metric] += value.get(metric, 0)
             elif key in average_keys and isinstance(value, (int, float)):
                 average_report[key] = average_report.get(key, 0) + value
+            elif key in schema_avg_keys and isinstance(value, (int, float)):
+                average_report[key] = average_report.get(key, 0) + value
             elif key in sum_keys and isinstance(value, (int, float)):
                 average_report[key] = average_report.get(key, 0) + value
             elif key in dict_keys and isinstance(value, dict):
                 merged = average_report.get(key, {}).copy()
                 merged.update(value)
                 average_report[key] = merged
-            elif key in list_keys:
-                items = value if isinstance(value, list) else []
-                merged = set(average_report.get(key, []))
+            #elif key in list_keys:
+            #    items = value if isinstance(value, list) else []
+            #    merged = set(average_report.get(key, []))
+            #    merged.update(items)
+            #    average_report[key] = sorted(merged)
+            elif key in mergeable_keys:
+
+                if value in [None, "None", ""]:
+                    continue
+
+                items = value if isinstance(value, list) else [value]
+
+                existing = average_report.get(key, [])
+
+                if not isinstance(existing, list):
+                    existing = [existing]
+
+                merged = set(existing)
                 merged.update(items)
+
                 average_report[key] = sorted(merged)
             elif key == 'file_format':
                 if average_report.get(key) == 'invalid' or value == 'invalid':
@@ -79,16 +95,32 @@ def calculate_average_readiness(reports):
                     average_report[key] = value
             elif key == 'documentation_found':
                 average_report[key] = average_report.get(key, False) or bool(value)
-            elif key not in {'total_weights', 'total_score', 'total_percentage'}:
-                average_report[key] = value
+            elif key not in {
+                'total_weights',
+                'total_score',
+                'total_percentage'
+            }:
+                if key not in average_report:
+                    average_report[key] = value
         count += 1
 
-    #for key in average_keys:
-    #    if key in average_report and count > 0:
-    #        average_report[key] = average_report[key] / count
     for key in average_keys:
-        if key in average_report and count > 0 and isinstance(average_report[key], (int, float)):
-            average_report[key] = average_report[key] / count
+        if (
+            key in average_report
+            and count > 0
+            and isinstance(average_report[key], (int, float))
+        ):
+            average_report[key] = round(
+                average_report[key] / count,
+                2
+            )
+    for key in schema_avg_keys:
+        if key in average_report and count > 0:
+            average_report[key] = round(
+                average_report[key] / count,
+                2
+            )
+
 
     for key, default in sentinel_defaults.items():
         if key not in average_report or not average_report[key]:
