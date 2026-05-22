@@ -61,7 +61,17 @@ def check_categorical_variation(df, imputed_columns=None, dominance_threshold=0.
     dict
         This function returns a dictionary with two keys: 'dominant_categorical_columns' and 'percentage_dominant_categorical_columns'. The first key has a list of column names for all categorical columns that have a dominating category above the threshold, and the second key has a percentage of the total number of columns that are categorical with a dominating category above the threshold.
     """
-    categorical_cols = [col for col in df.columns if imputed_columns and col in (imputed_columns.get("categorical") or [])]
+    #categorical_cols = [col for col in df.columns if imputed_columns and col in (imputed_columns.get("categorical") or [])]
+    if imputed_columns and imputed_columns.get("categorical"):
+        categorical_cols = [
+            col for col in df.columns
+            if col in imputed_columns.get("categorical", [])
+        ]
+    else:
+        categorical_cols = df.select_dtypes(
+            include=["object", "category", "string"]
+        ).columns.tolist()
+
     print(f"Categorical columns: {categorical_cols}")
     if not categorical_cols:
         return {

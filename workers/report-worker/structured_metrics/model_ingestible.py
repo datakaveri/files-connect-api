@@ -20,6 +20,8 @@ def check_label_presence(df, imputed_columns=None):
         return {"label_presence_count": "None", "label_column": "Label column not found"}
 
     label_col = imputed_columns.get("label")
+    print(label_col)
+    print(df.columns)
     if label_col and label_col in df.columns:
         if df[label_col].empty:
             return {"label_presence_count": "None", "label_column": "Label column not found"}
