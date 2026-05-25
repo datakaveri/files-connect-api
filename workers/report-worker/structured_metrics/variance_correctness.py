@@ -18,7 +18,17 @@ def check_numeric_variance(df, cv_threshold=0.1):
     dict
         This function returns a dictionary with two keys: 'low_variance_numeric_columns' and 'percentage_low_variance_numeric_columns'. The first key has a list of column names for all numeric columns that have a standard deviation less than the threshold, and the second key has a percentage of the total number of columns that are numeric with a standard deviation less than the threshold.
     """
-    numeric_cols = df.select_dtypes(include=['number'])
+    # exclude low-cardinality integer columns that are categorical
+    all_numeric = df.select_dtypes(include=['number'])
+    numeric_col_names = []
+    for col in all_numeric.columns:
+        n_unique = df[col].nunique(dropna=True)
+        n_total = df[col].count()
+        is_low_cardinality = n_total > 0 and n_unique <= 20 and (n_unique / n_total) <= 0.05
+        if not is_low_cardinality:
+            numeric_col_names.append(col)
+    numeric_cols = df[numeric_col_names]
+
     if numeric_cols.empty:
         return {
             "low_variance_numeric_columns": 'None',
@@ -30,17 +40,22 @@ def check_numeric_variance(df, cv_threshold=0.1):
     for col in numeric_cols:
         mean = df[col].mean()
         std = df[col].std()
-        # Check for NA in mean or std
-        if pd.isna(mean) or mean == 0 or pd.isna(std):
+        # fix: use abs(mean) so negative means don't flip the CV sign
+        # fix: mean == 0 means no meaningful scale → flag as low variance
+        if pd.isna(std):
             continue
-        if std / mean < cv_threshold:
+        if pd.isna(mean) or mean == 0:
+            low_variance_cols.append(col)
+            continue
+        if std / abs(mean) < cv_threshold:
             low_variance_cols.append(col)
     
+    total_numeric = int(len(numeric_col_names))
     return {
         "low_variance_numeric_columns": low_variance_cols,
-        "percentage_low_variance_numeric_columns": round(len(low_variance_cols) / numeric_cols.shape[1] * 100, 1),
-        "number_of_numeric_columns": numeric_cols.shape[1],
-        "numeric_columns": numeric_cols.columns.tolist()
+        "percentage_low_variance_numeric_columns": round(len(low_variance_cols) / total_numeric * 100, 1) if total_numeric > 0 else 0,
+        "number_of_numeric_columns": total_numeric,
+        "numeric_columns": numeric_col_names
     }
 
 def check_categorical_variation(df, imputed_columns=None, dominance_threshold=0.99):
