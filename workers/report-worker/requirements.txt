@@ -16,5 +16,5 @@ PyPDF2==3.0.1
 mutagen==1.47.0
 pillow==12.2.0
 redis==5.0.1
-urllib3==2.6.3
+urllib3==2.7.0
 python-dotenv==1.0.0
