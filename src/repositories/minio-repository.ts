@@ -8,6 +8,7 @@
  * @module repositories/minio-repository
  */
 import * as Minio from "minio";
+import { createHash } from "crypto";
 import { Readable } from "stream";
 import { StorageRepositoryInterface, StorageConfig, MultipartUploadResult } from "../core/types/storage";
 import { createLogger } from "../core/utils/logger";
@@ -401,7 +402,6 @@ export class MinIORepository implements StorageRepositoryInterface {
    * Generates a simple ETag for MinIO objects (simplified implementation)
    */
   private generateETag(buffer: Buffer): string {
-    const crypto = require("crypto");
-    return crypto.createHash("md5").update(buffer).digest("hex");
+    return createHash("md5").update(buffer).digest("hex");
   }
 }

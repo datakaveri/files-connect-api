@@ -4,8 +4,8 @@
  */
 import { Readable } from "stream";
 import ExcelJS from "exceljs";
-// Use any type for papaparse to avoid type errors
-import * as Papa from "papaparse";
+import Papa from "papaparse";
+import type { ParseConfig } from "papaparse";
 import { XMLParser } from "fast-xml-parser";
 
 // Define types for file preview results
@@ -47,23 +47,6 @@ import {
 } from "../core/types/file";
 import { getFileExtension } from "../core/utils/helpers";
 import assert from "assert";
-
-// Define types for papaparse
-type PapaParseConfig = {
-  header?: boolean;
-  skipEmptyLines?: boolean;
-  complete?: (results: any) => void;
-  error?: (error: Error) => void;
-};
-
-type PapaParseResult = {
-  data: any[];
-  errors: any[];
-  meta: {
-    fields?: string[];
-    [key: string]: any;
-  };
-};
 
 /**
  * Type for preview result metadata
@@ -758,7 +741,7 @@ export class FileService implements FileServiceInterface {
         header: true,
         skipEmptyLines: true,
         delimiter: '\t', // Tab delimiter for TSV
-      } as Papa.ParseConfig);
+      } as ParseConfig);
 
       if (result.errors && result.errors.length > 0) {
         logger.warn("TSV parsing warnings", { errors: result.errors });
