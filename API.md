@@ -44,6 +44,21 @@ The API has been restructured to follow REST best practices, with all resources 
 | `/v1/databanks/:databankId/process/:jobId` | GET | Get status of a processing job | Yes | Provider |
 | `/v1/databanks/:databankId/process/:jobId/status` | PUT | Update status of a processing job | Yes | Provider |
 
+For zip jobs, `options.include` can be used to create a zip containing only selected databank-relative files. If `options.include` is omitted, all files in the databank are zipped.
+
+```json
+{
+  "type": "zip",
+  "prefix": "",
+  "options": {
+    "include": [
+      "kvk.json",
+      "folder/file.csv"
+    ]
+  }
+}
+```
+
 ### Temporary Access APIs
 
 | Endpoint | Method | Description | Auth Required | Roles |
@@ -68,6 +83,7 @@ The API has been restructured to follow REST best practices, with all resources 
 - Multipart uploads are used for large file uploads and follow the AWS S3 multipart upload protocol
 - The processing APIs trigger background jobs for creating zip files and/or generating reports
 - **Job type**: `zip` (zip only), `report` (report only), or `all` (both). For `all`, the API creates two jobs and returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status
+- **Zip include option**: `options.include` accepts a list of databank-relative file names/paths to include in the generated zip. Omit `include` to zip all files.
 - Processing jobs run asynchronously and respond with 202 Accepted status
 - Zip creation jobs can be tracked and downloaded once complete via the databanks download API
 - Temporary access API generates AWS STS credentials for direct S3 access to databank files without proxying through the API

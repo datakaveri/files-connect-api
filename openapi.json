@@ -1709,7 +1709,7 @@
           "Databanks"
         ],
         "summary": "Create a processing job for a databank",
-        "description": "Creates a new processing job (zip and/or report) for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "description": "Creates a new processing job (zip and/or report) for a databank.\n\nFor zip jobs, `options.include` can be used to create a zip containing only selected databank-relative files. If `options.include` is omitted, all files in the databank are zipped.\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1730,19 +1730,33 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "description": "Type of processing job (zip or report)"
+                    "description": "Type of processing job: zip (zip only), report (report only), or all (both zip and report)",
+                    "enum": [
+                      "zip",
+                      "report",
+                      "all"
+                    ]
                   },
                   "prefix": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Optional prefix for processing specific files"
                   },
                   "options": {
                     "type": "object",
-                    "properties": {}
+                    "description": "Optional processing options",
+                    "properties": {
+                      "include": {
+                        "type": "array",
+                        "description": "Optional databank-relative file names/paths to include in the generated zip. Omit to zip all files.",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
                   }
                 },
                 "required": [
-                  "type",
-                  "options"
+                  "type"
                 ]
               }
             }

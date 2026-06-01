@@ -930,6 +930,9 @@ registry.registerPath({
     '- `zip`: Creates a compressed zip archive of the databank files (zip job only)\n' +
     '- `report`: Runs data readiness assessment on the databank, generating JSON and PDF reports (report job only)\n' +
     '- `all`: Runs both zip and report jobs; returns separate job IDs for each so you can poll status for each\n\n' +
+    '**Zip Job Options:**\n' +
+    '- `options.include`: Optional list of databank-relative file names/paths to include in the generated zip\n' +
+    '- Omit `options.include` to zip all files in the databank\n\n' +
     '**Report Job Details:**\n' +
     '- Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio, Excel, DICOM) datasets\n' +
     '- Runs comprehensive data quality assessment framework\n' +
@@ -951,7 +954,10 @@ registry.registerPath({
               .enum(['zip', 'report', 'all'])
               .describe('Type of processing job: zip (zip only), report (report only), or all (both zip and report)'),
             prefix: z.string().optional().describe('Optional prefix for processing specific files (not used for report jobs)'),
-            options: z.object({}).passthrough().optional().describe('Optional processing options'),
+            options: z.object({
+              include: z.array(z.string()).optional()
+                .describe('Optional databank-relative file names/paths to include in the generated zip. Omit to zip all files.'),
+            }).passthrough().optional().describe('Optional processing options'),
           }),
         },
       },

@@ -130,6 +130,7 @@ def process_job(redis_client, job_data):
         job_id = job_info.get('jobId')
         databank_id = job_info.get('databankId')
         job_type = job_info.get('type')
+        options = job_info.get('options') or {}
         
         logger.info(f"Processing job {job_id} for databank {databank_id}")
         
@@ -137,7 +138,7 @@ def process_job(redis_client, job_data):
         update_job_status(redis_client, job_id, 'processing', progress=0)
         
         # Process the zip job
-        result = process_zip_job(databank_id)
+        result = process_zip_job(databank_id, options)
         
         # Update final status
         if result.get('success'):

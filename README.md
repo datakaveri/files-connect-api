@@ -294,6 +294,21 @@ API (TypeScript) → Redis Queue → Worker (Python) → S3/MinIO
 - **`report`** – Report job only: runs data readiness assessment and generates JSON and PDF reports.
 - **`all`** – Both: creates one zip job and one report job; response includes `jobIds.zip` and `jobIds.report` so you can poll each job separately.
 
+For zip jobs, omit `options.include` to zip every databank file, or pass databank-relative file names/paths to zip only selected files:
+
+```json
+{
+  "type": "zip",
+  "prefix": "",
+  "options": {
+    "include": [
+      "kvk.json",
+      "folder/file.csv"
+    ]
+  }
+}
+```
+
 ### Features
 - **Memory Efficient**: Streams large files without loading into memory
 - **Scalable**: Horizontally scale workers based on load

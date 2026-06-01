@@ -199,6 +199,23 @@ Each queue entry has the following shape (workers never see `type: "all"`; the A
 ```
 Use `"type": "report"` for report jobs.
 
+For zip jobs, `options.include` can limit the archive to selected databank-relative file names/paths. When omitted, the zip worker includes all files in the databank.
+
+```json
+{
+  "jobId": "uuid-v4",
+  "type": "zip",
+  "databankId": "databank-123",
+  "options": {
+    "include": [
+      "kvk.json",
+      "folder/file.csv"
+    ]
+  },
+  "createdAt": "2025-01-01T00:00:00.000Z"
+}
+```
+
 ### Job Status Format (Redis Hash `job:{jobId}`)
 ```
 jobId: "uuid-v4"

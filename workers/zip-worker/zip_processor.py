@@ -113,7 +113,35 @@ def get_s3_client():
         return boto3.client('s3', **config_params)
 
 
-def create_zip_from_s3_folder(s3_client, bucket_name, folder_key, temp_dir):
+def normalize_include_files(include_files, folder_key):
+    """
+    Normalize optional include entries into databank-relative paths.
+    Returns None when no include filter is requested.
+    """
+    if include_files is None:
+        return None
+
+    if not isinstance(include_files, list):
+        raise ValueError("options.include must be a list of filenames")
+
+    normalized_files = set()
+    folder_prefix = folder_key.strip('/')
+
+    for file_name in include_files:
+        if not isinstance(file_name, str) or not file_name.strip():
+            raise ValueError("options.include must contain non-empty strings")
+
+        normalized = file_name.replace('\\', '/').strip('/')
+
+        if folder_prefix and normalized.startswith(f"{folder_prefix}/"):
+            normalized = normalized[len(folder_prefix) + 1:]
+
+        normalized_files.add(normalized)
+
+    return normalized_files
+
+
+def create_zip_from_s3_folder(s3_client, bucket_name, folder_key, temp_dir, include_files=None):
     """
     Create a zip file from the contents of an S3 folder
     Memory-optimized version using streaming and chunked processing
@@ -123,6 +151,11 @@ def create_zip_from_s3_folder(s3_client, bucket_name, folder_key, temp_dir):
     zip_path = os.path.join(temp_dir, 'output.zip')
     file_count = 0
     total_bytes = 0
+    include_set = normalize_include_files(include_files, folder_key)
+    matched_include_files = set()
+
+    if include_set is not None:
+        logger.info(f"Applying include filter with {len(include_set)} file(s)")
     
     try:
         # List all objects in the folder
@@ -151,6 +184,13 @@ def create_zip_from_s3_folder(s3_client, bucket_name, folder_key, temp_dir):
                     if not relative_path:
                         relative_path = os.path.basename(key)
                         logger.warning(f"Empty relative path detected for {key}, using basename instead")
+
+                    if include_set is not None and relative_path not in include_set:
+                        logger.debug(f"Skipping file not in include filter: {relative_path}")
+                        continue
+
+                    if include_set is not None:
+                        matched_include_files.add(relative_path)
                     
                     # Use streaming to process the file without loading it entirely into memory
                     # Create a ZipInfo object to set compression method
@@ -201,6 +241,13 @@ def create_zip_from_s3_folder(s3_client, bucket_name, folder_key, temp_dir):
                         file_duration = time.time() - file_start_time
                         logger.info(f"Completed file: {key} - {file_bytes/1024/1024:.2f} MB in {file_duration:.2f} seconds")
         
+        if include_set is not None:
+            missing_files = sorted(include_set - matched_include_files)
+            if missing_files:
+                raise ValueError(
+                    "Included file(s) not found in databank: " + ", ".join(missing_files)
+                )
+
         zip_duration = time.time() - start_time
         zip_size_mb = os.path.getsize(zip_path) / 1024 / 1024
         logger.info(f"Zip creation complete: {zip_path}")
@@ -298,13 +345,14 @@ def update_cat_api(cat_url, cat_username, cat_password, databank_id, zip_size_mb
         # Don't raise - CAT API update failure shouldn't fail the entire job
 
 
-def process_zip_job(databankId):
+def process_zip_job(databankId, options=None):
     """
     Process a zip job for the given databank ID
     This is the main entry point called by the worker
     """
     start_time = time.time()
     logger.info(f"Processing zip job for databank: {databankId}")
+    options = options or {}
     
     try:
         # Get bucket name from environment variable
@@ -351,7 +399,13 @@ def process_zip_job(databankId):
             
             # Create zip file
             logger.info("Starting zip creation process")
-            zip_path, zip_size_mb = create_zip_from_s3_folder(s3_client, bucket_name, folder_key, temp_dir)
+            zip_path, zip_size_mb = create_zip_from_s3_folder(
+                s3_client,
+                bucket_name,
+                folder_key,
+                temp_dir,
+                options.get('include')
+            )
             
             # Calculate zip file size
             zip_size_bytes = os.path.getsize(zip_path)

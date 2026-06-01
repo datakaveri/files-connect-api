@@ -107,7 +107,12 @@ The API pushes a job into Redis using `src/core/utils/job-queue.ts`.
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
   "type": "zip",
   "databankId": "databank-123",
-  "options": {},
+  "options": {
+    "include": [
+      "kvk.json",
+      "folder/file.csv"
+    ]
+  },
   "createdAt": "2026-05-04T10:00:00.000Z"
 }
 ```
@@ -116,6 +121,8 @@ Workers never receive `type: "all"`. When the API receives `type: "all"`, it cre
 
 - one `zip` job pushed to `jobs:zip`
 - one `report` job pushed to `jobs:report`
+
+For zip jobs, `options.include` is optional. When present, it must be a list of databank-relative file names/paths to include in the archive. When omitted, the worker includes all files in the databank.
 
 ### 4.2 Job Status Hash
 
@@ -132,7 +139,7 @@ The API initializes a Redis hash at `job:{jobId}` before pushing the queue messa
 | `completedAt` | string | UTC ISO timestamp set by the worker on completion/failure |
 | `error` | string | Error message for failed jobs |
 | `result` | string | JSON-stringified processor result |
-| `options` | string | JSON-stringified options from the API, currently not used by the worker |
+| `options` | string | JSON-stringified options from the API. Zip jobs support optional `include` file filtering. |
 
 The API sets a 7-day TTL on job hashes.
 
@@ -608,6 +615,6 @@ There are currently no dedicated tests under `workers/zip-worker/`.
 | 5 | No output overwrite protection | Uploading to `zips/{databankId}.zip` overwrites any existing ZIP for that databank. |
 | 6 | CAT index is hard-coded | CAT update uses `tgdex__cat` in request paths and does not read an index-name environment variable. |
 | 7 | CAT update is best-effort | CAT failures are logged but do not fail the job, so Redis can show success while catalogue metadata remains stale. |
-| 8 | Options are ignored | Queue payload `options` are accepted by the API but not used by `worker.py` or `zip_processor.py`. |
+| 8 | Include matching is exact | `options.include` entries are matched against databank-relative paths in the zip. Missing entries fail the job with a validation error. |
 | 9 | Prefix handling assumes databank ID | The output key uses `os.path.basename(folder_key)`; this works for current databank IDs but would collapse nested custom prefixes. |
 | 10 | Empty-folder detection is shallow | The worker treats a prefix as empty if listing returns no contents or only the folder marker key. |
