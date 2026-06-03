@@ -554,8 +554,6 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
       if (accessPolicy === 'OPEN') {
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
         return next();
-      } else if (accessPolicy === 'PRIVATE') {
-        return next();
       } else {
         logger.info(`[checkItemAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
         // Not public, delegate to existing databankAccess middleware
