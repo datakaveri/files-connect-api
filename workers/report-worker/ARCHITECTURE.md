@@ -52,7 +52,6 @@ If a dataset is neither, it is classified as `unknown` and skipped (the catalogu
 
 ```
 workers/report-worker/
-├── Dockerfile                      # Lambda container image
 ├── Dockerfile.worker               # Kubernetes worker container image
 ├── requirements.txt                # Python dependencies
 │
@@ -105,7 +104,7 @@ workers/report-worker/
 ├── data/                           # Sample data for testing
 ├── outputReports/                  # Local output directory (dev/debug)
 ├── plots/                          # Logo assets used in PDF generation
-└── local_lambda_tester.py          # Local Lambda invocation helper
+└── local_lambda_tester.py          # Legacy local Lambda invocation helper
 ```
 
 ---
@@ -161,6 +160,8 @@ workers/report-worker/
 }
 ```
 `folder_key` may also be a list for batch processing.
+
+The Lambda container image Dockerfile has been removed; active deployments build `Dockerfile.worker`.
 
 The Lambda path downloads files, runs the framework, and uploads reports directly — bypassing the Redis queue.
 
@@ -685,15 +686,6 @@ Client
 
 ### 13.1 Docker Images
 
-**`Dockerfile`** — Lambda image:
-```dockerfile
-FROM public.ecr.aws/lambda/python:3.10
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["lambda_handler.lambda_handler"]
-```
-
 **`Dockerfile.worker`** — Kubernetes worker image:
 ```dockerfile
 FROM python:3.11-slim
@@ -843,7 +835,7 @@ cd workers/report-worker
 pytest tests/
 ```
 
-### Local Lambda testing
+### Legacy local Lambda testing
 
 ```bash
 python local_lambda_tester.py
