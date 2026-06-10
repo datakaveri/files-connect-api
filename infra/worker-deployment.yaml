@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zip-worker
-  namespace: default
+  namespace: sandbox
   labels:
     app: zip-worker
     component: job-processor
@@ -24,22 +24,33 @@ spec:
         env:
         # Redis configuration
         - name: REDIS_HOST
-          value: "redis"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_HOST
         - name: REDIS_PORT
-          value: "6379"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_PORT
         - name: REDIS_DB
-          value: "0"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_DB
+        - name: REDIS_CLUSTER
+          value: "false"
         - name: ZIP_QUEUE_NAME
           valueFrom:
             configMapKeyRef:
               name: files-connect-config
               key: ZIP_QUEUE_NAME
-        # Redis password (if using authentication)
-        # - name: REDIS_PASSWORD
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: redis-secret
-        #       key: password
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: files-connect-secret
+              key: REDIS_PASSWORD
+              optional: true
         
         # Storage configuration - from ConfigMap
         - name: STORAGE_PROVIDER
@@ -133,7 +144,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: zip-worker-hpa
-  namespace: default
+  namespace: sandbox
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

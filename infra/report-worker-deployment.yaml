@@ -38,6 +38,14 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: REDIS_DB
+        - name: REDIS_CLUSTER
+          value: "false"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: files-connect-secret
+              key: REDIS_PASSWORD
+              optional: true
         - name: REPORT_QUEUE_NAME
           valueFrom:
             configMapKeyRef:

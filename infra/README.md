@@ -37,12 +37,22 @@ kubectl apply -f infra/secret.yaml
 kubectl apply -f infra/configmap.yaml
 ```
 
-3. Deploy the application:
+3. Install or upgrade the Redis HA dependency:
+```bash
+helm repo add dandydev https://dandydeveloper.github.io/charts
+helm upgrade --install redis-ha dandydev/redis-ha \
+  --namespace sandbox \
+  -f infra/redis-ha-values.yaml
+```
+
+The application connects through the chart's HAProxy service (`redis-ha-haproxy:6379`). Do not deploy `infra/redis-deployment.yaml` and `infra/redis-service.yaml` when using Redis HA.
+
+4. Deploy the application:
 ```bash
 kubectl apply -f infra/manifest.yaml
 ```
 
-4. Apply the ingress configuration:
+5. Apply the ingress configuration:
 ```bash
 kubectl apply -f infra/ingress.yaml
 ```
