@@ -24,6 +24,55 @@ const authService = createAuthService();
 // Auth feature toggles from environment
 const isAuthEnabled = env.AUTH_ENABLED;
 const isAuthzEnabled = env.AUTHZ_ENABLED;
+const ACL_SUCCESS_TYPES = new Set([
+  'urn:dx:apdServerPanel:success',
+  'dx:aclApd:success',
+]);
+const FILE_ACCESS_TYPE = 'file';
+
+function hasOwnConstraints(policy: unknown): boolean {
+  if (!policy || typeof policy !== 'object' || !('constraints' in policy)) {
+    return false;
+  }
+
+  const constraints = (policy as { constraints?: unknown }).constraints;
+  return !!constraints && typeof constraints === 'object' && Object.keys(constraints).length > 0;
+}
+
+function hasFileAccessConstraint(policy: unknown): boolean {
+  if (!hasOwnConstraints(policy)) {
+    return false;
+  }
+
+  const constraints = (policy as { constraints: { access?: unknown } }).constraints;
+  if (!Array.isArray(constraints.access)) {
+    return false;
+  }
+
+  return constraints.access.some((accessConstraint) => {
+    if (!accessConstraint || typeof accessConstraint !== 'object') {
+      return false;
+    }
+
+    const accessType = (accessConstraint as { accessType?: unknown }).accessType;
+    return typeof accessType === 'string' && accessType.toLowerCase() === FILE_ACCESS_TYPE;
+  });
+}
+
+function hasFileAccessFromHasAccessResponse(responseData: unknown): boolean {
+  const policies = (responseData as { result?: { policies?: unknown } })?.result?.policies;
+
+  if (!Array.isArray(policies)) {
+    return true;
+  }
+
+  const constrainedPolicies = policies.filter(hasOwnConstraints);
+  if (constrainedPolicies.length === 0) {
+    return true;
+  }
+
+  return constrainedPolicies.some(hasFileAccessConstraint);
+}
 
 /**
  * Authentication middleware
@@ -310,7 +359,20 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       logger.debug('ACL API response', { responseData });
 
       // Check response type to determine access
-      if (responseData.type === 'urn:dx:apdServerPanel:success') {
+      if (ACL_SUCCESS_TYPES.has(responseData.type)) {
+        if (!hasFileAccessFromHasAccessResponse(responseData)) {
+          logger.warn('Databank access denied by ACL API constraints', {
+            userId: res.locals.userId,
+            databankId: requestedDatabankId,
+            responseType: responseData.type,
+          });
+
+          return next(new AuthorizationError('File access is not permitted for this databank', {
+            reason: 'FILE_ACCESS_CONSTRAINT_MISSING',
+            databankId: requestedDatabankId,
+          }));
+        }
+
         // User has access, continue to next middleware
         logger.info('Databank access granted via ACL API', {
           userId: res.locals.userId,

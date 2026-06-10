@@ -86,4 +86,106 @@ describe('checkItemAccessWithDatabankAccess', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
   });
+
+  it('allows ACL/APD v2 success when policies have no constraints', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        result: [{ accessPolicy: 'PRIVATE' }],
+      },
+    });
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        type: 'dx:aclApd:success',
+        result: {
+          policies: [{ policyId: 'policy-1', status: 'ACTIVE' }],
+        },
+      },
+    });
+
+    const next = jest.fn() as NextFunction;
+
+    await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it('allows ACL/APD v2 success when constrained policy includes file access', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        result: [{ accessPolicy: 'PRIVATE' }],
+      },
+    });
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        type: 'dx:aclApd:success',
+        result: {
+          policies: [
+            {
+              policyId: 'policy-1',
+              status: 'ACTIVE',
+              constraints: {
+                access: [{ accessType: 'file' }],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const next = jest.fn() as NextFunction;
+
+    await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it('denies ACL/APD v2 success when constraints omit file access', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        result: [{ accessPolicy: 'PRIVATE' }],
+      },
+    });
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        type: 'dx:aclApd:success',
+        result: {
+          policies: [
+            {
+              policyId: 'policy-1',
+              status: 'ACTIVE',
+              constraints: {
+                access: [{ accessType: 'api' }],
+                subjects: {
+                  allowedRoles: ['provider'],
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const next = jest.fn() as NextFunction;
+
+    await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'File access is not permitted for this databank',
+    }));
+  });
 });
