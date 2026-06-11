@@ -39,7 +39,10 @@ def get_redis_client():
     redis_port = int(os.environ.get('REDIS_PORT', '6379'))
     redis_password = os.environ.get('REDIS_PASSWORD')
     redis_db = int(os.environ.get('REDIS_DB', '0'))
-    use_cluster = os.environ.get('REDIS_CLUSTER', '').lower() in ('1', 'true', 'yes')
+    use_cluster = (
+        os.environ.get('REDIS_CLUSTER')
+        or os.environ.get('REDIS_CLUSTER_MODE', '')
+    ).lower() in ('1', 'true', 'yes')
 
     if use_cluster:
         logger.info(f"Connecting to Redis Cluster: {redis_host}:{redis_port}")
@@ -49,6 +52,10 @@ def get_redis_client():
             'decode_responses': True,
             'socket_connect_timeout': 5,
             'socket_keepalive': True,
+            'dynamic_startup_nodes': os.environ.get(
+                'REDIS_CLUSTER_DYNAMIC_STARTUP_NODES',
+                'false',
+            ).lower() in ('1', 'true', 'yes'),
         }
         if redis_password:
             cluster_config['password'] = redis_password
@@ -58,7 +65,7 @@ def get_redis_client():
             logger.info("Successfully connected to Redis Cluster")
             return client
         except Exception as e:
-            logger.error(f"Failed to connect to Redis Cluster: {str(e)}")
+            logger.exception(f"Failed to connect to Redis Cluster: {str(e)}")
             raise
     else:
         logger.info(f"Connecting to Redis: {redis_host}:{redis_port}/{redis_db}")
