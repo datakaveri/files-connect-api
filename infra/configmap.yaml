@@ -20,13 +20,10 @@ data:
   LAMBDA_REGION: "ap-south-1"
   CAT_API_URL: "https://v2.dev.controlplane.iudx.io/iudx/v2/cat"
   REPORTS_LAMBDA_URL: "https://a6tttymcoyytfod7umoabkxsc40blzhi.lambda-url.ap-south-1.on.aws/"
-  # Redis HA configuration for job queue.
-  # This should point at the redis-ha Helm chart HAProxy service, not an
-  # individual Redis/Sentinel pod.
-  REDIS_HOST: "redis-ha-haproxy"
+  # Redis configuration for job queue
+  REDIS_HOST: "redis"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
-  REDIS_CLUSTER_MODE: "false"
   ZIP_QUEUE_NAME: "jobs:zip"
   REPORT_QUEUE_NAME: "jobs:report"
   # Storage provider configuration
