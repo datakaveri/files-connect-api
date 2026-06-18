@@ -114,7 +114,7 @@ pipeline {
               steps {
                 script {
                   def deployTag = "1.0.1-${env.GIT_HASH}"
-                  sh "ssh ubuntu@dev-eks 'cd v2-deployments/iudx/iudx-installer/K8s-deployment/Charts/file-connect-api && helm upgrade files-connect-api . -n files-connect-api --atomic --timeout 5m --reuse-values --set image.registry=ghcr.io --set image.repository=${devRegistryMain} --set image.tag=${deployTag} --set workers.report-worker.image.repository=${devRegistryReport} --set workers.report-worker.image.tag=${deployTag} --set workers.zip-worker.image.repository=${devRegistryZip} --set workers.zip-worker.image.tag=${deployTag}'"
+                  sh "ssh ubuntu@dev-eks 'cd v2-deployments/iudx/iudx-installer/K8s-deployment/Charts/file-connect-api && helm upgrade files-connect-api . -n files-connect-api --rollback-on-failure --timeout 5m --reuse-values --set image.registry=ghcr.io --set image.repository=${devRegistryMain} --set image.tag=${deployTag} --set workers.report-worker.image.repository=${devRegistryReport} --set workers.report-worker.image.tag=${deployTag} --set workers.zip-worker.image.repository=${devRegistryZip} --set workers.zip-worker.image.tag=${deployTag}'"
                 }
               }
               post{
