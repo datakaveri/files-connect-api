@@ -149,6 +149,31 @@ describe('checkItemAccessWithDatabankAccess', () => {
     expect(next).toHaveBeenCalledWith();
   });
 
+  it('allows legacy ACL/APD success detail when response type is unrecognized', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        result: [{ accessPolicy: 'PRIVATE' }],
+      },
+    });
+    mockedAxios.post.mockResolvedValueOnce({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      data: {
+        type: 'urn:dx:aclServer:success',
+        detail: 'User has access to the given asset!',
+      },
+    });
+
+    const next = jest.fn() as NextFunction;
+
+    await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
   it('denies ACL/APD v2 success when constraints omit file access', async () => {
     mockedAxios.get.mockResolvedValueOnce({
       status: 200,

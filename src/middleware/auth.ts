@@ -29,6 +29,39 @@ const ACL_SUCCESS_TYPES = new Set([
   'dx:aclApd:success',
 ]);
 const FILE_ACCESS_TYPE = 'file';
+const ACL_LEGACY_SUCCESS_DETAIL_PATTERN = /^user has access to the given (asset|item|databank)!?$/i;
+
+function getStringProperty(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const property = (value as Record<string, unknown>)[key];
+  return typeof property === 'string' ? property : undefined;
+}
+
+function isAclAccessGranted(responseData: unknown): boolean {
+  const responseType = getStringProperty(responseData, 'type');
+  if (responseType && ACL_SUCCESS_TYPES.has(responseType)) {
+    return true;
+  }
+
+  const detail = getStringProperty(responseData, 'detail');
+  if (detail && ACL_LEGACY_SUCCESS_DETAIL_PATTERN.test(detail.trim())) {
+    return true;
+  }
+
+  const result = responseData && typeof responseData === 'object'
+    ? (responseData as { result?: unknown }).result
+    : undefined;
+
+  if (result && typeof result === 'object') {
+    const hasAccess = (result as { hasAccess?: unknown }).hasAccess;
+    return hasAccess === true;
+  }
+
+  return false;
+}
 
 function hasOwnConstraints(policy: unknown): boolean {
   if (!policy || typeof policy !== 'object' || !('constraints' in policy)) {
@@ -359,7 +392,7 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       logger.debug('ACL API response', { responseData });
 
       // Check response type to determine access
-      if (ACL_SUCCESS_TYPES.has(responseData.type)) {
+      if (isAclAccessGranted(responseData)) {
         if (!hasFileAccessFromHasAccessResponse(responseData)) {
           logger.warn('Databank access denied by ACL API constraints', {
             userId: res.locals.userId,
