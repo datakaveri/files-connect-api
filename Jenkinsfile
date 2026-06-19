@@ -110,34 +110,16 @@ pipeline {
               }
             }
 
-            stage('Docker Swarm deployment') {
+            stage('EKS Helm deployment') {
               steps {
                 script {
-                  sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_file-server-minio-iudx-v2 --image ghcr.io/datakaveri/file-connect-api-minio:1.0.1-${env.GIT_HASH}'"
-
-                  sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_filer-server-iudx-v2-report-worker --image ghcr.io/datakaveri/file-connect-api-minio-worker-1:1.0.1-${env.GIT_HASH}'"
-
-                  sh "ssh azureuser@docker-swarm 'docker service update file-server-minio-iudx-v2_filer-server-iudx-v2-zip-worker --image ghcr.io/datakaveri/file-connect-api-minio-worker:1.0.1-${env.GIT_HASH}'"
-
-                  sh 'sleep 15'
-
-                  sh '''#!/bin/bash 
-                  response_code=$(curl -s -o /dev/null -w '%{http_code}\\n' --connect-timeout 5 --retry 5 --retry-connrefused -XGET https://v2.dev.file.iudx.io/apis)
-
-                  if [[ "$response_code" -ne "200" ]]
-                  then
-                    echo "Health check failed"
-                    exit 1
-                  else
-                    echo "Health check complete; Server is up."
-                    exit 0
-                  fi
-                  '''
+                  def deployTag = "1.0.1-${env.GIT_HASH}"
+                  sh "ssh ubuntu@dev-eks 'cd v2-deployments/iudx/iudx-installer/K8s-deployment/Charts/file-connect-api && helm upgrade files-connect-api . -n files-connect-api --rollback-on-failure --timeout 5m --reuse-values --set image.registry=ghcr.io --set image.repository=${devRegistryMain} --set image.tag=${deployTag} --set workers.report-worker.image.repository=${devRegistryReport} --set workers.report-worker.image.tag=${deployTag} --set workers.zip-worker.image.repository=${devRegistryZip} --set workers.zip-worker.image.tag=${deployTag}'"
                 }
               }
               post{
                 failure{
-                  error "Failed to deploy image in Docker Swarm"
+                  error "Failed to deploy image to EKS via Helm"
                 }
               }
             }
@@ -146,7 +128,6 @@ pipeline {
         }
 
       }
-
     }
 
   }
