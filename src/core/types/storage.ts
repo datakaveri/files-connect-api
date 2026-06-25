@@ -8,7 +8,8 @@
 
 export enum StorageProvider {
   S3 = 's3',
-  MINIO = 'minio'
+  MINIO = 'minio',
+  GCS = 'gcs'
 }
 
 export interface StorageConfig {

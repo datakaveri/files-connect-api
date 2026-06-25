@@ -49,6 +49,7 @@ const logger = createLogger('AWSS3Repository');
  */
 export interface AWSS3RepositoryConfig extends StorageConfig {
   retryOptions?: Partial<RetryOptions>;
+  disableChecksums?: boolean;
 }
 
 // Export legacy interface for backward compatibility
@@ -85,8 +86,15 @@ export class AWSS3Repository implements StorageRepositoryInterface {
       credentials: {
         accessKeyId: config.accessKey,
         secretAccessKey: config.secretKey
-      }
+      },
     };
+
+    // GCS S3-compatible XML API does not support x-amz-checksum-* headers, so
+    // disable automatic CRC32 injection for GCS to avoid SignatureDoesNotMatch errors.
+    if (config.disableChecksums) {
+      s3Config.requestChecksumCalculation = 'WHEN_REQUIRED';
+      s3Config.responseChecksumValidation = 'WHEN_REQUIRED';
+    }
 
     // Add endpoint if provided
     if (config.endpoint) {
