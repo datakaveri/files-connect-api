@@ -24,6 +24,9 @@ export function createStorageRepository(config: StorageConfig): StorageRepositor
   switch (config.provider) {
     case StorageProvider.S3:
       return createAWSS3Repository(config);
+    case StorageProvider.GCS:
+      // GCS uses the S3-compatible XML API but doesn't support AWS checksum headers
+      return createAWSS3Repository({ ...config, disableChecksums: true });
     case StorageProvider.MINIO:
       return new MinIORepository(config);
     default:

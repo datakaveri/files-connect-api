@@ -20,7 +20,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
   // Storage provider configuration
-  STORAGE_PROVIDER: z.enum(["s3", "minio"]).default("s3"),
+  STORAGE_PROVIDER: z.enum(["s3", "minio", "gcs"]).default("s3"),
   STORAGE_ENDPOINT: z.string().optional(),
   STORAGE_REGION: z.string().optional(),
   STORAGE_ACCESS_KEY: z.string().optional(),
@@ -175,6 +175,14 @@ function validateStorageConfiguration(env: Env): void {
 
     if (!hasStorageVars && !hasLegacyS3) {
       logger.error(`MinIO storage provider requires either STORAGE_* variables or legacy S3_* variables. hasStorageVars=${hasStorageVars}, hasLegacyS3=${hasLegacyS3}, provider=${provider}`);
+      exit(1);
+    }
+  } else if (provider === "gcs") {
+    // GCS uses its S3-compatible XML API with HMAC keys — STORAGE_* variables are required
+    const hasStorageVars = env.STORAGE_ENDPOINT && env.STORAGE_ACCESS_KEY && env.STORAGE_SECRET_KEY;
+
+    if (!hasStorageVars) {
+      logger.error(`GCS storage provider requires STORAGE_ENDPOINT, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY (HMAC credentials). hasStorageVars=${hasStorageVars}, provider=${provider}`);
       exit(1);
     }
   }
