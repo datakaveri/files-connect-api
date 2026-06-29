@@ -31,6 +31,15 @@ const ACL_SUCCESS_TYPES = new Set([
 const FILE_ACCESS_TYPE = 'file';
 const ACL_LEGACY_SUCCESS_DETAIL_PATTERN = /^user has access to the given (asset|item|databank)!?$/i;
 
+function buildCatalogueItemUrl(databankId: string): string {
+  const queryParams = new URLSearchParams({
+    id: databankId,
+    auditEnabled: 'false',
+  });
+
+  return `${env.CAT_API_URL}/item?${queryParams.toString()}`;
+}
+
 function getStringProperty(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') {
     return undefined;
@@ -490,7 +499,7 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
     //   return next();
     // }
 
-    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    const catalogApiUrl = buildCatalogueItemUrl(databankId);
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
 
     // Forward the authorization token from the original request
@@ -612,7 +621,7 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
   }
 
   try {
-    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    const catalogApiUrl = buildCatalogueItemUrl(databankId);
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
 
     // Forward the authorization token from the original request
@@ -758,7 +767,7 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
   }
 
   try {
-    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    const catalogApiUrl = buildCatalogueItemUrl(databankId);
     logger.info(`[checkIsOwner] Calling Catalogue API: ${catalogApiUrl}`);
 
     // Forward the authorization token from the original request

@@ -1,9 +1,9 @@
 import os
 import requests
 
-# Catalogue API base URL from env (e.g. CAT_API_URL). Item endpoint: {base}/item?id={uuid}
+# Catalogue API base URL from env (e.g. CAT_API_URL). Item endpoint: {base}/item?id={uuid}&auditEnabled=false
 _CAT_BASE = os.environ.get('CAT_API_URL', 'https://v2.dev.controlplane.iudx.io/iudx/v2/cat').rstrip('/')
-url_format = f'{_CAT_BASE}/item?id={{}}'
+url_format = f'{_CAT_BASE}/item?id={{}}&auditEnabled=false'
 def get_uuid_from_dataset_name(folder_name):
     return folder_name.split('.')[0]
 

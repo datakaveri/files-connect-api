@@ -151,6 +151,15 @@ export interface AuditServiceInterface {
 export class AuditService implements AuditServiceInterface {
   constructor(private rabbitmqService: RabbitMQServiceInterface) { }
 
+  private buildCatalogueItemUrl(databankId: string): string {
+    const queryParams = new URLSearchParams({
+      id: databankId,
+      auditEnabled: "false",
+    });
+
+    return `${env.CAT_API_URL}/item?${queryParams.toString()}`;
+  }
+
   async publishAuditMessage(context: AuditContext): Promise<void> {
     try {
       // Extract organization info and issuer from JWT token if available
@@ -344,7 +353,7 @@ export class AuditService implements AuditServiceInterface {
         logger.debug("Forwarding authorization token to catalogue API");
       }
 
-      const response = await axios.get<CatalogueApiResponse>(`${env.CAT_API_URL}/item?id=${databankId}`, {
+      const response = await axios.get<CatalogueApiResponse>(this.buildCatalogueItemUrl(databankId), {
         timeout: 5000, // 5 second timeout
         headers,
       });

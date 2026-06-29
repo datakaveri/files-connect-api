@@ -53,6 +53,10 @@ describe('checkItemAccessWithDatabankAccess', () => {
 
     await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
 
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'https://catalogue.example.test/item?id=databank-1&auditEnabled=false',
+      { headers: { Authorization: 'Bearer test-token' } }
+    );
     expect(mockedAxios.post).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
