@@ -18,3 +18,4 @@ pillow==12.2.0
 redis>=5.0.8,<6.0.0
 urllib3==2.7.0
 python-dotenv==1.0.0
+google-cloud-storage==2.19.0

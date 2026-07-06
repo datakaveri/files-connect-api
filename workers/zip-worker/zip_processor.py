@@ -28,11 +28,18 @@ http = urllib3.PoolManager()
 
 def get_s3_client():
     """
-    Create and configure S3/MinIO client based on environment variables
+    Create and configure a storage client based on environment variables.
+    Returns a native GCS client (wrapped in a boto3-compatible facade) for
+    STORAGE_PROVIDER=gcs, or a boto3 S3/MinIO client otherwise.
     """
     storage_provider = os.environ.get('STORAGE_PROVIDER', 's3').lower()
 
-    # Get credentials
+    if storage_provider == 'gcs':
+        from gcs_client import create_gcs_client
+        logger.info("Configuring native GCS client (google-cloud-storage)")
+        return create_gcs_client()
+
+    # Get credentials (S3/MinIO only - GCS uses GCS_* service-account credentials above)
     access_key = os.environ.get('S3_ACCESS_KEY')
     secret_key = os.environ.get('S3_SECRET_KEY')
 

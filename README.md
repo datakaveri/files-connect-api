@@ -144,7 +144,7 @@ Only **one bucket** needs to be created. Everything lives under `BUCKET_NAME` us
 |---|---|
 | `BUCKET_NAME` | Single bucket for all operations — databank files, assets, zips, and PDF reports |
 
-> **Note:** The bucket must be accessible by the API and both Python workers. For S3/MinIO this means using the same credentials (`STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`) across all three. **For GCS**, the API uses the native `@google-cloud/storage` client (service account or ADC — see [Storage Providers](#storage-providers) above), while the Python workers still talk to GCS through its [S3-compatible interoperability API](https://cloud.google.com/storage/docs/interoperability) via `boto3`, authenticated with a separate GCS HMAC key pair (`S3_ACCESS_KEY` / `S3_SECRET_KEY` set to the HMAC access/secret, `S3_ENDPOINT=https://storage.googleapis.com`) — both must point at the same bucket.
+> **Note:** The bucket must be accessible by the API and both Python workers. For S3/MinIO this means using the same credentials (`STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`) across all three. **For GCS**, the API and both Python workers all use the same native `google-cloud-storage` client and the same `GCS_PROJECT_ID` / `GCS_KEY_FILE` (or `GCS_CLIENT_EMAIL` + `GCS_PRIVATE_KEY`) credentials — see [Storage Providers](#storage-providers) above. Workers fall back to GCS's [S3-compatible interoperability API](https://cloud.google.com/storage/docs/interoperability) via `boto3` only if you explicitly keep `STORAGE_PROVIDER` unset/`s3` with a GCS HMAC key pair (`S3_ACCESS_KEY` / `S3_SECRET_KEY`, `S3_ENDPOINT=https://storage.googleapis.com`) instead.
 
 ### Upload & Read Paths
 
