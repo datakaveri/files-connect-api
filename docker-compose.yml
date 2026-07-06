@@ -130,6 +130,14 @@ services:
   #     STORAGE_FORCE_PATH_STYLE: true
   #     STORAGE_USE_SSL: false
   #     BUCKET_NAME: files-connect-bucket
+  #
+  #     # Or use GCS instead of MinIO (native @google-cloud/storage client):
+  #     # STORAGE_PROVIDER: gcs
+  #     # GCS_PROJECT_ID: your-gcp-project-id
+  #     # GCS_KEY_FILE: /run/secrets/gcs-key.json  # mount a service account key file as a volume
+  #     # GCS_CLIENT_EMAIL: your-service-account@your-project.iam.gserviceaccount.com
+  #     # GCS_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+  #     # BUCKET_NAME: your-gcs-bucket
 
   #     # Auth Configuration (example values - replace with your actual values)
   #     KEYCLOAK_AUTH_URL: http://localhost:8080

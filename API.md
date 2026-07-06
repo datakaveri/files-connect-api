@@ -88,4 +88,5 @@ For zip jobs, `options.include` can be used to create a zip containing only sele
 - Zip creation jobs can be tracked and downloaded once complete via the databanks download API
 - Temporary access API generates AWS STS credentials for direct S3 access to databank files without proxying through the API
 - Temporary credentials are time-limited (default 15 minutes) and scoped to specific databank access only
+- The temporary access (`query-access`) endpoint is AWS-STS-specific and returns a 400 when `STORAGE_PROVIDER=gcs`, since GCS has no AssumeRole equivalent; use the presigned URL endpoints for time-limited GCS object access instead
 - Authorization is role-based with two primary roles: Provider and Consumer
