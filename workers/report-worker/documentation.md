@@ -84,7 +84,7 @@ The worker requires the following environment variables:
 docker-compose up -d report-worker
 
 # Scale to multiple workers
-docker-compose up -d --scale report-worker=3
+docker-compose up -d --scale report-worker=4
 
 # View logs
 docker-compose logs -f report-worker

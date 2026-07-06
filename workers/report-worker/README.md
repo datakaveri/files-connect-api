@@ -21,7 +21,7 @@ TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
 docker-compose up -d report-worker
 
 # Scale to multiple workers
-docker-compose up -d --scale report-worker=3
+docker-compose up -d --scale report-worker=4
 
 # View logs
 docker-compose logs -f report-worker

@@ -73,7 +73,6 @@ services:
     build:
       context: ./workers/report-worker
       dockerfile: Dockerfile.worker
-    container_name: files-connect-report-worker
     depends_on:
       redis:
         condition: service_healthy
@@ -108,7 +107,7 @@ services:
       # ELASTIC_PASS: your-elastic-password
     restart: unless-stopped
     # For development, can run multiple workers by scaling:
-    # docker-compose up -d --scale report-worker=2
+    # docker-compose up -d --scale report-worker=4
 
   # Files Connect API
   # api:

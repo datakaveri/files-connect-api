@@ -65,7 +65,7 @@ docker-compose up -d
 
 # Scale workers
 docker-compose up -d --scale zip-worker=3
-docker-compose up -d --scale report-worker=2
+docker-compose up -d --scale report-worker=4
 
 # View worker logs
 docker-compose logs -f zip-worker
@@ -339,11 +339,11 @@ If workers are running out of memory:
 ```bash
 # Docker Compose
 docker-compose up -d --scale zip-worker=5
-docker-compose up -d --scale report-worker=3
+docker-compose up -d --scale report-worker=4
 
 # Kubernetes
 kubectl scale deployment zip-worker --replicas=5
-kubectl scale deployment report-worker --replicas=3
+kubectl scale deployment report-worker --replicas=4
 ```
 
 **Vertical Scaling (Kubernetes):**

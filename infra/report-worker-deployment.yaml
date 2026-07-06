@@ -7,7 +7,7 @@ metadata:
     app: report-worker
     component: job-processor
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app: report-worker
@@ -129,8 +129,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: report-worker
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 4
+  maxReplicas: 12
   metrics:
   - type: Resource
     resource:

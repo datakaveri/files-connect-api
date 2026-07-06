@@ -132,7 +132,7 @@ docker-compose up -d report-worker
 docker-compose logs -f report-worker
 
 # Scale workers
-docker-compose up -d --scale report-worker=2
+docker-compose up -d --scale report-worker=4
 ```
 
 ### Step 3: Verify Worker is Running
@@ -144,8 +144,8 @@ docker ps | grep report-worker
 # Check logs
 docker-compose logs report-worker | tail -50
 
-# Test Redis connection (from worker container)
-docker exec -it files-connect-report-worker python -c "import redis; r = redis.Redis(host='redis', port=6379); print(r.ping())"
+# Test Redis connection (from a worker container)
+docker-compose exec report-worker python -c "import redis; r = redis.Redis(host='redis', port=6379); print(r.ping())"
 ```
 
 ---
@@ -209,7 +209,7 @@ metadata:
     app: report-worker
     component: job-processor
 spec:
-  replicas: 2  # Start with 2 replicas, scale as needed
+  replicas: 4  # Start with 4 replicas, scale as needed
   selector:
     matchLabels:
       app: report-worker
@@ -346,8 +346,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: report-worker
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 4
+  maxReplicas: 12
   metrics:
   - type: Resource
     resource:
@@ -761,8 +761,8 @@ kubectl get deployment report-worker
 The HorizontalPodAutoscaler is configured in the deployment YAML. It will automatically scale based on CPU and memory usage.
 
 **HPA Configuration:**
-- Min replicas: 2
-- Max replicas: 10
+- Min replicas: 4
+- Max replicas: 12
 - CPU threshold: 70%
 - Memory threshold: 80%
 
