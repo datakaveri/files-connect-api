@@ -17,6 +17,13 @@ services: {}
 #       # STORAGE_FORCE_PATH_STYLE: false
 #       # STORAGE_USE_SSL: true
 #
+#       # Or use GCS (native @google-cloud/storage client)
+#       # STORAGE_PROVIDER: gcs
+#       # GCS_PROJECT_ID: your-gcp-project-id
+#       # GCS_KEY_FILE: /run/secrets/gcs-key.json  # mount the key file as a volume/secret
+#       # GCS_CLIENT_EMAIL: your-service-account@your-project.iam.gserviceaccount.com
+#       # GCS_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+#
 #       # Override other services URLs if running locally
 #       # KEYCLOAK_AUTH_URL: http://host.docker.internal:8080
 #       # ACL_APD_API_URL: http://host.docker.internal:8081
@@ -28,3 +35,4 @@ services: {}
 #     #   - .:/app
 #     #   - /app/node_modules
 #     #   - ~/.aws:/root/.aws:ro  # Mount AWS credentials if using S3
+#     #   - ./gcs-key.json:/run/secrets/gcs-key.json:ro  # Mount a GCS service account key if using GCS

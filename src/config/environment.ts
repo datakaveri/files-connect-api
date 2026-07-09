@@ -44,6 +44,17 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
   BUCKET_NAME: z.string(),
+
+  // GCS configuration (native @google-cloud/storage client, used when STORAGE_PROVIDER=gcs)
+  // All optional: if none are set, the client falls back to Application Default Credentials
+  // (e.g. workload identity when running on GKE/Cloud Run/GCE).
+  GCS_PROJECT_ID: z.string().optional(),
+  GCS_KEY_FILE: z.string().optional(),
+  GCS_CLIENT_EMAIL: z.string().optional(),
+  GCS_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((val) => val?.replace(/\\n/g, '\n')),
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform((val) => parseInt(val, 10)),
 
   // Authentication configuration
@@ -195,12 +206,18 @@ function validateStorageConfiguration(env: Env): void {
       exit(1);
     }
   } else if (provider === "gcs") {
-    // GCS uses its S3-compatible XML API with HMAC keys — STORAGE_* variables are required
-    const hasStorageVars = env.STORAGE_ENDPOINT && env.STORAGE_ACCESS_KEY && env.STORAGE_SECRET_KEY;
+    // GCS uses the native @google-cloud/storage client. Credentials can come from a
+    // service account key file (GCS_KEY_FILE), inline credentials (GCS_CLIENT_EMAIL +
+    // GCS_PRIVATE_KEY), or Application Default Credentials if none are set.
+    const hasKeyFile = !!env.GCS_KEY_FILE;
+    const hasInlineCredentials = !!(env.GCS_CLIENT_EMAIL && env.GCS_PRIVATE_KEY);
 
-    if (!hasStorageVars) {
-      logger.error(`GCS storage provider requires STORAGE_ENDPOINT, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY (HMAC credentials). hasStorageVars=${hasStorageVars}, provider=${provider}`);
-      exit(1);
+    if (!hasKeyFile && !hasInlineCredentials) {
+      logger.warn(
+        `GCS storage provider: no GCS_KEY_FILE or GCS_CLIENT_EMAIL/GCS_PRIVATE_KEY set. ` +
+        `Falling back to Application Default Credentials (requires GOOGLE_APPLICATION_CREDENTIALS, ` +
+        `gcloud auth application-default login, or GKE/Cloud Run workload identity).`
+      );
     }
   }
 }

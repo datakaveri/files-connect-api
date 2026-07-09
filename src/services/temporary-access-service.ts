@@ -6,6 +6,7 @@
 import { STSClient, AssumeRoleCommand, Credentials } from '@aws-sdk/client-sts';
 import { env } from '../config/environment';
 import { createStorageConfig } from '../config/storage';
+import { StorageProvider } from '../core/types/storage';
 import { createLogger } from '../core/utils/logger';
 import { ValidationError } from '../core/errors/application-errors';
 
@@ -128,7 +129,15 @@ export class TemporaryAccessService implements TemporaryAccessServiceInterface {
       throw new ValidationError('User ID is required');
     }
 
-    
+    if (this.storageConfig.provider === StorageProvider.GCS) {
+      // AWS STS AssumeRole has no GCS equivalent that yields AWS-style scoped
+      // credentials; GCS's nearest analogue (short-lived signed URLs) is already
+      // covered by the presigned-URL endpoints, so this endpoint is unsupported here.
+      throw new ValidationError(
+        'Temporary access credentials are not supported when STORAGE_PROVIDER=gcs. ' +
+        'Use the presigned URL endpoints for time-limited object access instead.'
+      );
+    }
 
     // Use duration from environment configuration
     const duration = env.STS_SESSION_DURATION_IN_SECONDS;

@@ -40,6 +40,15 @@ This API supports multiple storage backends through a unified interface:
 - Lightweight S3-compatible object storage
 - Perfect for local development and testing
 
+### Google Cloud Storage (Production)
+- Set `STORAGE_PROVIDER=gcs` in environment variables
+- Uses the native `@google-cloud/storage` client (not the S3-compatible interop API)
+- Authenticates via, in order of precedence: a service account key file (`GCS_KEY_FILE`), inline
+  service account credentials (`GCS_CLIENT_EMAIL` + `GCS_PRIVATE_KEY`), or Application Default
+  Credentials if none are set (useful on GKE/Cloud Run with workload identity)
+- Multipart uploads are emulated: each part is staged as a temporary object and, on completion,
+  stitched together with GCS's `compose` operation
+
 ### Docker Development Setup
 
 For local development with MinIO, Redis, and workers, use the provided Docker Compose setup:
@@ -94,7 +103,7 @@ CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
 
 ### Storage Configuration
 ```
-# Choose storage provider: 's3' or 'minio'
+# Choose storage provider: 's3', 'minio', or 'gcs'
 STORAGE_PROVIDER=minio
 
 # MinIO (for local development)
@@ -111,6 +120,15 @@ STORAGE_USE_SSL=false
 # STORAGE_ACCESS_KEY=your-aws-access-key
 # STORAGE_SECRET_KEY=your-aws-secret-key
 
+# Google Cloud Storage (for production)
+# STORAGE_PROVIDER=gcs
+# GCS_PROJECT_ID=your-gcp-project-id
+# GCS_KEY_FILE=/path/to/service-account.json
+# # ...or inline credentials instead of a key file:
+# # GCS_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+# # GCS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+# # ...or omit all of the above to use Application Default Credentials
+
 # Bucket configuration (see Storage Buckets section below)
 BUCKET_NAME=your-main-bucket
 MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=5
@@ -126,7 +144,7 @@ Only **one bucket** needs to be created. Everything lives under `BUCKET_NAME` us
 |---|---|
 | `BUCKET_NAME` | Single bucket for all operations — databank files, assets, zips, and PDF reports |
 
-> **Note:** The bucket must be accessible by the API and both Python workers using the same credentials (`STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`).
+> **Note:** The bucket must be accessible by the API and both Python workers. For S3/MinIO this means using the same credentials (`STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`) across all three. **For GCS**, the API and both Python workers all use the same native `google-cloud-storage` client and the same `GCS_PROJECT_ID` / `GCS_KEY_FILE` (or `GCS_CLIENT_EMAIL` + `GCS_PRIVATE_KEY`) credentials — see [Storage Providers](#storage-providers) above. Workers fall back to GCS's [S3-compatible interoperability API](https://cloud.google.com/storage/docs/interoperability) via `boto3` only if you explicitly keep `STORAGE_PROVIDER` unset/`s3` with a GCS HMAC key pair (`S3_ACCESS_KEY` / `S3_SECRET_KEY`, `S3_ENDPOINT=https://storage.googleapis.com`) instead.
 
 ### Upload & Read Paths
 

@@ -33,6 +33,10 @@ data:
   STORAGE_USE_SSL: "true"
   # Set to "false" when storage uses self-signed/private CA (e.g. fs-prod.s3.cyfuture.cloud). Omit or "true" for normal verification.
   # S3_VERIFY_SSL: "false"
+  # GCS configuration (only used when STORAGE_PROVIDER is "gcs"; must also be wired
+  # into worker-deployment.yaml / report-worker-deployment.yaml, not just the main API)
+  # GCS_PROJECT_ID: "<gcp-project-id>"
+  # GCS_KEY_FILE: "/var/secrets/gcs/key.json"
   # STS configuration for temporary access
   STS_ROLE_ARN: "arn:aws:iam::123456789012:role/DatabanksTemporaryAccessRole"
   STS_SESSION_DURATION_IN_SECONDS: "900"

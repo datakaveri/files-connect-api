@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy worker code
 COPY worker.py .
 COPY readiness_processor.py .
+COPY gcs_client.py .
 
 # Copy the entire readiness framework
 COPY structured_main.py .

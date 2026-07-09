@@ -197,7 +197,12 @@ def worker_loop():
     logger.info("Starting readiness worker...")
     
     # Validate required environment variables
-    required_vars = ['BUCKET_NAME', 'S3_ACCESS_KEY', 'S3_SECRET_KEY']
+    # S3_ACCESS_KEY/S3_SECRET_KEY are only required for S3/MinIO; GCS authenticates via
+    # GCS_KEY_FILE, GCS_CLIENT_EMAIL/GCS_PRIVATE_KEY, or Application Default Credentials.
+    storage_provider = os.environ.get('STORAGE_PROVIDER', 's3').lower()
+    required_vars = ['BUCKET_NAME']
+    if storage_provider != 'gcs':
+        required_vars += ['S3_ACCESS_KEY', 'S3_SECRET_KEY']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
 
     if missing_vars:

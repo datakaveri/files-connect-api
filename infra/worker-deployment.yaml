@@ -87,7 +87,34 @@ spec:
             secretKeyRef:
               name: files-connect-secret
               key: STORAGE_SECRET_KEY
-        
+
+        # GCS credentials (only used when STORAGE_PROVIDER is "gcs"; optional so
+        # this manifest still applies when the keys aren't defined)
+        - name: GCS_PROJECT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: GCS_PROJECT_ID
+              optional: true
+        - name: GCS_KEY_FILE
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: GCS_KEY_FILE
+              optional: true
+        - name: GCS_CLIENT_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: files-connect-secret
+              key: GCS_CLIENT_EMAIL
+              optional: true
+        - name: GCS_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: files-connect-secret
+              key: GCS_PRIVATE_KEY
+              optional: true
+
         # CAT API configuration (optional)
         - name: CAT_URL
           valueFrom:

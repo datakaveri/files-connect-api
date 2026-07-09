@@ -7,7 +7,7 @@ This directory contains worker applications that process asynchronous jobs from 
 The system uses a Redis-based job queue architecture:
 
 ```
-TypeScript API → Redis Queue → Python Worker(s) → S3/MinIO
+TypeScript API → Redis Queue → Python Worker(s) → S3/MinIO/GCS
                       ↓
                  Job Status (Redis)
 ```
@@ -30,7 +30,7 @@ Processes databank zip creation jobs:
 
 **Key Features:**
 - Memory-efficient streaming (handles large datasets)
-- Works with both AWS S3 and MinIO
+- Works with AWS S3, MinIO, or GCS (native `google-cloud-storage` client)
 - Maintains folder structure in zip files
 - Graceful shutdown handling
 - Automatic retry on connection failures
@@ -51,7 +51,7 @@ Processes data readiness assessment jobs:
 - Comprehensive metrics (quality, variance, standardization, documentation, etc.)
 - LLM-powered column/role inference (OpenAI)
 - Memory-efficient processing
-- Works with both AWS S3 and MinIO
+- Works with AWS S3, MinIO, or GCS (native `google-cloud-storage` client)
 - Graceful shutdown handling
 - Automatic retry on connection failures
 
@@ -136,9 +136,8 @@ Only **one bucket** is required. Both workers use `BUCKET_NAME` — the same buc
 **For all workers:**
 - `REDIS_HOST` - Redis server hostname
 - `REDIS_PORT` - Redis server port (default: 6379)
-- `BUCKET_NAME` - S3/MinIO bucket (same bucket the API uses)
-- `S3_ACCESS_KEY` - Storage access key
-- `S3_SECRET_KEY` - Storage secret key
+- `BUCKET_NAME` - Storage bucket (same bucket the API uses)
+- `S3_ACCESS_KEY` / `S3_SECRET_KEY` - Storage access/secret key (S3/MinIO only — not needed for `STORAGE_PROVIDER=gcs`, see below)
 
 **For readiness worker only:**
 - `OPENAI_API_KEY` - OpenAI API key for column/role inference (required)
@@ -149,6 +148,8 @@ For **MinIO**:
 ```bash
 STORAGE_PROVIDER=minio
 S3_ENDPOINT=http://minio:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 USE_SSL=false
 ```
 
@@ -157,8 +158,22 @@ For **AWS S3**:
 STORAGE_PROVIDER=s3
 S3_REGION=us-east-1
 S3_ENDPOINT=  # Optional, uses AWS default
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
 USE_SSL=true
 ```
+
+For **GCS** (native `google-cloud-storage` client — see `gcs_client.py` in each worker):
+```bash
+STORAGE_PROVIDER=gcs
+GCS_PROJECT_ID=your-gcp-project-id
+GCS_KEY_FILE=/path/to/service-account.json
+# ...or inline credentials instead of a key file:
+# GCS_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+# GCS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+# ...or omit all of the above to use Application Default Credentials
+```
+`S3_ACCESS_KEY`/`S3_SECRET_KEY` are not required in this mode — the workers use the same `GCS_*` service-account credentials as the TypeScript API instead of `boto3`.
 
 ### Optional
 
