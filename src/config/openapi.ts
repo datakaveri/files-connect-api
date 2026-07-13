@@ -554,7 +554,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Initiate a multipart upload to a databank',
   description:
-    'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`',
+    'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Supports approved databank formats, including CSV, JSON, TXT, Parquet, XLSX, NAV, OBS, BIN, and MRK. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),

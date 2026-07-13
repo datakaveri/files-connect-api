@@ -58,8 +58,8 @@ export const AllowedFileTypes = {
   DATABANK: [
     'aiconfig', 'ark', 'arrow', 'bif', 'bin', 'bpe', 'cbm', 'cfg', 'ckpt', 'conf',
     'crfsuite', 'csv', 'dict', 'elki', 'emb', 'engine', 'geojson', 'ggml', 'gguf', 'gpickle', 'h5',
-    'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'nc',
-    'nemo', 'npy', 'npz', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
+    'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'mrk', 'nav', 'nc',
+    'nemo', 'npy', 'npz', 'obs', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
     'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'tsv', 'txt', 'xml', 'yaml',
     'yml', 'xlsx', 'xls', 'pdf', 'doc', 'docx', 'mp3', 'jpeg', 'png', 'tiff', 'dcm', 'tif', 'jpg'
   ]

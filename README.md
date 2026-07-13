@@ -6,7 +6,7 @@ A TypeScript-based API service for secure file operations with databank support.
 
 - **Databank Management**: Organize files into logical databanks with access control
 - **Secure File Uploads**: Support for large file uploads with multipart upload
-- **File Type Validation**: Strict validation of uploaded files (CSV, JSON, GeoJSON, TXT, Parquet, XLSX, ZIP)
+- **File Type Validation**: Strict validation of uploaded files, including CSV, JSON, GeoJSON, TXT, Parquet, XLSX, NAV, OBS, BIN, and MRK
 - **Security**: Role-based access control (RBAC) with Keycloak integration
 - **Temporary Access Credentials**: Generate time-limited AWS STS credentials for direct S3 access
 - **File Operations**: List, download, and manage files with metadata
@@ -251,7 +251,7 @@ The OpenAPI spec is also available at http://localhost:3000/openapi.json
 ### Key Endpoints
 
 - **Databank Operations**:
-  - `POST /v1/databanks/{databankId}/uploads` - Initiate multipart upload (CSV, JSON, TXT, Parquet, XLSX, ZIP only)
+  - `POST /v1/databanks/{databankId}/uploads` - Initiate multipart upload for approved databank formats, including NAV, OBS, BIN, and MRK
   - `PUT /v1/databanks/{databankId}/uploads/{uploadId}` - Complete multipart upload
   - `POST /v1/databanks/{databankId}/files` - List files in databank
   - `POST /v1/databanks/{databankId}/files/download` - Download files
@@ -383,7 +383,7 @@ For detailed documentation on workers, see [workers/README.md](workers/README.md
 
 The API enforces strict file type validation for databank uploads:
 
-- **Allowed file types**: CSV, JSON, GeoJSON, TXT, Parquet, XLSX, ZIP
+- **Allowed file types include**: CSV, JSON, GeoJSON, TXT, Parquet, XLSX, NAV, OBS, BIN, and MRK
 - **Blocked file types**: Executable files (.exe, .dll, .bat, .cmd, .sh, .js, .py, .php)
 
 Validation occurs during multipart upload initiation and returns a 415 Unsupported Media Type status code for disallowed file types.

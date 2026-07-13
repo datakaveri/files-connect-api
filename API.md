@@ -32,7 +32,7 @@ The API has been restructured to follow REST best practices, with all resources 
 
 | Endpoint | Method | Description | Auth Required | Roles |
 |----------|--------|-------------|--------------|-------|
-| `/v1/databanks/:databankId/uploads` | POST | Initiate a multipart upload and get presigned URLs (CSV, JSON, GeoJSON, TXT, Parquet, XLSX, ZIP files only) | Yes | Provider |
+| `/v1/databanks/:databankId/uploads` | POST | Initiate a multipart upload and get presigned URLs for approved formats, including NAV, OBS, BIN, and MRK | Yes | Provider |
 | `/v1/databanks/:databankId/uploads/:uploadId` | PUT | Finalize a multipart upload | Yes | Provider |
 | `/v1/databanks/:databankId/uploads/:uploadId/cancel` | POST | Cancel a multipart upload | Yes | Provider |
 
@@ -79,7 +79,7 @@ For zip jobs, `options.include` can be used to create a zip containing only sele
 - APIs follow REST conventions with appropriate HTTP methods and all resources organized under databanks
 - Resources are organized into logical groups (files, uploads, process, download) within the databanks resource
 - File preview supports multiple formats: CSV, JSON, GeoJSON, XML, XLSX, and Parquet
-- Databank multipart uploads support only CSV, JSON, GeoJSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted
+- Databank multipart uploads support approved formats, including CSV, JSON, GeoJSON, TXT, Parquet, XLSX, NAV, OBS, BIN, and MRK. Executable files are not permitted
 - Multipart uploads are used for large file uploads and follow the AWS S3 multipart upload protocol
 - The processing APIs trigger background jobs for creating zip files and/or generating reports
 - **Job type**: `zip` (zip only), `report` (report only), or `all` (both). For `all`, the API creates two jobs and returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status
