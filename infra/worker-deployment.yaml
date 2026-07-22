@@ -22,13 +22,40 @@ spec:
         image: your-registry/files-connect-zip-worker:latest  # Update with your image
         imagePullPolicy: Always
         env:
-        # Redis configuration
+        # Redis configuration - from ConfigMap
         - name: REDIS_HOST
-          value: "redis"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_HOST
         - name: REDIS_PORT
-          value: "6379"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_PORT
         - name: REDIS_DB
-          value: "0"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_DB
+        - name: REDIS_SENTINEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_SENTINEL_ENABLED
+              optional: true
+        - name: REDIS_SENTINEL_MASTER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_SENTINEL_MASTER_NAME
+              optional: true
+        - name: REDIS_SENTINEL_HOSTS
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_SENTINEL_HOSTS
+              optional: true
         - name: ZIP_QUEUE_NAME
           valueFrom:
             configMapKeyRef:
@@ -40,7 +67,13 @@ spec:
         #     secretKeyRef:
         #       name: redis-secret
         #       key: password
-        
+        # Sentinel password (if the sentinels require authentication)
+        # - name: REDIS_SENTINEL_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: redis-secret
+        #       key: sentinel-password
+
         # Storage configuration - from ConfigMap
         - name: STORAGE_PROVIDER
           valueFrom:

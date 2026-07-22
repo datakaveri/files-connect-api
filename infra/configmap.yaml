@@ -21,9 +21,15 @@ data:
   CAT_API_URL: "https://v2.dev.controlplane.iudx.io/iudx/v2/cat"
   REPORTS_LAMBDA_URL: "https://a6tttymcoyytfod7umoabkxsc40blzhi.lambda-url.ap-south-1.on.aws/"
   # Redis configuration for job queue
-  REDIS_HOST: "redis"
+  # Redis Sentinel (HA) — point at the redis-ha service and enable sentinel.
+  # Confirm the master name with: redis-cli -p 26379 sentinel masters
+  REDIS_HOST: "redis-redis-ha.redis.svc.cluster.local"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
+  REDIS_SENTINEL_ENABLED: "true"
+  REDIS_SENTINEL_MASTER_NAME: "mymaster"
+  # Optional explicit sentinel list; when omitted, defaults to ${REDIS_HOST}:26379
+  # REDIS_SENTINEL_HOSTS: "redis-redis-ha.redis.svc.cluster.local:26379"
   ZIP_QUEUE_NAME: "jobs:zip"
   REPORT_QUEUE_NAME: "jobs:report"
   # Storage provider configuration

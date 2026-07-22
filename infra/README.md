@@ -3,6 +3,7 @@
 ## Documentation
 
 - **[STS Setup Guide](./STS_SETUP.md)** - Complete guide for configuring AWS STS temporary access
+- **[Redis Sentinel Deployment Guide](./REDIS_SENTINEL_DEPLOYMENT.md)** - DevOps handoff for deploying the API and workers against a Redis Sentinel (HA) cluster
 
 ## Getting Started
 

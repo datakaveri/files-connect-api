@@ -126,6 +126,18 @@ const envSchema = z.object({
     .string()
     .transform((val) => val === "true")
     .default("false"),
+  // Redis Sentinel (HA) configuration. Takes precedence over cluster/standalone when enabled.
+  REDIS_SENTINEL_ENABLED: z
+    .string()
+    .transform((val) => val === "true")
+    .default("false"),
+  // Sentinel master group name (e.g. "mymaster"). Confirm via `SENTINEL masters` on the cluster.
+  REDIS_SENTINEL_MASTER_NAME: z.string().default("mymaster"),
+  // Comma-separated list of sentinel nodes as host:port (port defaults to 26379 when omitted).
+  // When empty, falls back to `${REDIS_HOST}:26379`.
+  REDIS_SENTINEL_HOSTS: z.string().optional(),
+  // Optional auth for the sentinel nodes themselves (data-node auth still uses REDIS_PASSWORD).
+  REDIS_SENTINEL_PASSWORD: z.string().optional(),
   ZIP_QUEUE_NAME: z.string().default("jobs:zip"),
   REPORT_QUEUE_NAME: z.string().optional(),
   READINESS_QUEUE_NAME: z.string().optional(),

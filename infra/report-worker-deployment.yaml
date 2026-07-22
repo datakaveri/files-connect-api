@@ -38,6 +38,24 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: REDIS_DB
+        - name: REDIS_SENTINEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_SENTINEL_ENABLED
+              optional: true
+        - name: REDIS_SENTINEL_MASTER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_SENTINEL_MASTER_NAME
+              optional: true
+        - name: REDIS_SENTINEL_HOSTS
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_SENTINEL_HOSTS
+              optional: true
         - name: REPORT_QUEUE_NAME
           valueFrom:
             configMapKeyRef:

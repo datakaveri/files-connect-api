@@ -170,11 +170,37 @@ KEYCLOAK_PUBLIC_KEY="your-public-key"
 ```
 
 ### Redis Configuration (Job Queue)
+
+The API and workers support three Redis topologies: **standalone**, **cluster**, and
+**sentinel (HA)**. Sentinel takes precedence over cluster, which takes precedence over
+standalone. For production HA deployments on the `redis-ha` service, see the
+**[Redis Sentinel Deployment Guide](infra/REDIS_SENTINEL_DEPLOYMENT.md)** (DevOps handoff).
+
 ```
+# Standalone (default, local development)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
 # REDIS_PASSWORD=your-password  # Optional
+
+# Cluster mode
+# REDIS_CLUSTER_MODE=true
+
+# Sentinel (HA) mode — takes precedence over cluster/standalone when enabled
+# REDIS_SENTINEL_ENABLED=true
+# REDIS_SENTINEL_MASTER_NAME=mymaster          # confirm via `sentinel masters`
+# REDIS_SENTINEL_HOSTS=host1:26379,host2:26379 # defaults to ${REDIS_HOST}:26379 if empty
+# REDIS_SENTINEL_PASSWORD=your-sentinel-password  # only if sentinels require auth
+```
+
+**Local Sentinel testing:** a ready-to-run HA topology (1 master, 1 replica, 3 sentinels)
+is provided in `docker-compose.sentinel.yml`:
+
+```bash
+docker compose -f docker-compose.sentinel.yml up -d
+# then set REDIS_SENTINEL_ENABLED=true and
+# REDIS_SENTINEL_HOSTS=localhost:26379,localhost:26380,localhost:26381
+docker compose -f docker-compose.sentinel.yml down   # tear down
 ```
 
 ### Temporary Access Configuration (Optional)
