@@ -79,6 +79,9 @@ export const ApiPaths = {
   
   // Asset operations (separate from databanks)
   ASSETS: '/assets',
+
+  // Encryption key distribution (client-side envelope encryption)
+  ENCRYPTION: '/encryption',
   
   // Sub-resources (accessed through databanks/{databankId}/...)
   DATABANK_FILES: 'files',          // For file operations within a databank

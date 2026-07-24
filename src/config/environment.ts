@@ -57,6 +57,22 @@ const envSchema = z.object({
     .transform((val) => val?.replace(/\\n/g, '\n')),
   MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: z.string().transform((val) => parseInt(val, 10)),
 
+  // Master switch for the /v1/encryption routes. Default off: only TANUH
+  // deployments (client-side encrypted dataset uploads) should enable this.
+  ENCRYPTION_ENABLED: z
+    .string()
+    .transform((val) => val === 'true')
+    .default('false'),
+  // Client-side envelope encryption (Cloud KMS asymmetric key)
+  // Full resource name: projects/.../locations/.../keyRings/.../cryptoKeys/.../cryptoKeyVersions/N
+  KMS_KEY_VERSION_NAME: z.string().optional(),
+  // Local development fallback (no KMS emulator exists): PEM public key served
+  // in place of the KMS one; keep the paired private key for decryption tests.
+  DEV_ENCRYPTION_PUBLIC_KEY_PEM: z
+    .string()
+    .optional()
+    .transform((val) => val?.replace(/\\n/g, '\n')),
+
   // Authentication configuration
   KEYCLOAK_AUTH_URL: z.string().url(),
   KEYCLOAK_CLIENT_ID: z.string(),
