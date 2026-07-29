@@ -39,33 +39,24 @@ python worker.py
 
 ## Configuration
 
-### Required Environment Variables
+**Full field reference:** [docs/config/report-worker.md](../../docs/config/report-worker.md) — every
+variable with its expected value, default, required privileges and failure mode. Values that must
+match the file server (queue name, Redis DB, bucket, storage credentials) are listed in
+[docs/config/README.md](../../docs/config/README.md).
 
-**Redis:**
-- `REDIS_HOST` - Redis hostname (default: `localhost`)
-- `REDIS_PORT` - Redis port (default: `6379`)
-- `REPORT_QUEUE_NAME` - Queue name (default: `jobs:report`; `READINESS_QUEUE_NAME` is still accepted as a legacy alias)
+Minimum to start the worker — it exits with `Missing required environment variables: …` without them:
 
-**Storage:**
-- `BUCKET_NAME` - Single bucket for all operations (datasets, zips, and PDF reports)
-- `S3_ACCESS_KEY` - Storage access key
-- `S3_SECRET_KEY` - Storage secret key
-- `STORAGE_PROVIDER` - `s3` or `minio` (default: `s3`)
+| Variable | Notes |
+|---|---|
+| `BUCKET_NAME` | Single bucket for datasets, zips and reports |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | Not required when `STORAGE_PROVIDER=gcs` |
+| `S3_ENDPOINT` | Required for MinIO; optional for AWS S3 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` | Must match the file server, including the DB number |
+| `REPORT_QUEUE_NAME` | Default `jobs:report`; must match the file server |
 
-**OpenAI (Required):**
-- `OPENAI_API_KEY` - For column/role inference
-
-**MinIO (if using):**
-- `S3_ENDPOINT` - MinIO endpoint (e.g., `http://minio:9000`)
-- `USE_SSL` - `true` or `false`
-
-**AWS S3 (if using):**
-- `S3_REGION` - AWS region (default: `us-east-1`)
-
-### Optional
-- `REDIS_PASSWORD` - Redis authentication
-- `REDIS_DB` - Redis database (default: `0`)
-- `ELASTIC_ID` / `ELASTIC_PASS` - For CAT API updates
+Needed for full functionality, but the worker starts without them: `OPENAI_API_KEY` (structured
+scoring fails without it), `CAT_API_URL` (dataset names), `ELASTICSEARCH_URL` + `ELASTIC_ID` /
+`ELASTIC_PASS` (readiness score writeback), `CAT_SET_PUBLISH_STATUS` (auto-publish on completion).
 
 ## Job Processing
 
@@ -153,87 +144,11 @@ PDF is uploaded to: `reports/{databankId}/data_readiness_report.pdf` in `BUCKET_
 - Ensure OpenAI API key is set
 - Review worker logs for errors
 
-# Data Flow Diagrams
+## Further reading
 
-## 1. High-Level Overview
-This diagram shows the general flow from entry points to final outputs.
-
-```mermaid
-graph TD
-    subgraph Input
-        Lambda[Lambda Handler]
-        Local[Local Execution]
-    end
-
-    subgraph Processing
-        S_Main[Structured Main]
-        U_Main[Unstructured Main]
-    end
-
-    subgraph Output
-        JSON[JSON Reports]
-        PDF[PDF Report]
-        API[CAT API Update]
-    end
-
-    Lambda -->|Structured| S_Main
-    Lambda -->|Unstructured| U_Main
-    Local -->|Structured| S_Main
-    Local -->|Unstructured| U_Main
-
-    S_Main --> JSON
-    S_Main --> PDF
-    S_Main --> API
-
-    U_Main --> JSON
-    U_Main --> PDF
-    U_Main --> API
-```
-
-## 2. Structured Data Flow Detail
-Detailed flow within the Structured Data processing module.
-
-```mermaid
-graph TD
-    Start([Start: structured_main.py]) --> Load[Load Data: input_handler]
-    Load --> Infer[Infer Column Roles: llm_api]
-    Infer --> Raw[Generate Raw Report: aggregate_structured]
-    
-    subgraph Metrics Calculation
-        Raw --> M1[Check Missing/Duplicates]
-        Raw --> M2[Check Variance/Coverage]
-        Raw --> M3[Check Formats/Encoding]
-    end
-
-    M1 --> Score[Compute Aggregate Score: scoring_structured]
-    M2 --> Score
-    M3 --> Score
-    
-    Score --> Write[Write Outputs: json_writer]
-    Write --> PDF[Generate PDF: pdf_writer]
-    PDF --> End([End])
-```
-
-## 3. Unstructured Data Flow Detail
-Detailed flow within the Unstructured Data processing module.
-
-```mermaid
-graph TD
-    Start([Start: unstructured_main.py]) --> Meta[Extract Metadata: metadata_parser]
-    Meta --> Infer[Infer Roles: llm_api]
-    Infer --> Raw[Generate Raw Report: aggregate_unstructured]
-
-    subgraph Metrics Calculation
-        Raw --> M1[Check File Duplicates/Types]
-        Raw --> M2[Check Openability/Format]
-        Raw --> M3[Check Metadata Coverage]
-    end
-
-    M1 --> Score[Compute Aggregate Score: scoring_unstructured]
-    M2 --> Score
-    M3 --> Score
-
-    Score --> Write[Write Outputs: json_writer]
-    Write --> PDF[Generate PDF: pdf_writer]
-    PDF --> End([End])
-```
+| Document | Covers |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Pipeline and data-flow diagrams, metrics catalogue, scoring model, output formats, error handling, known limitations |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | Build, deploy, verify, monitor, troubleshoot, scale, roll back |
+| [docs/config/report-worker.md](../../docs/config/report-worker.md) | Every environment variable: expected value, privileges, failure mode |
+| [docs/config/deployments.md](../../docs/config/deployments.md) | How ConfigMap/Secret values reach this container |
