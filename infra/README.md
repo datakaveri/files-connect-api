@@ -2,6 +2,10 @@
 
 ## Documentation
 
+- **[Configuration reference](../docs/config/)** - every environment variable of the file server and
+  both workers: purpose, expected value, privileges, default, failure mode
+- **[Deployment wiring](../docs/config/deployments.md)** - how ConfigMap/Secret values reach each
+  container, apply order, scaling limits, and open items
 - **[STS Setup Guide](./STS_SETUP.md)** - Complete guide for configuring AWS STS temporary access
 
 ## Getting Started

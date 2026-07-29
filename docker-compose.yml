@@ -68,10 +68,12 @@ services:
       # GCS_CLIENT_EMAIL: your-service-account@your-project.iam.gserviceaccount.com
       # GCS_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
-      # CAT API configuration (optional - update with your values)
-      # CAT_URL: http://your-cat-api-url
-      # CAT_USERNAME: your-username
-      # CAT_PASSWORD: your-password
+      # Catalogue index update (optional; all three required or it is skipped).
+      # CAT_URL is the ELASTICSEARCH base URL - the worker calls
+      # {CAT_URL}/tgdex__cat/_search - not the catalogue REST API (CAT_API_URL).
+      CAT_URL: ${ELASTICSEARCH_URL:-}
+      CAT_USERNAME: ${ELASTIC_ID:-}
+      CAT_PASSWORD: ${ELASTIC_PASS:-}
     restart: unless-stopped
     # For development, can run multiple workers by scaling:
     # docker-compose up -d --scale zip-worker=3
@@ -116,11 +118,13 @@ services:
       # Catalogue API URL (required for dataset name resolution in readiness reports)
       CAT_API_URL: ${CAT_API_URL}
       
-      # Elasticsearch configuration (optional - for updating readiness scores in tgdex__cat index)
+      # Elasticsearch configuration (optional - for updating readiness scores in the
+      # catalogue index). Without ELASTICSEARCH_URL the report is still generated and
+      # stored, but the catalogue is never updated (logged at WARN).
       ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-}
-      # ELASTIC_CAT_INDEX: tgdex__cat  # optional, defaults to tgdex__cat
-      # ELASTIC_ID: your-elastic-id
-      # ELASTIC_PASS: your-elastic-password
+      ELASTIC_CAT_INDEX: ${ELASTIC_CAT_INDEX:-tgdex__cat}
+      ELASTIC_ID: ${ELASTIC_ID:-}
+      ELASTIC_PASS: ${ELASTIC_PASS:-}
 
       # Set publishStatus=ACTIVE on the catalogue doc (default true).
       # Set to false for deployments that manage publishStatus elsewhere (maha).
@@ -162,7 +166,6 @@ services:
   #     KEYCLOAK_AUTH_URL: http://localhost:8080
   #     KEYCLOAK_CLIENT_ID: files-connect
   #     KEYCLOAK_PUBLIC_KEY: your-public-key-here
-  #     KEYCLOAK_REALM: master
 
   #     # Logging
   #     LOG_LEVEL: debug
@@ -193,12 +196,9 @@ services:
   #     RABBITMQ_EXCHANGE: files-exchange
   #     RABBITMQ_ROUTING_KEY: files.routing.key
 
-  #     # Lambda URLs (optional)
-  #     ZIP_LAMBDA_URL: http://localhost:8083
-  #     REPORTS_LAMBDA_URL: http://localhost:8084
-  #     LAMBDA_ACCESS_KEY: your-lambda-key
-  #     LAMBDA_SECRET_KEY: your-lambda-secret
-  #     LAMBDA_REGION: us-east-1
+  #     # STS temporary access (required, even against MinIO)
+  #     STS_ROLE_ARN: arn:aws:iam::minio:role/custom-role
+  #     STS_SESSION_DURATION_IN_SECONDS: 900
 
   #     # File upload limits
   #     MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: 5

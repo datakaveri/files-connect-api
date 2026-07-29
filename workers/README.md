@@ -2,6 +2,11 @@
 
 This directory contains worker applications that process asynchronous jobs from the Redis job queue.
 
+Configuration reference: [docs/config/zip-worker.md](../docs/config/zip-worker.md) and
+[docs/config/report-worker.md](../docs/config/report-worker.md) — every environment variable, the
+privileges each credential needs, and what an operator sees when a value is wrong. Values that must
+match the file server are listed in [docs/config/README.md](../docs/config/README.md).
+
 ## Architecture
 
 The system uses a Redis-based job queue architecture:
