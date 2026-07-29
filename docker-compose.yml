@@ -121,6 +121,10 @@ services:
       # ELASTIC_CAT_INDEX: tgdex__cat  # optional, defaults to tgdex__cat
       # ELASTIC_ID: your-elastic-id
       # ELASTIC_PASS: your-elastic-password
+
+      # Set publishStatus=ACTIVE on the catalogue doc (default true).
+      # Set to false for deployments that manage publishStatus elsewhere (maha).
+      CAT_SET_PUBLISH_STATUS: ${CAT_SET_PUBLISH_STATUS:-true}
     restart: unless-stopped
     # For development, can run multiple workers by scaling:
     # docker-compose up -d --scale report-worker=4

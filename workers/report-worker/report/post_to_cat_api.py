@@ -80,15 +80,22 @@ def update_cat_readiness_score(uuid, score, username, password):
             #        "lastUpdated": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B, %Y - %I:%M %p")
             #    }
             #}
-            update_data = {
-                "doc": {
-                    "dataReadiness": score,
-                    "dataUploadStatus": True,
-                    "lastUpdated": datetime.now(
-                        ZoneInfo("Asia/Kolkata")
-                    ).isoformat()
-                }
+            doc = {
+                "dataReadiness": score,
+                "dataUploadStatus": True,
+                "lastUpdated": datetime.now(
+                    ZoneInfo("Asia/Kolkata")
+                ).isoformat()
             }
+
+            # publishStatus is set by default; deployments that manage it
+            # elsewhere (e.g. maha) opt out with CAT_SET_PUBLISH_STATUS=false
+            if os.environ.get("CAT_SET_PUBLISH_STATUS", "true").lower() == "true":
+                doc["publishStatus"] = "ACTIVE"
+            else:
+                logger.info("CAT_SET_PUBLISH_STATUS is disabled. Skipping publishStatus update.")
+
+            update_data = {"doc": doc}
 
             # Perform the POST request to update the document
             post_response = requests.post(post_url, auth=HTTPBasicAuth(username, password), headers=headers, data=json.dumps(update_data))
