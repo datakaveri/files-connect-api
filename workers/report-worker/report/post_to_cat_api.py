@@ -84,7 +84,6 @@ def update_cat_readiness_score(uuid, score, username, password):
                 "doc": {
                     "dataReadiness": score,
                     "dataUploadStatus": True,
-                    "publishStatus": "ACTIVE",
                     "lastUpdated": datetime.now(
                         ZoneInfo("Asia/Kolkata")
                     ).isoformat()
