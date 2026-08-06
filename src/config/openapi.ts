@@ -45,6 +45,10 @@ Each API endpoint specifies which roles are allowed to access it. Check the endp
   },
   servers: [
     {
+      url: './v1',
+      description: 'Current deployment',
+    },
+    {
       url: 'https://v2.dev.file-s3.iudx.io/v1/',
       description: 'Development environment',
     },
@@ -187,7 +191,7 @@ const FileListingSchema = z.object({
 });
 
 const FilePreviewSchema = z.object({
-  content: z.string(),
+  content: z.any().describe('Preview data; shape depends on the file format'),
   format: z.string(),
   truncated: z.boolean().optional(),
   firstNLines: z.number().optional(),
@@ -274,6 +278,18 @@ const QueryAccessResponseSchema = z.object({
   expiresAt: z.string(),
 });
 
+const EncryptionPublicKeySchema = z.object({
+  publicKeyPem: z
+    .string()
+    .describe('PEM-encoded RSA public key used to wrap the per-file AES-256 data encryption key'),
+  kmsKeyVersion: z
+    .string()
+    .describe('Cloud KMS key-version resource name used to unwrap the data encryption key'),
+  algorithm: z
+    .string()
+    .describe('Key-wrapping algorithm; currently RSA-OAEP-3072-SHA256'),
+});
+
 // Register Health Check Route (No auth required)
 registry.registerPath({
   method: 'get',
@@ -293,6 +309,50 @@ registry.registerPath({
             service: z.string(),
             version: z.string(),
           }),
+        },
+      },
+    },
+  },
+});
+
+// Register Encryption Public Key Route
+registry.registerPath({
+  method: 'get',
+  path: '/encryption/public-key',
+  tags: ['Encryption'],
+  summary: 'Get the public key for client-side envelope encryption',
+  description:
+    'Returns the public half of the configured Cloud KMS asymmetric key. Clients use it to wrap a per-file AES-256 data encryption key before uploading encrypted data. The endpoint is available only when `ENCRYPTION_ENABLED=true`.\n\n**Access Control:**\n- Allowed Roles: `provider`',
+  responses: {
+    200: {
+      description: 'Encryption public key retrieved successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(EncryptionPublicKeySchema),
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: 'Forbidden: provider role required',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    503: {
+      description: 'Encryption key is not configured',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
         },
       },
     },
@@ -394,6 +454,9 @@ registry.registerPath({
             }),
           ),
         },
+        'application/octet-stream': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
       },
     },
     404: {
@@ -413,6 +476,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Get metadata for a specific file in a databank',
   description: 'Returns metadata for a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: No authentication required (Public endpoint)',
+  security: [],
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -506,14 +570,10 @@ registry.registerPath({
         'application/json': {
           schema: z.object({
             key: z.string().describe('File key'),
-            maxLines: z
-              .number()
-              .optional()
-              .describe('Maximum number of lines to return'),
             fileType: z
-              .string()
+              .enum(['csv', 'json', 'xml', 'tsv', 'xlsx', 'parquet'])
               .optional()
-              .describe('File type for preview'),
+              .describe('File type for preview; inferred from the key when omitted'),
           }),
         },
       },
@@ -617,9 +677,13 @@ registry.registerPath({
             key: z.string(),
             parts: z.array(
               z.object({
-                partNumber: z.number(),
-                etag: z.string(),
+                PartNumber: z.number().int().positive().optional(),
+                partNumber: z.number().int().positive().optional(),
+                ETag: z.string().optional(),
+                eTag: z.string().optional(),
               }),
+            ).min(1).describe(
+              'Uploaded parts. Each item must provide PartNumber or partNumber and ETag or eTag.',
             ),
           }),
         },
@@ -953,7 +1017,6 @@ registry.registerPath({
             type: z
               .enum(['zip', 'report', 'all'])
               .describe('Type of processing job: zip (zip only), report (report only), or all (both zip and report)'),
-            prefix: z.string().optional().describe('Optional prefix for processing specific files (not used for report jobs)'),
             options: z.object({
               include: z.array(z.string()).optional()
                 .describe('Optional databank-relative file names/paths to include in the generated zip. Omit to zip all files.'),
@@ -1116,5 +1179,3 @@ export const openApiDocument = generator.generateDocument({
   servers: openApiInfo.servers,
   security: [{ bearerAuth: [] }],
 });
-
-

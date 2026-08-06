@@ -15,6 +15,10 @@
   },
   "servers": [
     {
+      "url": "./v1",
+      "description": "Current deployment"
+    },
+    {
       "url": "https://v2.dev.file-s3.iudx.io/v1/",
       "description": "Development environment"
     },
@@ -124,6 +128,181 @@
                     "timestamp",
                     "service",
                     "version"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/encryption/public-key": {
+      "get": {
+        "tags": [
+          "Encryption"
+        ],
+        "summary": "Get the public key for client-side envelope encryption",
+        "description": "Returns the public half of the configured Cloud KMS asymmetric key. Clients use it to wrap a per-file AES-256 data encryption key before uploading encrypted data. The endpoint is available only when `ENCRYPTION_ENABLED=true`.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "responses": {
+          "200": {
+            "description": "Encryption public key retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "publicKeyPem": {
+                          "type": "string",
+                          "description": "PEM-encoded RSA public key used to wrap the per-file AES-256 data encryption key"
+                        },
+                        "kmsKeyVersion": {
+                          "type": "string",
+                          "description": "Cloud KMS key-version resource name used to unwrap the data encryption key"
+                        },
+                        "algorithm": {
+                          "type": "string",
+                          "description": "Key-wrapping algorithm; currently RSA-OAEP-3072-SHA256"
+                        }
+                      },
+                      "required": [
+                        "publicKeyPem",
+                        "kmsKeyVersion",
+                        "algorithm"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: provider role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Encryption key is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
                   ]
                 }
               }
@@ -408,6 +587,12 @@
                     "data"
                   ]
                 }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
@@ -461,6 +646,7 @@
         ],
         "summary": "Get metadata for a specific file in a databank",
         "description": "Returns metadata for a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: No authentication required (Public endpoint)",
+        "security": [],
         "parameters": [
           {
             "schema": {
@@ -725,13 +911,17 @@
                     "type": "string",
                     "description": "File key"
                   },
-                  "maxLines": {
-                    "type": "number",
-                    "description": "Maximum number of lines to return"
-                  },
                   "fileType": {
                     "type": "string",
-                    "description": "File type for preview"
+                    "enum": [
+                      "csv",
+                      "json",
+                      "xml",
+                      "tsv",
+                      "xlsx",
+                      "parquet"
+                    ],
+                    "description": "File type for preview; inferred from the key when omitted"
                   }
                 },
                 "required": [
@@ -759,7 +949,8 @@
                       "type": "object",
                       "properties": {
                         "content": {
-                          "type": "string"
+                          "nullable": true,
+                          "description": "Preview data; shape depends on the file format"
                         },
                         "format": {
                           "type": "string"
@@ -775,7 +966,6 @@
                         }
                       },
                       "required": [
-                        "content",
                         "format"
                       ]
                     }
@@ -1097,18 +1287,26 @@
                     "items": {
                       "type": "object",
                       "properties": {
-                        "partNumber": {
-                          "type": "number"
+                        "PartNumber": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true
                         },
-                        "etag": {
+                        "partNumber": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true
+                        },
+                        "ETag": {
+                          "type": "string"
+                        },
+                        "eTag": {
                           "type": "string"
                         }
-                      },
-                      "required": [
-                        "partNumber",
-                        "etag"
-                      ]
-                    }
+                      }
+                    },
+                    "minItems": 1,
+                    "description": "Uploaded parts. Each item must provide PartNumber or partNumber and ETag or eTag."
                   }
                 },
                 "required": [
@@ -1603,6 +1801,226 @@
         }
       }
     },
+    "/databanks/{databankId}/query-access": {
+      "get": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Generate temporary credentials for databank access",
+        "description": "Returns AWS STS temporary credentials with limited permissions to the databank. Use these credentials for direct S3 access (e.g. DuckDB, Athena). Duration is configured via STS_SESSION_DURATION_IN_SECONDS.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Temporary credentials generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "credentials": {
+                          "type": "object",
+                          "properties": {
+                            "accessKeyId": {
+                              "type": "string"
+                            },
+                            "secretAccessKey": {
+                              "type": "string"
+                            },
+                            "sessionToken": {
+                              "type": "string"
+                            },
+                            "expiration": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "accessKeyId",
+                            "secretAccessKey",
+                            "sessionToken",
+                            "expiration"
+                          ]
+                        },
+                        "s3Config": {
+                          "type": "object",
+                          "properties": {
+                            "region": {
+                              "type": "string"
+                            },
+                            "bucket": {
+                              "type": "string"
+                            },
+                            "databankId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "region",
+                            "bucket",
+                            "databankId"
+                          ]
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "credentials",
+                        "s3Config",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (e.g. missing databank ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/databanks/{databankId}/download": {
       "get": {
         "tags": [
@@ -1703,13 +2121,114 @@
         }
       }
     },
+    "/databanks/{databankId}/report/download": {
+      "get": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Get download URL for report PDF",
+        "description": "Returns a presigned URL for downloading the data readiness report PDF for a databank.\n\n**Report Location:**\n- Reports are stored at `reports/{databankId}/data_readiness_report.pdf` in `BUCKET_NAME`\n- Reports are generated by the report worker after processing a report job\n- The report contains comprehensive data quality assessment including metrics for quality, variance, standardization, documentation, etc.\n\n**Access Control:**\n- This endpoint is public and does not require authentication.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "downloadUrl": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "downloadUrl",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report PDF not found (report may not have been generated yet)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/databanks/{databankId}/process": {
       "post": {
         "tags": [
           "Databanks"
         ],
         "summary": "Create a processing job for a databank",
-        "description": "Creates a new processing job (zip and/or report) for a databank.\n\nFor zip jobs, `options.include` can be used to create a zip containing only selected databank-relative files. If `options.include` is omitted, all files in the databank are zipped.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "description": "Creates a new processing job for a databank. Supports three job types:\n\n**Job Types:**\n- `zip`: Creates a compressed zip archive of the databank files (zip job only)\n- `report`: Runs data readiness assessment on the databank, generating JSON and PDF reports (report job only)\n- `all`: Runs both zip and report jobs; returns separate job IDs for each so you can poll status for each\n\n**Zip Job Options:**\n- `options.include`: Optional list of databank-relative file names/paths to include in the generated zip\n- Omit `options.include` to zip all files in the databank\n\n**Report Job Details:**\n- Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio, Excel, DICOM) datasets\n- Runs comprehensive data quality assessment framework\n- Generates detailed JSON reports and a visual PDF summary\n- Uploads PDF report to `reports/{databankId}/data_readiness_report.pdf` in `BUCKET_NAME`\n- Uses Redis job queue for asynchronous processing\n- Job status can be queried via the job status endpoint\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1730,29 +2249,25 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "description": "Type of processing job: zip (zip only), report (report only), or all (both zip and report)",
                     "enum": [
                       "zip",
                       "report",
                       "all"
-                    ]
-                  },
-                  "prefix": {
-                    "type": "string",
-                    "description": "Optional prefix for processing specific files"
+                    ],
+                    "description": "Type of processing job: zip (zip only), report (report only), or all (both zip and report)"
                   },
                   "options": {
                     "type": "object",
-                    "description": "Optional processing options",
                     "properties": {
                       "include": {
                         "type": "array",
-                        "description": "Optional databank-relative file names/paths to include in the generated zip. Omit to zip all files.",
                         "items": {
                           "type": "string"
-                        }
+                        },
+                        "description": "Optional databank-relative file names/paths to include in the generated zip. Omit to zip all files."
                       }
-                    }
+                    },
+                    "description": "Optional processing options"
                   }
                 },
                 "required": [
@@ -1764,7 +2279,224 @@
         },
         "responses": {
           "202": {
-            "description": "Processing job created successfully",
+            "description": "Processing job(s) created and queued. For type zip or report, returns a single job. For type all, returns jobIds.zip and jobIds.report so you can poll each job separately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "jobId": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "description": "Job status: pending, processing, completed, or failed"
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "Job type: zip, report, or all"
+                            },
+                            "createdAt": {
+                              "type": "string"
+                            },
+                            "progress": {
+                              "type": "number",
+                              "description": "Progress percentage (0-100)"
+                            },
+                            "completedAt": {
+                              "type": "string"
+                            },
+                            "error": {
+                              "type": "string"
+                            },
+                            "result": {
+                              "type": "object",
+                              "properties": {},
+                              "description": "Job result data (varies by job type)"
+                            }
+                          },
+                          "required": [
+                            "jobId",
+                            "status",
+                            "type",
+                            "createdAt"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "all"
+                              ]
+                            },
+                            "jobIds": {
+                              "type": "object",
+                              "properties": {
+                                "zip": {
+                                  "type": "string",
+                                  "description": "Job ID for the zip job; poll GET .../process/{jobId} with this ID"
+                                },
+                                "report": {
+                                  "type": "string",
+                                  "description": "Job ID for the report job; poll GET .../process/{jobId} with this ID"
+                                }
+                              },
+                              "required": [
+                                "zip",
+                                "report"
+                              ]
+                            },
+                            "zip": {
+                              "type": "object",
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                },
+                                "progress": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "status",
+                                "createdAt"
+                              ]
+                            },
+                            "report": {
+                              "type": "object",
+                              "properties": {
+                                "jobId": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string"
+                                },
+                                "progress": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "jobId",
+                                "status",
+                                "createdAt"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "jobIds",
+                            "zip",
+                            "report"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (e.g., invalid job type)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/databanks/{databankId}/process/{jobId}": {
+      "get": {
+        "tags": [
+          "Databanks"
+        ],
+        "summary": "Get processing job status",
+        "description": "Retrieves the current status of a processing job for a databank.\n\n**Status Values:**\n- `pending`: Job queued, waiting for worker\n- `processing`: Worker is processing the job\n- `completed`: Job completed successfully\n- `failed`: Job failed with error\n\n**Result Field (for completed report jobs):**\nWhen a report job completes, the `result` field contains:\n- `success`: Boolean indicating success\n- `data_type`: Type of data processed (`structured` or `unstructured`)\n- `files_processed`: Number of files processed\n- `reports_uploaded`: Number of reports uploaded\n- `processing_time_seconds`: Total processing time\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Databank ID"
+            },
+            "required": true,
+            "description": "Databank ID",
+            "name": "databankId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Job ID"
+            },
+            "required": true,
+            "description": "Job ID",
+            "name": "jobId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Processing job status retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -1783,22 +2515,30 @@
                           "type": "string"
                         },
                         "status": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Job status: pending, processing, completed, or failed"
                         },
                         "type": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Job type: zip, report, or all"
                         },
                         "createdAt": {
                           "type": "string"
                         },
                         "progress": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Progress percentage (0-100)"
                         },
                         "completedAt": {
                           "type": "string"
                         },
                         "error": {
                           "type": "string"
+                        },
+                        "result": {
+                          "type": "object",
+                          "properties": {},
+                          "description": "Job result data (varies by job type)"
                         }
                       },
                       "required": [
@@ -1817,8 +2557,8 @@
               }
             }
           },
-          "400": {
-            "description": "Invalid request",
+          "404": {
+            "description": "Job not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1866,7 +2606,7 @@
           "Databanks"
         ],
         "summary": "Update processing job status",
-        "description": "Updates the status of a processing job for a databank.\n\n**Access Control:**\n- Allowed Roles: `provider`",
+        "description": "Updates the status of a processing job for a databank.\n\n**Note:** This endpoint is primarily used by worker processes to update job status during processing. The status is automatically updated by workers as jobs progress.\n\n**Status Values:**\n- `pending`: Job queued, waiting for worker\n- `processing`: Worker is processing the job\n- `completed`: Job completed successfully\n- `failed`: Job failed with error\n\n**Result Field (for report jobs):**\nWhen a report job completes, the `result` field contains:\n- `success`: Boolean indicating success\n- `data_type`: Type of data processed (`structured` or `unstructured`)\n- `files_processed`: Number of files processed\n- `reports_uploaded`: Number of reports uploaded\n- `processing_time_seconds`: Total processing time\n- `download_time_seconds`: Time spent downloading files\n- `framework_time_seconds`: Time spent running assessment framework\n- `upload_time_seconds`: Time spent uploading reports\n\n**Access Control:**\n- Allowed Roles: `provider`",
         "parameters": [
           {
             "schema": {
@@ -1897,17 +2637,28 @@
                 "properties": {
                   "status": {
                     "type": "string",
+                    "enum": [
+                      "pending",
+                      "processing",
+                      "completed",
+                      "failed"
+                    ],
                     "description": "New status for the job"
                   },
                   "progress": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Progress percentage (0-100)"
                   },
                   "error": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Error message if job failed"
                   },
                   "result": {
                     "type": "object",
-                    "properties": {}
+                    "properties": {},
+                    "description": "Result data (varies by job type; see description for report job structure)"
                   }
                 },
                 "required": [
@@ -1938,22 +2689,30 @@
                           "type": "string"
                         },
                         "status": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Job status: pending, processing, completed, or failed"
                         },
                         "type": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Job type: zip, report, or all"
                         },
                         "createdAt": {
                           "type": "string"
                         },
                         "progress": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Progress percentage (0-100)"
                         },
                         "completedAt": {
                           "type": "string"
                         },
                         "error": {
                           "type": "string"
+                        },
+                        "result": {
+                          "type": "object",
+                          "properties": {},
+                          "description": "Job result data (varies by job type)"
                         }
                       },
                       "required": [
