@@ -2,7 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zip-worker
-  namespace: default
+  # Same namespace as files-connect-config / files-connect-secret and the redis Service -
+  # ConfigMaps and Secrets cannot be referenced across namespaces.
+  namespace: sandbox
   labels:
     app: zip-worker
     component: job-processor
@@ -22,26 +24,44 @@ spec:
         image: your-registry/files-connect-zip-worker:latest  # Update with your image
         imagePullPolicy: Always
         env:
-        # Redis configuration
+        # Field reference: docs/config/zip-worker.md
+        # Redis configuration - must match the file server's, including REDIS_DB
         - name: REDIS_HOST
-          value: "redis"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_HOST
         - name: REDIS_PORT
-          value: "6379"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_PORT
         - name: REDIS_DB
-          value: "0"
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_DB
+        - name: REDIS_CLUSTER_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_CLUSTER_MODE
+              optional: true
         - name: ZIP_QUEUE_NAME
           valueFrom:
             configMapKeyRef:
               name: files-connect-config
               key: ZIP_QUEUE_NAME
-        # Redis password (if using authentication)
-        # - name: REDIS_PASSWORD
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: redis-secret
-        #       key: password
-        
-        # Storage configuration - from ConfigMap
+        # Redis password (only when the server enforces AUTH; keep in sync with the file server)
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: files-connect-secret
+              key: REDIS_PASSWORD
+              optional: true
+
+        # Storage configuration - from ConfigMap. The worker reads the legacy S3_*
+        # names, so the STORAGE_* keys are remapped here.
         - name: STORAGE_PROVIDER
           valueFrom:
             configMapKeyRef:
@@ -75,7 +95,7 @@ spec:
               name: files-connect-config
               key: S3_VERIFY_SSL
               optional: true
-        
+
         # Storage credentials - from Secret
         - name: S3_ACCESS_KEY
           valueFrom:
@@ -115,12 +135,15 @@ spec:
               key: GCS_PRIVATE_KEY
               optional: true
 
-        # CAT API configuration (optional)
+        # Catalogue index update (optional). CAT_URL is the ELASTICSEARCH base URL,
+        # not the catalogue REST API: the worker calls {CAT_URL}/tgdex__cat/_search
+        # and _update. Pointing it at CAT_API_URL makes every update 404 while the
+        # zip job still reports success. See docs/config/zip-worker.md.
         - name: CAT_URL
           valueFrom:
             configMapKeyRef:
               name: files-connect-config
-              key: CAT_API_URL
+              key: ELASTICSEARCH_URL
               optional: true
         - name: CAT_USERNAME
           valueFrom:
@@ -134,7 +157,7 @@ spec:
               name: files-connect-secret
               key: CAT_PASSWORD
               optional: true
-        
+
         resources:
           requests:
             memory: "512Mi"
@@ -142,16 +165,16 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "1000m"
-        
-      # Graceful shutdown configuration
+
+      # Graceful shutdown configuration - must exceed the longest single zip job
       terminationGracePeriodSeconds: 60
-      
+
       # Security context
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
-      
+
       # Restart policy
       restartPolicy: Always
 ---
@@ -160,7 +183,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: zip-worker-hpa
-  namespace: default
+  namespace: sandbox
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -197,4 +220,3 @@ spec:
       - type: Pods
         value: 2
         periodSeconds: 30
-

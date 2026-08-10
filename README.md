@@ -93,6 +93,11 @@ pnpm install
 
 3. Configure environment variables in `.env` file (see `.env.example` for all options):
 
+> **Full configuration reference:** [docs/config/](docs/config/) documents every environment
+> variable of the file server, zip worker and report worker — purpose, expected value, required
+> privileges, default, and failure mode — plus the deployment wiring in
+> [docs/config/deployments.md](docs/config/deployments.md). The snippets below are a quick start.
+
 ### Basic Configuration
 ```
 PORT=3000
@@ -164,10 +169,14 @@ Only **one bucket** needs to be created. Everything lives under `BUCKET_NAME` us
 ### Authentication Configuration
 ```
 KEYCLOAK_AUTH_URL=https://your-keycloak-url
-KEYCLOAK_REALM=your-realm
 KEYCLOAK_CLIENT_ID=your-client-id
 KEYCLOAK_PUBLIC_KEY="your-public-key"
 ```
+
+This service only *verifies* tokens — it never calls Keycloak's admin API and creates nothing in the
+realm. `KEYCLOAK_PUBLIC_KEY` is the realm's RS256 public key; set `ISSUER_CONFIG` instead to verify
+against one or more JWKS endpoints. See
+[docs/config/file-server.md](docs/config/file-server.md#keycloak_client_id).
 
 ### Redis Configuration (Job Queue)
 ```
@@ -262,7 +271,7 @@ The OpenAPI spec is also available at http://localhost:3000/openapi.json
   - `POST /v1/assets` - Upload asset files
   - `POST /v1/assets/download` - Download asset files
 
-For detailed API documentation, see the [API.md](./API.md) file.
+For detailed API documentation, see [docs/api/endpoints.md](docs/api/endpoints.md) — every endpoint with its roles, auth checks and behaviour. The machine-readable spec is [openapi.json](openapi.json), rendered at `/apis` on a running server.
 
 ## Architecture
 

@@ -22,7 +22,8 @@ spec:
         image: your-registry/files-connect-report-worker:latest  # Update with your image
         imagePullPolicy: Always
         env:
-        # Redis configuration
+        # Field reference: docs/config/report-worker.md
+        # Redis configuration - must match the file server's, including REDIS_DB
         - name: REDIS_HOST
           valueFrom:
             configMapKeyRef:
@@ -38,13 +39,27 @@ spec:
             configMapKeyRef:
               name: files-connect-config
               key: REDIS_DB
+        - name: REDIS_CLUSTER_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REDIS_CLUSTER_MODE
+              optional: true
         - name: REPORT_QUEUE_NAME
           valueFrom:
             configMapKeyRef:
               name: files-connect-config
               key: REPORT_QUEUE_NAME
+        # Redis password (only when the server enforces AUTH; keep in sync with the file server)
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: files-connect-secret
+              key: REDIS_PASSWORD
+              optional: true
 
-        # Storage configuration - from ConfigMap
+        # Storage configuration - from ConfigMap. The worker reads the legacy S3_*
+        # names, so the STORAGE_* keys are remapped here.
         - name: STORAGE_PROVIDER
           valueFrom:
             configMapKeyRef:
@@ -117,12 +132,49 @@ spec:
               key: GCS_PRIVATE_KEY
               optional: true
 
-        # Catalogue API URL (required for dataset name resolution in readiness reports)
+        # Catalogue REST API - dataset name resolution in readiness reports.
+        # Without it the code falls back to a hard-coded dev URL and reports get the
+        # wrong dataset name while still reporting success.
         - name: CAT_API_URL
           valueFrom:
             configMapKeyRef:
               name: files-connect-config
               key: CAT_API_URL
+
+        # Catalogue index (Elasticsearch) - where the readiness score is written back.
+        # Unset ELASTICSEARCH_URL means reports are generated but the catalogue is
+        # never updated (logged at WARN, job still succeeds).
+        - name: ELASTICSEARCH_URL
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: ELASTICSEARCH_URL
+              optional: true
+        - name: ELASTIC_CAT_INDEX
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: ELASTIC_CAT_INDEX
+              optional: true
+        # "true" also sets publishStatus=ACTIVE when a report completes.
+        - name: CAT_SET_PUBLISH_STATUS
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: CAT_SET_PUBLISH_STATUS
+              optional: true
+        - name: ELASTIC_ID
+          valueFrom:
+            secretKeyRef:
+              name: report-worker-secret
+              key: ELASTIC_ID
+              optional: true
+        - name: ELASTIC_PASS
+          valueFrom:
+            secretKeyRef:
+              name: report-worker-secret
+              key: ELASTIC_PASS
+              optional: true
 
         # OpenAI API key - from Secret (report-worker-secret)
         - name: OPENAI_API_KEY
