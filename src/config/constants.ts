@@ -2,6 +2,7 @@
  * Application constants
  * This file contains constants used throughout the application
  */
+import { env } from './environment';
 
 // S3 related constants
 export const S3Constants = {
@@ -49,21 +50,28 @@ export const FileTypes = {
   ZIP: 'zip'
 } as const;
 
+// Base file types for different upload types. Deployments can append additional
+// extensions via ADDITIONAL_ASSET_FILE_TYPES / ADDITIONAL_DATABANK_FILE_TYPES (see
+// src/config/environment.ts) instead of editing these lists directly.
+const BASE_ASSET_FILE_TYPES = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'tiff', 'bmp'];
+
+const BASE_DATABANK_FILE_TYPES = [
+  'aiconfig', 'ark', 'arrow', 'bif', 'bin', 'bpe', 'cbm', 'cfg', 'ckpt', 'conf',
+  'crfsuite', 'csv', 'dict', 'elki', 'emb', 'engine', 'geojson', 'ggml', 'gguf', 'gpickle', 'h5',
+  'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'mrk', 'nav', 'nc',
+  'nemo', 'npy', 'npz', 'obs', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
+  'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'tsv', 'txt', 'xml', 'yaml',
+  'yml', 'xlsx', 'xls', 'pdf', 'doc', 'docx', 'mp3', 'jpeg', 'png', 'tiff', 'dcm', 'tif', 'jpg'
+];
+
 // Allowed file types for different upload types
 export const AllowedFileTypes = {
-  // For asset uploads (PDF and images)
-  ASSETS: ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'tiff', 'bmp'],
-  
-  // For databank uploads (data files only)
-  DATABANK: [
-    'aiconfig', 'ark', 'arrow', 'bif', 'bin', 'bpe', 'cbm', 'cfg', 'ckpt', 'conf',
-    'crfsuite', 'csv', 'dict', 'elki', 'emb', 'engine', 'geojson', 'ggml', 'gguf', 'gpickle', 'h5',
-    'hdf', 'hdf5', 'ini', 'jlso', 'joblib', 'json', 'md', 'mlmodel', 'model', 'mrk', 'nav', 'nc',
-    'nemo', 'npy', 'npz', 'obs', 'onnx', 'parquet', 'pb', 'pbmm', 'pkl', 'pmml', 'pt',
-    'pth', 'rds', 'safetensors', 'spacy', 'tflite', 'tfhub', 'toml', 'tsv', 'txt', 'xml', 'yaml',
-    'yml', 'xlsx', 'xls', 'pdf', 'doc', 'docx', 'mp3', 'jpeg', 'png', 'tiff', 'dcm', 'tif', 'jpg'
-  ]
-} as const;
+  // For asset uploads (PDF and images), plus any operator-configured additions
+  ASSETS: Array.from(new Set([...BASE_ASSET_FILE_TYPES, ...env.ADDITIONAL_ASSET_FILE_TYPES])),
+
+  // For databank uploads (data files only), plus any operator-configured additions
+  DATABANK: Array.from(new Set([...BASE_DATABANK_FILE_TYPES, ...env.ADDITIONAL_DATABANK_FILE_TYPES]))
+};
 
 /**
  * API paths for different endpoints

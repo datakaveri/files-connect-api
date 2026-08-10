@@ -3,13 +3,15 @@
  * Handles file uploads using multer
  */
 import multer from 'multer';
+import path from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { createLogger } from '../core/utils/logger';
+import { env } from '../config/environment';
 
 // Create a logger for this module
 const logger = createLogger('FileUploadMiddleware');
 
-// Define allowed file types
+// Define allowed file types (PDF and images, checked by MIME type)
 const ALLOWED_FILE_TYPES = [
   // PDF
   'application/pdf',
@@ -24,6 +26,10 @@ const ALLOWED_FILE_TYPES = [
   'image/bmp'
 ];
 
+// Operator-configured extra extensions (ADDITIONAL_ASSET_FILE_TYPES), matched by file
+// extension since arbitrary formats (e.g. zip, py) don't have a single canonical MIME type.
+const ADDITIONAL_EXTENSIONS = env.ADDITIONAL_ASSET_FILE_TYPES;
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -33,8 +39,10 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB file size limit
   },
   fileFilter: (req, file, cb) => {
-    // Check if the file type is allowed
-    if (ALLOWED_FILE_TYPES.includes(file.mimetype)) {
+    const extension = path.extname(file.originalname || '').toLowerCase().replace(/^\./, '');
+
+    // Check if the file type is allowed, either by MIME type or by an operator-configured extension
+    if (ALLOWED_FILE_TYPES.includes(file.mimetype) || ADDITIONAL_EXTENSIONS.includes(extension)) {
       // Accept the file
       cb(null, true);
     } else {
@@ -82,7 +90,8 @@ export const fileUpload = (req: Request, res: Response, next: NextFunction) => {
             error: {
               code: 'UNSUPPORTED_FILE_TYPE',
               message: 'File type not allowed. Only PDF and image files are accepted.',
-              allowedTypes: ALLOWED_FILE_TYPES
+              allowedTypes: ALLOWED_FILE_TYPES,
+              additionalAllowedExtensions: ADDITIONAL_EXTENSIONS
             }
           });
         }
