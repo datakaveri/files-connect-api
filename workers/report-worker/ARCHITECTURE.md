@@ -761,7 +761,7 @@ Persistent volumes: `minio_data`, `redis_data`.
 | `openai` | 1.82.0 | OpenAI API client |
 | `requests` | 2.32.4 | HTTP client (CAT API) |
 | `fpdf` | 1.7.2 | PDF generation |
-| `pillow` | 11.3.0 | Image processing and metadata |
+| `pillow` | 12.3.0 | Image processing and metadata |
 | `pydicom` | 3.0.1 | DICOM medical imaging |
 | `mutagen` | 1.47.0 | Audio file metadata |
 | `openpyxl` | 3.1.5 | Excel file support (.xlsx) |
