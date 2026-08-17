@@ -50,9 +50,9 @@ pipeline {
             script {
               echo 'Pulled - ' + env.GIT_BRANCH
 
-              mainImage = docker.build(devRegistryMain, "-f ./infra/Dockerfile .")
-              reportImage = docker.build(devRegistryReport, "-f ./workers/report-worker/Dockerfile.worker ./workers/report-worker")
-              zipImage = docker.build(devRegistryZip, "-f ./workers/zip-worker/Dockerfile ./workers/zip-worker")
+              mainImage = docker.build(devRegistryMain, "--pull -f ./infra/Dockerfile .")
+              reportImage = docker.build(devRegistryReport, "--pull -f ./workers/report-worker/Dockerfile.worker ./workers/report-worker")
+              zipImage = docker.build(devRegistryZip, "--pull -f ./workers/zip-worker/Dockerfile ./workers/zip-worker")
             }
           }
         }
