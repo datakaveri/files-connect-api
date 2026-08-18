@@ -10,5 +10,6 @@ npm-debug.log
 yarn-error.log
 pnpm-debug.log
 .env.test
-scripts
+# Keep local automation configs (which may contain tokens/passwords) out of Git.
+scripts/**/*_config.json
 full-tests/
