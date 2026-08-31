@@ -3,6 +3,7 @@
 | Document | What it covers |
 |---|---|
 | [api/endpoints.md](./api/endpoints.md) | Every endpoint: roles, auth-check order, request/response behaviour |
+| [api/multipart-uploads.md](./api/multipart-uploads.md) | Databank upload lifecycle, client chunk sizes, provider behavior, and known limits |
 | [config/README.md](./config/README.md) | Configuration overview, architecture, values that must match across services |
 | [config/file-server.md](./config/file-server.md) | Every environment variable of the Node API |
 | [config/zip-worker.md](./config/zip-worker.md) | Every environment variable of the zip worker |
@@ -28,6 +29,7 @@
 - Configuration questions ("what does this variable do, what breaks without it") belong in
   `docs/config/`. Worker docs link there instead of repeating variable lists, so there is one place
   to update when configuration changes.
-- API contract questions belong in `docs/api/endpoints.md` and `openapi.json`.
+- API contract questions belong in `docs/api/endpoints.md` and `openapi.json`; multipart lifecycle
+  and client chunking details belong in `docs/api/multipart-uploads.md`.
 - Internals — pipelines, metrics, data flow — belong next to the code they describe, under
   `workers/<worker>/`.

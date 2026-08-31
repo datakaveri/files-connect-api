@@ -262,10 +262,15 @@ The OpenAPI spec is also available at http://localhost:3000/openapi.json
 - **Databank Operations**:
   - `POST /v1/databanks/{databankId}/uploads` - Initiate multipart upload for approved databank formats, including NAV, OBS, BIN, and MRK
   - `PUT /v1/databanks/{databankId}/uploads/{uploadId}` - Complete multipart upload
+  - `POST /v1/databanks/{databankId}/uploads/{uploadId}/cancel` - Abort an incomplete multipart upload
   - `POST /v1/databanks/{databankId}/files` - List files in databank
   - `POST /v1/databanks/{databankId}/files/download` - Download files
   - `POST /v1/databanks/{databankId}/process` - Create processing job (type: `zip`, `report`, or `all` for both)
   - `GET /v1/databanks/{databankId}/query-access` - Generate temporary S3 credentials
+
+For the direct-to-storage upload flow, client chunk-size calculations, ETag handling, provider
+behavior, and current size-validation limitation, see
+[Databank Multipart Uploads](docs/api/multipart-uploads.md).
 
 - **Asset Operations**:
   - `POST /v1/assets` - Upload asset files

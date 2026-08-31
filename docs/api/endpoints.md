@@ -55,7 +55,11 @@ All under `/v1/databanks/:databankId`.
 | POST | `.../uploads/:uploadId/cancel` | provider **(owner only)** | authenticate → authorize → checkIsOwner | Aborts the multipart upload. |
 
 Accepted upload formats include CSV, JSON, GeoJSON, TXT, Parquet, XLSX, NAV, OBS, BIN and MRK;
-executables are rejected (415). Total size is capped by `MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB`.
+executables are rejected (415). The client uploads each part directly to object storage and returns
+the storage-issued ETags when completing the upload. See
+[Databank Multipart Uploads](./multipart-uploads.md) for the full request flow, the chunk-size rules
+used by both supplied Python clients, provider differences, cancellation, and the current limitation
+of the `MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB` check.
 
 ### Processing jobs
 

@@ -204,12 +204,12 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 
 - **Type / format:** int as string.
 - **Required:** **yes** — the schema has a transform but no default.
-- **Purpose:** upper bound on total upload size checked in [src/services/multipart-upload-service.ts:192](../../src/services/multipart-upload-service.ts#L192).
-- **Expected value:** whole gigabytes. Size it against the bucket quota and the ingress body limit, not against client wishes.
+- **Purpose:** intended upper bound on total databank upload size, checked in [src/services/multipart-upload-service.ts:192](../../src/services/multipart-upload-service.ts#L192).
+- **Expected value:** whole gigabytes. Size it against the bucket quota and largest permitted databank upload.
 - **Example value:** `1000`
 - **Default if omitted:** none — `NaN` if unset; Zod reports `Required` and the process exits 1.
-- **Failure mode:** exceeded → the request is rejected with `Content size is greater than <N>GB.` Set too low → legitimate large databank uploads fail mid-flight.
-- **Notes / gotchas:** the nginx ingress sets `proxy-body-size: 5m`, which caps a **single request body**; multipart parts are individually small so the two limits are independent — do not "fix" a rejected upload by raising only one of them.
+- **Failure mode:** when the value calculated during initiation exceeds the setting, initiation is rejected with `Content size is greater than <N>GB.`
+- **Notes / gotchas:** the current initiation request contains `numParts`, but no real file size or part sizes. The service substitutes 1 MiB per requested part for this check, while the presigned URLs do not enforce that size. The check therefore evaluates approximately `numParts * 1 MiB`, **not the bytes actually uploaded**. Clients must enforce the intended total-size policy until the API contract carries trustworthy size information. Databank part PUTs go directly to object storage and bypass the file-server nginx ingress; `proxy-body-size` is not a databank part-size control. See [Databank Multipart Uploads](../api/multipart-uploads.md#current-size-validation-limitation).
 
 ### `ENCRYPTION_ENABLED` *(feature flag)*
 
@@ -581,6 +581,6 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 
 | Field | Safe range | Size against | Symptom if wrong |
 |---|---|---|---|
-| `MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB` | 1–1000 | bucket quota, largest expected databank | too low → uploads rejected at `Content size is greater than …GB` |
+| `MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB` | 1–1000 | bucket quota, largest expected databank | current check uses `numParts * 1 MiB`, not actual uploaded bytes; clients must also enforce the limit |
 | `STS_SESSION_DURATION_IN_SECONDS` | 900 – role `MaxSessionDuration` | slowest expected client download | too low → 403 mid-download; too high → `ValidationError` at issue time |
 | replicas (`infra/manifest.yaml`) | 2–6 | request volume; each replica holds its own Redis + RabbitMQ connections | see [deployments.md](./deployments.md) |

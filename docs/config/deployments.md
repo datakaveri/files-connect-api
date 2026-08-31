@@ -114,10 +114,12 @@ Redis is a configuration change, not a code change.
 ## 6. Ingress specifics worth knowing
 
 [infra/ingress.yaml](../../infra/ingress.yaml) sets `proxy-body-size: 5m`, a per-request body cap.
-Multipart upload parts are individually smaller than this, which is why large databank uploads work
-despite the 5 MB limit — do not "fix" a rejected upload by raising only
-`MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB`, and do not lower this without checking the part size used by
-the client. CORS is enforced **at the ingress** with an explicit origin allow-list; the app-level
+Databank multipart initiation, completion, and cancellation pass through this ingress but contain
+only small JSON bodies. The actual part PUTs use object-storage presigned URLs and bypass the file
+server ingress, so `proxy-body-size` does not determine their chunk size. The `/v1/assets` upload is
+different: it sends the file through the API as `multipart/form-data` and is subject to both ingress
+and application limits. See [Databank Multipart Uploads](../api/multipart-uploads.md#ingress-and-asset-uploads).
+CORS is enforced **at the ingress** with an explicit origin allow-list; the app-level
 `CORS_ORIGIN` is `*` so the two layers do not emit conflicting `Access-Control-Allow-Origin`
 headers. Rate limits: 500 rps / 500 connections per server, global limit 5000/s.
 
