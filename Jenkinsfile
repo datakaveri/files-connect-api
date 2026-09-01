@@ -8,9 +8,9 @@ pipeline {
     GIT_HASH = GIT_COMMIT.take(7)
   }
 
-  agent { 
+  agent {
     node {
-      label 'slave1' 
+      label 'slave1'
     }
   }
 
@@ -25,6 +25,7 @@ pipeline {
             changeset "src/**"
             changeset "package.json"
             changeset "pnpm-lock.yaml"
+            changeset ".env.example"
             triggeredBy cause: 'UserIdCause'
           }
           expression {
@@ -56,7 +57,7 @@ pipeline {
             }
           }
         }
-        
+
         stage('Trivy Scan and Report') {
           steps {
             script {
@@ -89,6 +90,30 @@ pipeline {
           }
         }
 
+        stage('Detect config/migration change') {
+          steps {
+            script {
+              def baseCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT
+              if (!baseCommit) {
+                baseCommit = sh(script: 'git rev-list --max-parents=0 HEAD | tail -1', returnStdout: true).trim()
+              }
+
+              def changedFiles = sh(
+                script: "git diff --name-only ${baseCommit} HEAD",
+                returnStdout: true
+              ).trim().split('\n') as List
+
+              env.CONFIG_CHANGED = changedFiles.contains('.env.example') ? 'true' : 'false'
+              // No DB migration mechanism exists in this repo (no db/migration
+              // dir, no Prisma/Knex/TypeORM) — always false. Kept as an env
+              // var for interface parity with the other API server Jenkinsfiles.
+              env.MIGRATION_CHANGED = 'false'
+
+              echo "Diffing against ${baseCommit} (last successful build's commit): config changed=${env.CONFIG_CHANGED}, migration changed=${env.MIGRATION_CHANGED}"
+            }
+          }
+        }
+
         stage('Continuous Deployment') {
           when {
             expression {
@@ -101,10 +126,18 @@ pipeline {
             stage('Push Images') {
               steps {
                 script {
+                  def tagSuffix = ''
+                  if (env.CONFIG_CHANGED == 'true') {
+                    tagSuffix += '-C'
+                  }
+                  if (env.MIGRATION_CHANGED == 'true') {
+                    tagSuffix += '-M'
+                  }
+                  env.IMAGE_TAG = "1.0.1-${env.GIT_HASH}${tagSuffix}"
                   docker.withRegistry(registryUri, registryCredential) {
-                    mainImage.push("1.0.1-${env.GIT_HASH}")
-                    reportImage.push("1.0.1-${env.GIT_HASH}")
-                    zipImage.push("1.0.1-${env.GIT_HASH}")
+                    mainImage.push(env.IMAGE_TAG)
+                    reportImage.push(env.IMAGE_TAG)
+                    zipImage.push(env.IMAGE_TAG)
                   }
                 }
               }
@@ -113,8 +146,7 @@ pipeline {
             stage('EKS Helm deployment') {
               steps {
                 script {
-                  def deployTag = "1.0.1-${env.GIT_HASH}"
-                  sh "ssh ubuntu@dev-eks 'cd v2-deployments/iudx/iudx-installer/K8s-deployment/Charts/file-connect-api && helm upgrade files-connect-api . -n files-connect-api --rollback-on-failure --timeout 5m --reuse-values --set image.registry=ghcr.io --set image.repository=${devRegistryMain} --set image.tag=${deployTag} --set workers.report-worker.image.repository=${devRegistryReport} --set workers.report-worker.image.tag=${deployTag} --set workers.zip-worker.image.repository=${devRegistryZip} --set workers.zip-worker.image.tag=${deployTag}'"
+                  sh "ssh ubuntu@dev-eks 'cd v2-deployments/iudx/iudx-installer/K8s-deployment/Charts/file-connect-api && helm upgrade files-connect-api . -n files-connect-api --rollback-on-failure --timeout 5m --reuse-values --set image.registry=ghcr.io --set image.repository=${devRegistryMain} --set image.tag=${env.IMAGE_TAG} --set workers.report-worker.image.repository=${devRegistryReport} --set workers.report-worker.image.tag=${env.IMAGE_TAG} --set workers.zip-worker.image.repository=${devRegistryZip} --set workers.zip-worker.image.tag=${env.IMAGE_TAG}'"
                 }
               }
               post{
