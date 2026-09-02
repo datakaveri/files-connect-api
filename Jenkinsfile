@@ -25,6 +25,7 @@ pipeline {
             changeset "src/**"
             changeset "package.json"
             changeset "pnpm-lock.yaml"
+            changeset ".env.example"
             triggeredBy cause: 'UserIdCause'
           }
           expression {
@@ -88,6 +89,33 @@ pipeline {
           }
         }
 
+        stage('Detect config/migration change') {
+          when {
+            not { changeRequest() }
+          }
+          steps {
+            script {
+              def baseCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT
+              if (!baseCommit) {
+                baseCommit = sh(script: 'git rev-list --max-parents=0 HEAD | tail -1', returnStdout: true).trim()
+              }
+
+              def changedFiles = sh(
+                script: "git diff --name-only ${baseCommit} HEAD",
+                returnStdout: true
+              ).trim().split('\n') as List
+
+              env.CONFIG_CHANGED = changedFiles.contains('.env.example') ? 'true' : 'false'
+              // No DB migration mechanism exists in this repo (no db/migration
+              // dir, no Prisma/Knex/TypeORM) — always false. Kept as an env
+              // var for interface parity with the other API server Jenkinsfiles.
+              env.MIGRATION_CHANGED = 'false'
+
+              echo "Diffing against ${baseCommit} (last successful build's commit): config changed=${env.CONFIG_CHANGED}, migration changed=${env.MIGRATION_CHANGED}"
+            }
+          }
+        }
+
         stage('Push Images') {
           when {
             expression {
@@ -96,10 +124,17 @@ pipeline {
           }
           steps {
             script {
+              def tagSuffix = ''
+              if (env.CONFIG_CHANGED == 'true') {
+                tagSuffix += '-C'
+              }
+              if (env.MIGRATION_CHANGED == 'true') {
+                tagSuffix += '-M'
+              }
               docker.withRegistry(registryUri, registryCredential) {
-                mainImage.push("v2.3.RC1-${env.GIT_HASH}")
-                reportImage.push("v2.3.RC1-${env.GIT_HASH}")
-                zipImage.push("v2.3.RC1-${env.GIT_HASH}")
+                mainImage.push("v2.3.RC1-${env.GIT_HASH}${tagSuffix}")
+                reportImage.push("v2.3.RC1-${env.GIT_HASH}${tagSuffix}")
+                zipImage.push("v2.3.RC1-${env.GIT_HASH}${tagSuffix}")
               }
             }
           }
