@@ -34,9 +34,13 @@ Before enabling output routes, configure:
 
 - `OUTPUTS_ENABLED=true`
 - `OUTPUT_BUCKET=fs-prod-aae` (the existing bucket), `OUTPUT_REGION=ap-south-1`, optional HTTPS `OUTPUT_ENDPOINT`
-- `OUTPUT_STORAGE_ROLE_ARN`: an assumable role with access to the output bucket. The SDK's
-  standard credential chain supplies the source identity; existing S3 environment variable
-  names are not automatically AWS SDK credentials.
+- Production/default: `OUTPUT_STORAGE_ROLE_ARN` is an assumable role with access to the output
+  bucket. The SDK's standard credential chain supplies the source identity; existing S3
+  environment variable names are not automatically AWS SDK credentials.
+- Demo fallback: set `OUTPUT_STORAGE_USE_EXISTING_CREDENTIALS=true` to reuse the file server's
+  existing `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` or legacy
+  `S3_ACCESS_KEY`/`S3_SECRET_KEY`. This skips STS only for the output module and ignores
+  `OUTPUT_STORAGE_ROLE_ARN`. Keep the flag false or unset once a restricted role is available.
 - `OUTPUT_UPLOAD_SIGNING_KEY`: a random secret of at least 32 characters, shared only with
   the trusted Sandbox Connect token issuer, never the notebook or uploader.
 - `OUTPUT_PUBLISH_TOKEN`: a different random secret of at least 32 characters, shared with
