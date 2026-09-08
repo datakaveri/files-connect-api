@@ -18,11 +18,17 @@ export interface Job { outputId: string; ownerId: string; notebookName: string }
 export interface Limits { maxManifestBytes: number; maxFiles: number; maxFileBytes: number; maxBytes: number }
 export interface Config extends Limits { reviewBase: string; workspaceBase: string; reviewDatabankId: string; workspaceDatabankId: string }
 export interface Blob { bytes: Buffer; contentType: string; etag: string }
+export interface StoredFile { key: string; size: number; lastModified: Date }
+export interface AccessFile { fileId: string; name: string; size: number; lastModified: Date; contentType: string }
+export interface Preview { content: { data: Record<string, unknown>[]; headers: string[]; totalRows: number; previewSupported: true }; format: 'csv'; truncated: boolean; firstNLines: number; totalLines: number }
+export interface Download { url: string; expiresAt: Date }
 export interface Store {
   read(key: string, limit: number): Promise<Blob | null>;
   create(key: string, bytes: Buffer): Promise<boolean>;
   presign(key: string, file: File): Promise<{url: string; headers: Record<string,string>}>;
   copy(source: string, destination: string, etag: string): Promise<void>;
+  list(prefix: string, limit: number): Promise<StoredFile[]>;
+  download(key: string): Promise<Download>;
 }
 export const hash = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 export class OutputService {
@@ -49,6 +55,14 @@ export class OutputService {
     const blob=await this.store.read(this.key(id),this.config.maxManifestBytes+4096);
     if (!blob) throw new OutputError(404,'output_not_registered');
     return JSON.parse(blob.bytes.toString());
+  }
+  jobFromReviewPrefix(id: string, rawPrefix: unknown): Job {
+    const outputId=segment.parse(id),prefix=z.string().parse(rawPrefix);
+    const base=this.config.reviewBase+'/users/';
+    if(!prefix.startsWith(base)||!prefix.endsWith('/'))throw new OutputError(403,'review_prefix_mismatch');
+    const parts=prefix.slice(base.length,-1).split('/');
+    if(parts.length!==5||parts[1]!=='sandboxes'||parts[3]!=='outputs'||parts[4]!==outputId)throw new OutputError(403,'review_prefix_mismatch');
+    return {outputId,ownerId:segment.parse(parts[0]),notebookName:segment.parse(parts[2])};
   }
   private same(a: unknown,b: unknown) { if(JSON.stringify(a)!==JSON.stringify(b)) throw new OutputError(409,'inventory_conflict'); }
   async uploads(job: Job, body: unknown) {
@@ -104,5 +118,68 @@ export class OutputService {
     const workspaceManifestKey=workspacePrefix+'manifest.json';
     await this.marker(this.physical(this.config.workspaceDatabankId,workspaceManifestKey),destination);
     return {workspacePrefix,workspaceManifestKey,approvedFileIds:manifest.files.map(f=>f.fileId)};
+  }
+  private async completed(id:string){
+    const record=await this.job(id),manifestKey=this.physical(this.config.reviewDatabankId,this.review(record.job)+'manifest.json');
+    const marker=await this.store.read(manifestKey,this.config.maxManifestBytes);
+    if(!marker)throw new OutputError(409,'output_not_complete');
+    try{this.same(JSON.parse(marker.bytes.toString()),record.manifest);}catch(e){if(e instanceof OutputError)throw e;throw new OutputError(409,'manifest_invalid');}
+    return record;
+  }
+  private previewBlob(blob:Blob):Preview{
+    let text:string;
+    try{text=new TextDecoder('utf-8',{fatal:true}).decode(blob.bytes);}catch{throw new OutputError(422,'invalid_csv');}
+    const parsed=Papa.parse(text,{header:true,skipEmptyLines:true});
+    if(parsed.errors.length)throw new OutputError(422,'invalid_csv');
+    const rows=parsed.data,first=rows.slice(0,10);
+    return {content:{data:first,headers:parsed.meta.fields||[],totalRows:rows.length,previewSupported:true},format:'csv',truncated:rows.length>first.length,firstNLines:first.length,totalLines:rows.length};
+  }
+  async previewReview(id:string,fileId:string){
+    const record=await this.completed(segment.parse(id)),wanted=z.string().regex(/^[a-f0-9]{64}$/).parse(fileId);
+    const file=record.manifest.files.find(item=>item.fileId===wanted);
+    if(!file)throw new OutputError(404,'file_not_found');
+    return this.previewBlob(await this.verify(this.physical(this.config.reviewDatabankId,file.objectKey),file));
+  }
+  private async workspaceFiles(ownerId:string):Promise<Array<AccessFile&{key:string,file:File}>>{
+    const owner=segment.parse(ownerId),logicalRoot=this.config.workspaceBase+'/users/'+owner+'/outputs/',physicalRoot=this.physical(this.config.workspaceDatabankId,logicalRoot);
+    const objects=await this.store.list(physicalRoot,Math.min(1000,this.config.maxFiles*2));
+    const byKey=new Map(objects.map(item=>[item.key,item]));
+    const result:Array<AccessFile&{key:string,file:File}>=[];
+    for(const markerMeta of objects.filter(item=>item.key.endsWith('/manifest.json'))){
+      if(!markerMeta.key.startsWith(physicalRoot))continue;
+      const logicalMarker=markerMeta.key.slice(this.config.workspaceDatabankId.length+1),relative=logicalMarker.slice(logicalRoot.length);
+      const parts=relative.split('/');
+      if(parts.length!==2||parts[1]!=='manifest.json')continue;
+      segment.parse(parts[0]);
+      const outputPrefix=logicalRoot+parts[0]+'/',blob=await this.store.read(markerMeta.key,this.config.maxManifestBytes);
+      if(!blob)continue;
+      let manifest:Manifest;
+      try{manifest=z.object({files:z.array(fileSchema).max(this.config.maxFiles)}).strict().parse(JSON.parse(blob.bytes.toString()));}catch{throw new OutputError(409,'manifest_invalid');}
+      for(const file of manifest.files){
+        if(file.objectKey!==outputPrefix+file.path||file.fileId!==hash(file.objectKey))throw new OutputError(409,'manifest_invalid');
+        const physical=this.physical(this.config.workspaceDatabankId,file.objectKey),meta=byKey.get(physical);
+        if(!meta||meta.size!==file.size)throw new OutputError(409,'published_object_invalid');
+        result.push({fileId:file.fileId,name:parts[0]+'/'+file.path,size:file.size,lastModified:meta.lastModified,contentType:'text/csv',key:physical,file});
+        if(result.length>this.config.maxFiles)throw new OutputError(413,'file_limit');
+      }
+    }
+    return result.sort((a,b)=>a.name.localeCompare(b.name,'en'));
+  }
+  async listWorkspace(ownerId:string):Promise<AccessFile[]>{
+    return (await this.workspaceFiles(ownerId)).map(({key:_,file:__,...item})=>item);
+  }
+  private async workspaceFile(ownerId:string,fileId:string){
+    const wanted=z.string().regex(/^[a-f0-9]{64}$/).parse(fileId),file=(await this.workspaceFiles(ownerId)).find(item=>item.fileId===wanted);
+    if(!file)throw new OutputError(404,'file_not_found');
+    return file;
+  }
+  async previewWorkspace(ownerId:string,fileId:string){
+    const item=await this.workspaceFile(ownerId,fileId);
+    return this.previewBlob(await this.verify(item.key,item.file));
+  }
+  async downloadWorkspace(ownerId:string,fileId:string){
+    const item=await this.workspaceFile(ownerId,fileId);
+    await this.verify(item.key,item.file);
+    return this.store.download(item.key);
   }
 }

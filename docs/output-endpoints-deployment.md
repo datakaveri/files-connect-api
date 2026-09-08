@@ -45,6 +45,13 @@ Before enabling output routes, configure:
   the trusted Sandbox Connect token issuer, never the notebook or uploader.
 - `OUTPUT_PUBLISH_TOKEN`: a different random secret of at least 32 characters, shared with
   the Sandbox Connect controller as its Files Connect service token.
+- `OUTPUT_SANDBOX_SERVICE_TOKEN`: a third random opaque secret of at least 32 characters,
+  shared only with the Sandbox Connect API. It authorizes the dedicated internal review and
+  workspace read routes; it is not accepted for upload or publication.
+- Demo-only uploader fallback: set `OUTPUT_ALLOW_SHARED_UPLOAD_TOKEN=true` and configure a
+  separate `OUTPUT_SHARED_UPLOAD_TOKEN` while per-output JWT issuance is deferred. Put that
+  token in the uploader-only `FILE_SERVICE_TOKEN` Secret. The runner container must never
+  receive it. Disable and remove this token after per-output JWT issuance is available.
 - `OUTPUT_REVIEW_DATABANK_ID`, `OUTPUT_WORKSPACE_DATABANK_ID`: trusted databank identifiers.
 - `OUTPUT_REVIEW_BASE=nha-review`, `OUTPUT_WORKSPACE_BASE=user-workspaces` by default.
 - Limits: `OUTPUT_MAX_MANIFEST_BYTES=262144`, `OUTPUT_MAX_FILES=1000`,
@@ -54,8 +61,9 @@ No new bucket is created or required. Outputs use separate key prefixes in the e
 `fs-prod-aae` bucket. Object storage follows the existing databank layout: physical keys prepend `<databankId>/`
 to logical keys in the API contract. Job bindings are stored below `<reviewBase>/.jobs/`.
 Storage sessions automatically refresh via STS and carry an inline policy allowing GetObject
-and PutObject only in these configured areas. Server-side copy needs GetObject on the source
-and PutObject on the destination. The role's own policy must also allow these operations.
+and PutObject only in these configured areas, plus prefix-constrained ListBucket for workspace
+listing. Server-side copy needs GetObject on the source and PutObject on the destination. The
+role's own policy must also allow these operations.
 
 Upload bearer tokens are HS256 JWTs with issuer `sandbox-connect`, audience
 `files-connect-output`, scope `output:upload`, `outputId`, `ownerId`, `notebookName`, `iat`,
@@ -63,12 +71,18 @@ and `exp`; their maximum age is one hour. The server derives prefixes from these
 A publication bearer token cannot upload, and an upload token cannot publish. The first
 upload request binds the inventory immutably; subsequent requests must match.
 
-The Sandbox Connect implementation still needs the trusted per-output JWT issuance wiring
-before workflow uploads can use this authentication contract. Its current namespace Secret
-placeholder is not a token issuer. This must be integrated before claiming a full working
-notebook-to-workspace flow. Existing generic file listing also needs review to ensure it hides
-partial publication files until the workspace manifest exists; these three new endpoints alone
-do not change the legacy listing behavior.
+For the demo, the shared uploader token is accepted only by the upload and completion routes.
+Files Connect derives the job identity from the exact review prefix and keeps the existing
+immutable inventory, output-ID, path, checksum, type, size, and manifest checks. The dedicated
+workspace routes expose only files referenced by a completed publication manifest, so partially
+copied or unrelated objects stay hidden. Generic databank routes retain their existing behavior.
+
+Sandbox-only internal routes (all require `OUTPUT_SANDBOX_SERVICE_TOKEN`) are:
+
+- `GET /v1/outputs/internal/review/{outputId}/files/{fileId}/preview`
+- `GET /v1/outputs/internal/workspaces/{ownerId}/files`
+- `GET /v1/outputs/internal/workspaces/{ownerId}/files/{fileId}/preview`
+- `GET /v1/outputs/internal/workspaces/{ownerId}/files/{fileId}/download`
 
 ## Upgrade and rollback
 

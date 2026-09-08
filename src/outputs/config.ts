@@ -34,6 +34,9 @@ export function configuredOutputRouter() {
     OUTPUT_ENDPOINT: z.string().url().optional(),
     OUTPUT_UPLOAD_SIGNING_KEY: z.string().min(32),
     OUTPUT_PUBLISH_TOKEN: z.string().min(32),
+    OUTPUT_SANDBOX_SERVICE_TOKEN: z.string().min(32),
+    OUTPUT_ALLOW_SHARED_UPLOAD_TOKEN: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    OUTPUT_SHARED_UPLOAD_TOKEN: z.string().min(32).optional(),
     OUTPUT_REVIEW_DATABANK_ID: segment,
     OUTPUT_WORKSPACE_DATABANK_ID: segment,
     OUTPUT_REVIEW_BASE: z.string().regex(/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/).default('nha-review'),
@@ -83,11 +86,21 @@ export function configuredOutputRouter() {
       ];
       const policy = {
         Version: '2012-10-17',
-        Statement: [{
-          Effect: 'Allow',
-          Action: ['s3:GetObject', 's3:PutObject'],
-          Resource: prefixes.map((prefix) => `arn:aws:s3:::${s.OUTPUT_BUCKET}/${prefix}*`),
-        }],
+        Statement: [
+          {
+            Effect: 'Allow',
+            Action: ['s3:GetObject', 's3:PutObject'],
+            Resource: prefixes.map((prefix) => `arn:aws:s3:::${s.OUTPUT_BUCKET}/${prefix}*`),
+          },
+          {
+            Effect: 'Allow',
+            Action: ['s3:ListBucket'],
+            Resource: `arn:aws:s3:::${s.OUTPUT_BUCKET}`,
+            Condition: {
+              StringLike: { 's3:prefix': prefixes.map((prefix) => `${prefix}*`) },
+            },
+          },
+        ],
       };
       const result = await sts.send(new AssumeRoleCommand({
         RoleArn: s.OUTPUT_STORAGE_ROLE_ARN!,
@@ -127,5 +140,8 @@ export function configuredOutputRouter() {
     }, new S3OutputStore(client, s.OUTPUT_BUCKET)),
     s.OUTPUT_UPLOAD_SIGNING_KEY,
     s.OUTPUT_PUBLISH_TOKEN,
+    s.OUTPUT_SANDBOX_SERVICE_TOKEN,
+    s.OUTPUT_SHARED_UPLOAD_TOKEN,
+    s.OUTPUT_ALLOW_SHARED_UPLOAD_TOKEN,
   );
 }
