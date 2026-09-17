@@ -1,219 +1,177 @@
-# TGDEX Files Connect API
+# Files Connect API
 
-A TypeScript-based API service for secure file operations with databank support. This service is part of the TGDEX platform and provides a RESTful API for managing files in S3 buckets with features like multipart uploads, presigned URLs, file previews, and ZIP downloads.
+A TypeScript/Express service for databank file uploads, downloads, previews, and background
+processing. The API supports AWS S3, MinIO, and native Google Cloud Storage (GCS), with Python
+workers for ZIP archives and data-readiness reports.
+
+This README documents the latest stable release, `stable/v2.3`. Other branches may contain
+older code or configuration; the setup defaults and dependency inventory below apply to
+`stable/v2.3`. The documentation links point to that release's files.
 
 ## Features
 
-- **Databank Management**: Organize files into logical databanks with access control
-- **Secure File Uploads**: Support for large file uploads with multipart upload
-- **File Type Validation**: Strict validation of uploaded files (CSV, JSON, TXT, Parquet, XLSX, ZIP)
-- **Security**: Role-based access control (RBAC) with Keycloak integration
-- **File Operations**: List, download, and manage files with metadata
-- **File Previews**: Generate previews for supported file types (CSV, JSON, XLSX, Parquet)
-- **Asynchronous Processing**: Background job processing for ZIP creation and reports
-- **RESTful API**: Standardized API following REST best practices
-- **OpenAPI Documentation**: Auto-generated API documentation with Swagger UI
+- Direct-to-storage multipart uploads with presigned part URLs, completion, and cancellation.
+- Databank and asset file operations, metadata, and previews for supported formats.
+- JWT verification through Keycloak-compatible static RS256 keys or multiple JWKS issuers,
+  role-based authorization, and Catalogue/ACL-APD access checks.
+- Redis-backed asynchronous jobs: `zip`, `report`, or `all` (one job of each type).
+- Time-limited AWS/MinIO STS credentials; GCS clients use presigned URLs instead.
+- Optional Cloud KMS public-key delivery for client-side envelope encryption.
+- OpenAPI documentation rendered with ReDoc.
+
+File-extension validation is an allow-list, not malware scanning. See the
+[endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md) for actual per-route access checks and limitations.
+
+## Architecture
+
+The API reads and writes object storage, checks access through the identity, Catalogue, and
+ACL-APD services, and publishes audit events to RabbitMQ. It enqueues long-running work in Redis;
+the ZIP and report workers consume those queues and write outputs to the same storage bucket.
+Report writeback to Elasticsearch is optional.
+
+One `BUCKET_NAME` holds databank files (`{databankId}/`), assets (`assets/`), archives (`zips/`),
+and reports (`reports/`). The API and workers must use the same bucket, Redis database, and
+queue names. See the [configuration overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md) for the full wiring.
 
 ## Prerequisites
 
-- Node.js (v18 or later)
-- TypeScript (v5.0 or later)
-- pnpm (package manager)
-- AWS Account with S3 access
-- Keycloak server for authentication (optional, can be disabled in development)
-- Docker (optional, for containerized deployment)
+- Node.js 24 (matching [the API container image](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/Dockerfile)).
+- pnpm 10.20.0 (the version declared in `package.json`); TypeScript is installed as a dependency.
+- Docker with the Compose plugin for local MinIO, Redis, and workers.
+- Python 3.11 if running workers outside Docker.
+- Your identity provider, Catalogue, ACL-APD, and RabbitMQ services when testing their integrations.
+  They are not provisioned by the default Compose file.
 
-## Installation
-
-1. Clone the repository:
+## Local quick start
 
 ```bash
-git clone https://github.com/datakaveri/files-connect-api.git
+git clone --branch stable/v2.3 https://github.com/datakaveri/files-connect-api.git
 cd files-connect-api
+pnpm install --frozen-lockfile
+cp .env.example .env
 ```
 
-2. Install dependencies using pnpm:
+Edit the private `.env` for your environment. It defaults to local MinIO, with authentication
+and authorization disabled **only for isolated development**. Its public `minioadmin` and
+`guest` credentials must never be reused for deployed services.
+
+Start storage, Redis, and the ZIP worker:
 
 ```bash
-pnpm install
+docker compose up -d minio redis zip-worker
 ```
 
-3. Configure environment variables in `.env` file:
+The MinIO console is at `http://localhost:9001` and its API is at `http://localhost:9000`.
+The local MinIO username and password are both `minioadmin`. Redis is at `localhost:6379`;
+the development Redis instance has no authentication. Ports are bound to localhost only.
+Create the bucket named in `.env` (`files-connect-local` by default) using the MinIO console
+before uploading files; the default Compose setup does not initialize buckets.
 
-```
-PORT=3000
-NODE_ENV=development
-S3_ENDPOINT=https://s3.amazonaws.com
-S3_REGION=us-east-1
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-BUCKET_NAME=your-bucket-name
-MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB=1000
-CORS_ORIGIN="http://localhost:8080,http://localhost:5173"
-LOG_LEVEL=debug
-
-# Keycloak Configuration
-KEYCLOAK_URL=https://your-keycloak-url/auth/realms/your-realm
-KEYCLOAK_REALM=your-realm
-KEYCLOAK_CLIENT_ID=your-client-id
-KEYCLOAK_PUBLIC_KEY="your-public-key"
-```
-
-## Development
-
-1. Start the development server with hot-reload:
+Run the API on the host in a separate terminal:
 
 ```bash
 pnpm dev
 ```
 
-2. Build the project:
+The default Compose file does **not** start the API: its API service is commented out. The
+environment schema still requires valid integration settings even with auth disabled; operations
+that depend on Catalogue, ACL-APD, or audit delivery need those services to be reachable.
+
+For report jobs, configure the Catalogue endpoint and any optional Elasticsearch writeback,
+then start the report worker:
 
 ```bash
-pnpm build
+docker compose up -d report-worker
+docker compose logs -f report-worker
 ```
 
-3. Start the production server:
+In this branch, structured column-role inference is disabled; unstructured metadata inference
+still calls OpenAI and needs a private `OPENAI_API_KEY`. Confirm that your data-sharing policy
+permits metadata to leave your environment before enabling that path.
+
+After worker code changes, rebuild the affected service with
+`docker compose up -d --build zip-worker` or `docker compose up -d --build report-worker`.
+For private overrides, copy `docker-compose.override.example.yml` to the ignored
+`docker-compose.override.yml` and customize it there.
+
+## Storage and configuration
+
+- `STORAGE_PROVIDER=minio`: local or S3-compatible MinIO, using the `STORAGE_*` credentials.
+- `STORAGE_PROVIDER=s3`: AWS S3, with the appropriate endpoint, region, and credentials.
+- `STORAGE_PROVIDER=gcs`: native GCS clients in the API and workers. Prefer Application Default
+  Credentials/workload identity; key-file or inline service-account credentials are also supported.
+  `/query-access` is not available for GCS.
+
+Keep `STORAGE_*` (API) and `S3_*` (workers) aligned in local configuration. Kubernetes worker
+manifests remap these names. GCS multipart uploads stage temporary objects and compose them
+on completion; see [multipart uploads](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/multipart-uploads.md) for provider differences
+and current size-validation limits.
+
+Use [.env.example](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/.env.example) as a template and the
+[configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md) for required fields, privileges, and failure modes.
+Never commit `.env` variants, private keys, service-account files, populated Kubernetes Secrets,
+or exported Postman credentials.
+
+## Development and tests
 
 ```bash
-pnpm start
-```
-
-4. Run tests:
-
-```bash
+pnpm build       # compile TypeScript to build/
+pnpm start       # start the compiled API (includes the Elastic APM agent)
+pnpm lint
 pnpm test
+pnpm openapi     # rebuild and regenerate openapi.json
 ```
 
-5. Generate API documentation (OpenAPI/Swagger):
+Disable APM with `ELASTIC_APM_ACTIVE=false` unless you have configured an APM server.
+Authenticated end-to-end tests require a private `.env.test`, including test-user credentials
+and a `KEYCLOAK_AUTH_URL` pointing to the complete token endpoint, plus reachable integrations.
+Run isolated tests with `pnpm test -- --runInBand src/__tests__/core src/__tests__/middleware`.
+
+Worker tests can be run from `workers/report-worker` after installing its requirements and pytest:
 
 ```bash
-pnpm openapi
+python -m pytest tests
 ```
 
-## Deployment
+Only a [synthetic example dataset](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/workers/report-worker/data/example/README.md) is committed.
+Additional local datasets and generated `outputReports/` content are ignored.
 
-For deployment instructions, please refer to the [Infrastructure Guide](./infra/README.md).
+## Documentation
 
-## API Documentation
+- [Documentation index](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/README.md)
+- [API endpoints and access checks](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md)
+- [Multipart upload lifecycle](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/multipart-uploads.md)
+- [Configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md)
+- [Container builds and Kubernetes setup](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/README.md)
+- [AWS STS setup](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/STS_SETUP.md)
+- [Worker overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/workers/README.md)
+- [Postman examples](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/postman/README.md)
 
-### Interactive Documentation
+On a running API, browse `http://localhost:3000/apis`; the machine-readable specification is
+at `http://localhost:3000/openapi.json`. API routes are under `/v1`, including `/v1/health`.
 
-Once the server is running, you can access the interactive API documentation at:
-- Swagger UI: http://localhost:3000/v1/docs
+## Deployment and security
 
-### Key Endpoints
+The Kubernetes manifests are **examples**, not ready-to-apply production configuration. Copy
+and customize them as described in [the infrastructure guide](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/README.md). Set unique
+credentials, enable `AUTH_ENABLED=true` and `AUTHZ_ENABLED=true`, configure trusted issuers
+and token audiences, enforce TLS and an explicit CORS allow-list, and keep Redis/MinIO private.
+Do not disable token-expiry or certificate validation in deployed environments.
 
-- **Databank Operations**:
-  - `POST /v1/databanks/{databankId}/uploads` - Initiate multipart upload (CSV, JSON, TXT, Parquet, XLSX, ZIP only)
-  - `PUT /v1/databanks/{databankId}/uploads/{uploadId}` - Complete multipart upload
-  - `POST /v1/databanks/{databankId}/files` - List files in databank
-  - `POST /v1/databanks/{databankId}/files/download` - Download files
-  - `POST /v1/databanks/{databankId}/process` - Create processing job
-
-- **Asset Operations**:
-  - `POST /v1/assets` - Upload asset files
-  - `POST /v1/assets/download` - Download asset files
-
-For detailed API documentation, see the [API.md](./API.md) file.
-
-## Architecture
-
-The application follows a clean architecture with clear separation of concerns:
-
-1. **Presentation Layer**:
-   - Routes and controllers for handling HTTP requests/responses
-   - Request validation and authentication middleware
-   - OpenAPI/Swagger documentation
-
-2. **Application Layer**:
-   - Business logic and use cases
-   - File processing and validation services
-   - Background job management
-
-3. **Domain Layer**:
-   - Core business entities and interfaces
-   - Repository interfaces
-   - Domain events and value objects
-
-4. **Infrastructure Layer**:
-   - AWS S3 integration
-   - Keycloak authentication
-   - Logging and monitoring
-
-### Key Components
-
-- **Databank Service**: Manages databank operations and access control
-- **File Validation Service**: Validates file types and content
-- **Multipart Upload Service**: Handles large file uploads with S3
-- **Preview Service**: Generates previews for supported file types
-- **Job Service**: Manages background processing jobs
-- **Auth Service**: Handles authentication and authorization
-
-## Security Features
-
-1. **Authentication**: JWT-based authentication with Keycloak
-2. **Authorization**: Role-based access control (Provider/Consumer roles)
-3. **File Validation**: Strict file type validation to prevent upload of malicious files
-4. **Input Validation**: Request validation using Zod schemas
-
-## Development Workflow
-
-1. Start development server with hot-reload:
-   ```bash
-   pnpm dev
-   ```
-
-2. Build the project:
-   ```bash
-   pnpm build
-   ```
-
-3. Start the production server:
-   ```bash
-   pnpm start
-   ```
+Some routes, including file metadata and report PDF download, are public in the current
+implementation. Review [the endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md) against your access policy
+before exposing the service. Do not post passwords, JWTs, presigned URLs, or private datasets in
+issues, logs, or screenshots; contact organization maintainers privately for sensitive findings.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Commit your changes: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature/your-feature-name`
-5. Submit a pull request with a clear description of changes
+Base changes on `stable/v2.3` for this release line. Submit a pull request describing the change
+and its validation, keep configuration/API docs synchronized, and regenerate `openapi.json` when
+the API documentation changes. Use synthetic fixtures and never include live credentials in tests.
 
-## Acknowledgements
+## License
 
-- [Express](https://github.com/expressjs/express) - Fast, unopinionated, minimalist web framework for Node.js
-- [AWS SDK for JavaScript](https://github.com/aws/aws-sdk-js-v3) - AWS SDK for JavaScript
-- [Zod](https://github.com/colinhacks/zod) - TypeScript-first schema validation
-- [Keycloak](https://www.keycloak.org/) - Open Source Identity and Access Management
-- [OpenAPI](https://www.openapis.org/) - OpenAPI Specification
+[View License](./LICENSE)
 
-## File Type Validation
-
-The API enforces strict file type validation for databank uploads:
-
-- **Allowed file types**: CSV, JSON, TXT, Parquet, XLSX, ZIP
-- **Blocked file types**: Executable files (.exe, .dll, .bat, .cmd, .sh, .js, .py, .php)
-
-Validation occurs during multipart upload initiation and returns a 415 Unsupported Media Type status code for disallowed file types.
-
-### Kubernetes Deployment
-Create docker image:
-```bash
-docker build -t ghcr.io/datakaveri/tgdex-file-connect-api:latest -f ./infra/Dockerfile .
-```
-Push docker image:
-```bash
-docker push ghcr.io/datakaveri/tgdex-file-connect-api:latest
-```
-
-To create the secret:
-```bash
-kubectl apply -f ./infra/secret.yaml
-```      
-Deploy the application:
-```bash
-kubectl apply -f ./infra/manifest.yaml
-```
+The root license is GNU AGPL v3. OpenAPI metadata declares Apache 2.0.
+See [dependency licenses](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/dep-licenses) for the direct-dependency inventory and its scope.
