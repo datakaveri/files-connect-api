@@ -50,7 +50,7 @@
     "jsonwebtoken": "^9.0.2",
     "minio": "^8.0.6",
     "morgan": "^1.10.0",
-    "multer": "^2.0.1",
+    "multer": "^2.3.0",
     "papaparse": "^5.4.1",
     "parquet-wasm": "^0.6.1",
     "pino": "^9.6.1",
