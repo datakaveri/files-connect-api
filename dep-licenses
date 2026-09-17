@@ -1,10 +1,10 @@
 Dependency license inventory
 ============================
 Reviewed: 2026-09-17
-Reference layout: https://github.com/datakaveri/dx-controlplane/blob/main/dep-licenses
 
 Scope
 -----
+This inventory applies to stable/v2.3 only, not to other release branches.
 Direct dependencies declared in package.json and the three requirements.txt files.
 Node.js versions are resolved versions from pnpm-lock.yaml. Python exact pins use
 version-specific PyPI metadata; ranges are checked at their declared lower bound
