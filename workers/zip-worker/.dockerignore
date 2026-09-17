@@ -1,4 +1,14 @@
 __pycache__
+.env*
+!.env.example
+**/.DS_Store
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/gcs-key*.json
+**/service-account*.json
+**/*_config.json
 *.pyc
 *.pyo
 *.pyd
@@ -15,4 +25,3 @@ htmlcov
 venv
 ENV
 env
-

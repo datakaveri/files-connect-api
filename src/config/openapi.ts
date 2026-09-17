@@ -48,18 +48,6 @@ Each API endpoint specifies which roles are allowed to access it. Check the endp
       url: './v1',
       description: 'Current deployment',
     },
-    {
-      url: 'https://v2.dev.file-s3.iudx.io/v1/',
-      description: 'Development environment',
-    },
-    {
-      url: 'https://staging.file.forestdx.iudx.io/v1/',
-      description: 'Staging environment',
-    },
-    {
-      url: 'https://files.forest-stack.digivan.forest.rajasthan.gov.in/v1/',
-      description: 'Production environment',
-    },
   ],
   openapi: '3.0.0' as const,
 };

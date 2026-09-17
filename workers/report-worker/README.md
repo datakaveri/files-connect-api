@@ -7,7 +7,7 @@ The **Report Worker** is a Redis-based worker application that processes data re
 ## Architecture
 
 ```
-TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
+TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO/GCS
                       ↓
                  Job Status (Redis)
 ```
@@ -18,13 +18,13 @@ TypeScript API → Redis Queue (jobs:report) → Report Worker → S3/MinIO
 
 ```bash
 # Start the worker
-docker-compose up -d report-worker
+docker compose up -d report-worker
 
 # Scale to multiple workers
-docker-compose up -d --scale report-worker=4
+docker compose up -d --scale report-worker=4
 
 # View logs
-docker-compose logs -f report-worker
+docker compose logs -f report-worker
 ```
 
 ### Standalone
@@ -54,8 +54,8 @@ Minimum to start the worker — it exits with `Missing required environment vari
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` | Must match the file server, including the DB number |
 | `REPORT_QUEUE_NAME` | Default `jobs:report`; must match the file server |
 
-Needed for full functionality, but the worker starts without them: `OPENAI_API_KEY` (structured
-scoring fails without it), `CAT_API_URL` (dataset names), `ELASTICSEARCH_URL` + `ELASTIC_ID` /
+Needed for full functionality, but the worker starts without them: `OPENAI_API_KEY` (unstructured
+metadata inference; structured inference is currently disabled), `CAT_API_URL` (dataset names), `ELASTICSEARCH_URL` + `ELASTIC_ID` /
 `ELASTIC_PASS` (readiness score writeback), `CAT_SET_PUBLISH_STATUS` (auto-publish on completion).
 
 ## Job Processing
@@ -102,14 +102,14 @@ The worker:
 - **`standardization.py`**: Checks file formats and date/timestamp consistency.
 - **`relevance_completeness.py`**: Checks for region coverage.
 - **`documentation.py`**: Checks for the presence of data dictionaries/readmes.
-- **`llm_api.py`**: Uses OpenAI to infer the semantic roles of columns (e.g., "this is a date", "this is a region").
+- **`llm_api.py`**: Structured column-role helper; currently not called by the structured pipeline.
 
 #### Unstructured Metrics (`unstructured_metrics/`)
 - **`metadata_parser.py`**: Extracts metadata from files.
 - **`file_format_check.py`**: Validates file extensions.
 - **`file_openability.py`**: Tests if files can be opened/read.
 - **`file_duplicates.py`**: Checks for duplicate files.
-- **`consistency.py`**: Checks if all files in a dataset are of the same type.
+- **`file_type_consistency.py`**: Checks if all files in a dataset are of the same type.
 - **`llm_api.py`**: Infers roles from metadata.
 
 ## Output
@@ -124,24 +124,24 @@ PDF is uploaded to: `reports/{databankId}/data_readiness_report.pdf` in `BUCKET_
 ## Features
 
 - ✅ Automatic data type detection
-- ✅ Memory-efficient processing
+- ✅ Large-file sampling (datasets still need to fit worker memory)
 - ✅ Graceful shutdown handling
 - ✅ Automatic retry on failures
 - ✅ Progress tracking
-- ✅ Supports S3 and MinIO
+- ✅ Supports S3, MinIO, and native GCS
 - ✅ Zip file extraction
 
 ## Troubleshooting
 
 **Worker not processing:**
-- Check Redis: `docker-compose logs redis`
+- Check Redis: `docker compose logs redis`
 - Check queue: `redis-cli LLEN jobs:report`
-- Check logs: `docker-compose logs report-worker`
+- Check logs: `docker compose logs report-worker`
 
 **Job fails:**
 - Verify databank exists in S3
 - Check S3 credentials
-- Ensure OpenAI API key is set
+- Ensure a private OpenAI API key is set for unstructured metadata inference
 - Review worker logs for errors
 
 ## Further reading

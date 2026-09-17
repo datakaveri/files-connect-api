@@ -1,3 +1,5 @@
+# EXAMPLE ONLY: copy to ignored infra/configmap.local.yaml and customize before applying.
+# All *.example.com endpoints and the bucket/role values below are illustrative.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,21 +13,21 @@ data:
   PORT: "3000"
   NODE_ENV: "production"
   VERSION: "1.0.0"
-  CORS_ORIGIN: "*"          # real origin allow-list is enforced by the ingress
+  CORS_ORIGIN: "https://app.example.com"  # align with your ingress allow-list
   LOG_LEVEL: "info"         # use "debug" only while diagnosing; it logs per-request context
 
   # ---- Auth ----
   AUTH_ENABLED: "true"      # NEVER "false" in a deployed environment
   AUTHZ_ENABLED: "true"
-  KEYCLOAK_AUTH_URL: "https://idp.tgdex.telangana.gov.in/auth/realms/tgdex"
-  KEYCLOAK_CLIENT_ID: "angular-tgdex-client"
+  KEYCLOAK_AUTH_URL: "https://idp.example.com/realms/example"
+  KEYCLOAK_CLIENT_ID: "files-connect-client"
   # Multi-IDP JWKS verification. When set it replaces the static KEYCLOAK_PUBLIC_KEY
   # in files-connect-secret. Keys must equal the token "iss" claim verbatim.
-  # ISSUER_CONFIG: '{"jwtIgnoreExpiry":false,"leeway":30,"jwksRefreshIntervalMs":21600000,"https://idp.tgdex.telangana.gov.in/auth/realms/tgdex":{"type":"remote","jwksUrl":"https://idp.tgdex.telangana.gov.in/auth/realms/tgdex/protocol/openid-connect/certs","audience":[]}}'
+  # ISSUER_CONFIG: '{"jwtIgnoreExpiry":false,"leeway":30,"jwksRefreshIntervalMs":21600000,"https://idp.example.com/realms/example":{"type":"remote","jwksUrl":"https://idp.example.com/realms/example/protocol/openid-connect/certs","audience":["files-connect-client"]}}'
 
   # ---- Downstream services ----
-  ACL_APD_API_URL: "https://acl-apd.tgdex.telangana.gov.in/dx/apd/acl/v1"   # no trailing slash: paths are concatenated
-  CAT_API_URL: "https://v2.dev.controlplane.iudx.io/iudx/v2/cat"            # catalogue REST API (NOT Elasticsearch)
+  ACL_APD_API_URL: "https://acl.example.com/dx/apd/acl/v1"   # no trailing slash: paths are concatenated
+  CAT_API_URL: "https://catalogue.example.com/iudx/v2/cat"  # catalogue REST API (NOT Elasticsearch)
 
   # ---- Storage ----
   STORAGE_PROVIDER: "s3"
@@ -33,11 +35,11 @@ data:
   STORAGE_REGION: "ap-south-1"
   STORAGE_USE_SSL: "true"
   STORAGE_FORCE_PATH_STYLE: "false"   # "true" for MinIO and most S3-compatible providers
-  BUCKET_NAME: "s3-ap-south-1-tgdex-production"
-  MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: "1000"
+  BUCKET_NAME: "your-files-connect-bucket"
+  MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: "5"
   # Legacy names consumed by the Python workers; the worker Deployments remap
   # STORAGE_ENDPOINT/STORAGE_REGION/STORAGE_USE_SSL onto S3_ENDPOINT/S3_REGION/USE_SSL.
-  # Set to "false" when storage uses a self-signed/private CA (e.g. fs-prod.s3.cyfuture.cloud).
+  # Keep verification enabled. Install your private CA rather than disabling TLS verification.
   # Read by the workers only - the file server has no equivalent knob.
   # S3_VERIFY_SSL: "false"
   # GCS configuration (only when STORAGE_PROVIDER is "gcs"; GCS_KEY_FILE additionally
@@ -64,7 +66,7 @@ data:
   CAT_SET_PUBLISH_STATUS: "true"
 
   # ---- STS temporary access ----
-  # TODO: replace the placeholder account id with the real role ARN - see infra/STS_SETUP.md
+  # Replace the illustrative account id and role with your deployment's ARN - see infra/STS_SETUP.md
   STS_ROLE_ARN: "arn:aws:iam::123456789012:role/DatabanksTemporaryAccessRole"
   STS_SESSION_DURATION_IN_SECONDS: "900"
 
@@ -77,6 +79,6 @@ data:
   # ELASTIC_APM_SERVER_URL: "https://<apm-server>:8200"
   # ELASTIC_APM_API_KEY belongs in files-connect-secret, not here.
 
-  # ---- Client-side encryption (TANUH deployments only) ----
+  # ---- Client-side encryption (opt-in deployments only) ----
   # ENCRYPTION_ENABLED: "true"
   # KMS_KEY_VERSION_NAME: "projects/<p>/locations/<l>/keyRings/<r>/cryptoKeys/<k>/cryptoKeyVersions/<n>"

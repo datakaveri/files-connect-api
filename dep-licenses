@@ -1,0 +1,133 @@
+Dependency license inventory
+============================
+Reviewed: 2026-09-17
+Reference layout: https://github.com/datakaveri/dx-controlplane/blob/main/dep-licenses
+
+Scope
+-----
+Direct dependencies declared in package.json and the three requirements.txt files.
+Node.js versions are resolved versions from pnpm-lock.yaml. Python exact pins use
+version-specific PyPI metadata; ranges are checked at their declared lower bound
+and do not establish the license of every permitted version.
+License labels come from official npm/PyPI metadata. Long license fields are
+summarized; linked metadata includes full notices and bundled-component licenses.
+This is not a full transitive-dependency, container-image, service, or legal
+compatibility audit. Third-party licenses and notices remain applicable; the root
+AGPL license does not replace them. Recheck when dependencies change.
+
+Review items
+------------
+metrics==0.0.2 and dotenv==0.9.9 do not declare a license in their PyPI
+license fields/classifiers. Verify their distributed license files and
+redistribution permission with upstream before treating them as approved.
+chardet reports only "LGPL"; verify its exact version and notices in the artifact.
+pandas and numpy include bundled-component notices: inspect the linked metadata
+and actual distribution artifacts rather than relying only on the primary label.
+External server software and image contents require a separate version-specific
+review; this inventory must not be taken as public-release clearance.
+
+Client packages — Node.js runtime dependencies
+----------------------------------------------
+Package | Declared version | Metadata version | Declared license | Source
+@asteasolutions/zod-to-openapi | ^7.3.4 | 7.3.4 | MIT | https://registry.npmjs.org/%40asteasolutions%2Fzod-to-openapi/7.3.4
+@aws-crypto/sha256-js | ^5.2.0 | 5.2.0 | Apache-2.0 | https://registry.npmjs.org/%40aws-crypto%2Fsha256-js/5.2.0
+@aws-sdk/client-s3 | ^3.1038.0 | 3.1038.0 | Apache-2.0 | https://registry.npmjs.org/%40aws-sdk%2Fclient-s3/3.1038.0
+@aws-sdk/client-sts | ^3.1038.0 | 3.1038.0 | Apache-2.0 | https://registry.npmjs.org/%40aws-sdk%2Fclient-sts/3.1038.0
+@aws-sdk/s3-request-presigner | ^3.1038.0 | 3.1038.0 | Apache-2.0 | https://registry.npmjs.org/%40aws-sdk%2Fs3-request-presigner/3.1038.0
+@aws-sdk/types | ^3.973.8 | 3.973.8 | Apache-2.0 | https://registry.npmjs.org/%40aws-sdk%2Ftypes/3.973.8
+@duckdb/node-api | 1.3.0-alpha.21 | 1.3.0-alpha.21 | MIT | https://registry.npmjs.org/%40duckdb%2Fnode-api/1.3.0-alpha.21
+@google-cloud/kms | ^5.7.0 | 5.7.0 | Apache-2.0 | https://registry.npmjs.org/%40google-cloud%2Fkms/5.7.0
+@google-cloud/storage | ^7.21.0 | 7.21.0 | Apache-2.0 | https://registry.npmjs.org/%40google-cloud%2Fstorage/7.21.0
+amqplib | ^0.10.8 | 0.10.8 | MIT | https://registry.npmjs.org/amqplib/0.10.8
+axios | ^1.19.0 | 1.19.0 | MIT | https://registry.npmjs.org/axios/1.19.0
+compression | ^1.7.4 | 1.8.0 | MIT | https://registry.npmjs.org/compression/1.8.0
+cors | ^2.8.5 | 2.8.5 | MIT | https://registry.npmjs.org/cors/2.8.5
+csv-parser | ^3.0.0 | 3.2.0 | MIT | https://registry.npmjs.org/csv-parser/3.2.0
+docx-preview | ^0.3.5 | 0.3.5 | Apache-2.0 | https://registry.npmjs.org/docx-preview/0.3.5
+dotenv | ^16.4.8 | 16.5.0 | BSD-2-Clause | https://registry.npmjs.org/dotenv/16.5.0
+elastic-apm-node | 4.18.0 | 4.18.0 | BSD-2-Clause | https://registry.npmjs.org/elastic-apm-node/4.18.0
+exceljs | ^4.4.0 | 4.4.0 | MIT | https://registry.npmjs.org/exceljs/4.4.0
+express | ^5.2.1 | 5.2.1 | MIT | https://registry.npmjs.org/express/5.2.1
+express-rate-limit | ^7.2.0 | 7.5.0 | MIT | https://registry.npmjs.org/express-rate-limit/7.5.0
+express-validator | ^7.3.2 | 7.3.2 | MIT | https://registry.npmjs.org/express-validator/7.3.2
+fast-xml-parser | ^5.7.2 | 5.7.2 | MIT | https://registry.npmjs.org/fast-xml-parser/5.7.2
+helmet | ^7.1.0 | 7.2.0 | MIT | https://registry.npmjs.org/helmet/7.2.0
+joi | ^17.12.2 | 17.13.3 | BSD-3-Clause | https://registry.npmjs.org/joi/17.13.3
+jsonwebtoken | ^9.0.3 | 9.0.3 | MIT | https://registry.npmjs.org/jsonwebtoken/9.0.3
+minio | ^8.0.7 | 8.0.7 | Apache-2.0 | https://registry.npmjs.org/minio/8.0.7
+morgan | ^1.10.0 | 1.10.0 | MIT | https://registry.npmjs.org/morgan/1.10.0
+multer | ^2.2.0 | 2.2.0 | MIT | https://registry.npmjs.org/multer/2.2.0
+papaparse | ^5.4.1 | 5.5.2 | MIT | https://registry.npmjs.org/papaparse/5.5.2
+parquet-wasm | ^0.6.1 | 0.6.1 | MIT OR Apache-2.0 | https://registry.npmjs.org/parquet-wasm/0.6.1
+pino | ^9.6.1 | 9.7.0 | MIT | https://registry.npmjs.org/pino/9.7.0
+pino-http | ^9.0.0 | 9.0.0 | MIT | https://registry.npmjs.org/pino-http/9.0.0
+pino-pretty | ^13.0.0 | 13.0.0 | MIT | https://registry.npmjs.org/pino-pretty/13.0.0
+redis | ^4.7.0 | 4.7.1 | MIT | https://registry.npmjs.org/redis/4.7.1
+uuid | ^11.1.0 | 11.1.0 | MIT | https://registry.npmjs.org/uuid/11.1.0
+zod | ^3.24.2 | 3.24.2 | MIT | https://registry.npmjs.org/zod/3.24.2
+
+Client packages — Node.js development dependencies
+--------------------------------------------------
+Package | Declared version | Metadata version | Declared license | Source
+@types/amqplib | ^0.10.7 | 0.10.7 | MIT | https://registry.npmjs.org/%40types%2Famqplib/0.10.7
+@types/compression | ^1.7.5 | 1.8.0 | MIT | https://registry.npmjs.org/%40types%2Fcompression/1.8.0
+@types/cors | ^2.8.17 | 2.8.18 | MIT | https://registry.npmjs.org/%40types%2Fcors/2.8.18
+@types/express | ^4.17.21 | 4.17.22 | MIT | https://registry.npmjs.org/%40types%2Fexpress/4.17.22
+@types/jest | ^29.5.12 | 29.5.14 | MIT | https://registry.npmjs.org/%40types%2Fjest/29.5.14
+@types/jsonwebtoken | ^9.0.9 | 9.0.9 | MIT | https://registry.npmjs.org/%40types%2Fjsonwebtoken/9.0.9
+@types/morgan | ^1.9.9 | 1.9.9 | MIT | https://registry.npmjs.org/%40types%2Fmorgan/1.9.9
+@types/multer | ^1.4.13 | 1.4.13 | MIT | https://registry.npmjs.org/%40types%2Fmulter/1.4.13
+@types/node | ^20.17.22 | 20.17.22 | MIT | https://registry.npmjs.org/%40types%2Fnode/20.17.22
+@types/papaparse | ^5.3.16 | 5.3.16 | MIT | https://registry.npmjs.org/%40types%2Fpapaparse/5.3.16
+@types/redis | ^4.0.11 | 4.0.11 | MIT | https://registry.npmjs.org/%40types%2Fredis/4.0.11
+@types/supertest | ^6.0.2 | 6.0.3 | MIT | https://registry.npmjs.org/%40types%2Fsupertest/6.0.3
+@typescript-eslint/eslint-plugin | ^7.1.0 | 7.18.0 | MIT | https://registry.npmjs.org/%40typescript-eslint%2Feslint-plugin/7.18.0
+@typescript-eslint/parser | ^7.1.0 | 7.18.0 | BSD-2-Clause | https://registry.npmjs.org/%40typescript-eslint%2Fparser/7.18.0
+eslint | ^8.57.0 | 8.57.1 | MIT | https://registry.npmjs.org/eslint/8.57.1
+jest | ^29.7.0 | 29.7.0 | MIT | https://registry.npmjs.org/jest/29.7.0
+nodemon | ^3.1.0 | 3.1.10 | MIT | https://registry.npmjs.org/nodemon/3.1.10
+source-map-support | ^0.5.21 | 0.5.21 | MIT | https://registry.npmjs.org/source-map-support/0.5.21
+supertest | ^6.3.4 | 6.3.4 | MIT | https://registry.npmjs.org/supertest/6.3.4
+ts-jest | ^29.1.2 | 29.3.4 | MIT | https://registry.npmjs.org/ts-jest/29.3.4
+ts-node | ^10.9.2 | 10.9.2 | MIT | https://registry.npmjs.org/ts-node/10.9.2
+tsx | ^4.19.4 | 4.19.4 | MIT | https://registry.npmjs.org/tsx/4.19.4
+typescript | ^5.8.2 | 5.8.2 | Apache-2.0 | https://registry.npmjs.org/typescript/5.8.2
+
+Client packages — report worker
+-------------------------------
+Package | Declared version | Metadata version | Declared license | Source
+chardet | ==5.2.0 | 5.2.0 | LGPL | https://pypi.org/pypi/chardet/5.2.0/json
+fpdf | ==1.7.2 | 1.7.2 | LGPLv3+ | https://pypi.org/pypi/fpdf/1.7.2/json
+metrics | ==0.0.2 | 0.0.2 | Not declared | https://pypi.org/pypi/metrics/0.0.2/json
+msgpack | ==1.2.1 | 1.2.1 | Apache-2.0 | https://pypi.org/pypi/msgpack/1.2.1/json
+pandas | ==2.2.3 | 2.2.3 | BSD-3-Clause (primary); additional bundled notices in metadata | https://pypi.org/pypi/pandas/2.2.3/json
+pytest | ==8.3.5 | 8.3.5 | MIT | https://pypi.org/pypi/pytest/8.3.5/json
+openai | ==1.82.0 | 1.82.0 | Apache-2.0 | https://pypi.org/pypi/openai/1.82.0/json
+dotenv | ==0.9.9 | 0.9.9 | Not declared | https://pypi.org/pypi/dotenv/0.9.9/json
+boto3 | ==1.42.97 | 1.42.97 | Apache-2.0 | https://pypi.org/pypi/boto3/1.42.97/json
+pyarrow | ==14.0.1 | 14.0.1 | Apache License, Version 2.0 | https://pypi.org/pypi/pyarrow/14.0.1/json
+requests | ==2.32.4 | 2.32.4 | Apache-2.0 | https://pypi.org/pypi/requests/2.32.4/json
+numpy | ==1.26.4 | 1.26.4 | BSD-3-Clause (primary); additional bundled notices in metadata | https://pypi.org/pypi/numpy/1.26.4/json
+openpyxl | ==3.1.5 | 3.1.5 | MIT | https://pypi.org/pypi/openpyxl/3.1.5/json
+pydicom | ==3.0.2 | 3.0.2 | MIT License (classifier) | https://pypi.org/pypi/pydicom/3.0.2/json
+xlrd | ==2.0.2 | 2.0.2 | BSD | https://pypi.org/pypi/xlrd/2.0.2/json
+PyPDF2 | ==3.0.1 | 3.0.1 | BSD License (classifier) | https://pypi.org/pypi/PyPDF2/3.0.1/json
+mutagen | ==1.47.0 | 1.47.0 | GPL-2.0-or-later | https://pypi.org/pypi/mutagen/1.47.0/json
+pillow | ==12.3.0 | 12.3.0 | MIT-CMU | https://pypi.org/pypi/pillow/12.3.0/json
+redis | >=5.0.8,<6.0.0 | 5.0.8 (lower bound only) | MIT | https://pypi.org/pypi/redis/5.0.8/json
+urllib3 | ==2.7.0 | 2.7.0 | MIT | https://pypi.org/pypi/urllib3/2.7.0/json
+python-dotenv | ==1.0.0 | 1.0.0 | BSD-3-Clause | https://pypi.org/pypi/python-dotenv/1.0.0/json
+google-cloud-storage | ==2.19.0 | 2.19.0 | Apache 2.0 | https://pypi.org/pypi/google-cloud-storage/2.19.0/json
+
+Client packages — ZIP worker
+----------------------------
+Package | Declared version | Metadata version | Declared license | Source
+redis | >=5.0.8,<6.0.0 | 5.0.8 (lower bound only) | MIT | https://pypi.org/pypi/redis/5.0.8/json
+boto3 | ==1.42.97 | 1.42.97 | Apache-2.0 | https://pypi.org/pypi/boto3/1.42.97/json
+urllib3 | ==2.7.0 | 2.7.0 | MIT | https://pypi.org/pypi/urllib3/2.7.0/json
+google-cloud-storage | ==2.19.0 | 2.19.0 | Apache 2.0 | https://pypi.org/pypi/google-cloud-storage/2.19.0/json
+
+Client packages — automation scripts
+------------------------------------
+Package | Declared version | Metadata version | Declared license | Source
+requests | >=2.31.0,<3.0.0 | 2.31.0 (lower bound only) | Apache 2.0 | https://pypi.org/pypi/requests/2.31.0/json

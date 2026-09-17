@@ -1,6 +1,7 @@
 # Override file for local development
 # This file allows you to customize the docker-compose.yml for your local environment.
-# Copy this file, remove the ".example" suffix, and uncomment/set the values you need.
+# Copy to ignored docker-compose.override.yml and set values only in that private copy.
+# The api service is commented out in docker-compose.yml; enable it before overriding it.
 
 services: {}
 

@@ -1,7 +1,8 @@
 node_modules/
 __pycache__/
 *.py[cod]
-.env
+.env*
+!.env.example
 .vscode
 build
 coverage
@@ -9,7 +10,36 @@ logs
 npm-debug.log
 yarn-error.log
 pnpm-debug.log
-.env.test
+# Local credentials and deployment overrides must never be committed.
+infra/secret.yaml
+infra/configmap.local.yaml
+infra/ingress.local.yaml
+infra/manifest.local.yaml
+docker-compose.override.yml
+docker-compose.*.local.yml
+postman/*.local.postman_environment.json
+*.pem
+*.key
+*.p12
+*.pfx
+**/gcs-key*.json
+**/service-account*.json
+.DS_Store
+.claude/
+.pnpm-store/
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+.aws/
+.ssh/
+workers/report-worker/outputReports/**
+!workers/report-worker/outputReports/.gitkeep
+workers/report-worker/data/**
+!workers/report-worker/data/.gitkeep
+!workers/report-worker/data/example/
+!workers/report-worker/data/example/**
 # Keep local automation configs (which may contain tokens/passwords) out of Git.
 scripts/**/*_config.json
 full-tests/

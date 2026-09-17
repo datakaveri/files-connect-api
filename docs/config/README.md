@@ -1,7 +1,6 @@
 # Configuration Reference — files-connect-api
 
-Configuration documentation for every deployable unit in this repository, written against the
-`CONFIG-DOC-TEMPLATE.md` field-reference format.
+Configuration documentation for every deployable unit in `stable/v2.3`.
 
 Unlike the Java/vert.x services in the platform, **none of these services use a `config.json`**.
 All three are configured entirely through **environment variables**, supplied by:
@@ -9,7 +8,7 @@ All three are configured entirely through **environment variables**, supplied by
 | Environment | Source of values |
 |---|---|
 | Local dev | `.env` at repo root (copied from [.env.example](../../.env.example)); Docker Compose passes a subset into the worker containers |
-| Kubernetes | [infra/configmap.yaml](../../infra/configmap.yaml) (non-secret) + [infra/secret.yaml](../../infra/secret.yaml) (secret), consumed via `envFrom` / `valueFrom` |
+| Kubernetes | Private copies of [infra/configmap.yaml](../../infra/configmap.yaml) (non-secret example) + [infra/secret.example.yaml](../../infra/secret.example.yaml) (Secret template), consumed via `envFrom` / `valueFrom`. Populated `infra/secret.yaml` is ignored. |
 
 ## Documents
 
@@ -25,11 +24,11 @@ All three are configured entirely through **environment variables**, supplied by
 | | |
 |---|---|
 | **Repo** | `datakaveri/files-connect-api` |
-| **Branch documented** | `stable/v2.2` |
-| **Config paths** | `.env.example`, `infra/configmap.yaml`, `infra/secret.yaml`, `docker-compose.yml` |
+| **Branch documented** | `stable/v2.3` |
+| **Config templates** | `.env.example`, `infra/configmap.yaml`, `infra/secret.example.yaml`, `docker-compose.yml` |
 | **Config schema version** | There is no `version` field. The file server validates its environment with a Zod schema in [src/config/environment.ts](../../src/config/environment.ts); the workers read `os.environ` directly. |
-| **Maintainer / point of contact** | _TODO: fill in before publishing_ |
-| **Last updated** | 2026-07-29 |
+| **Maintainer / point of contact** | Repository maintainers |
+| **Last updated** | 2026-09-16 |
 
 ## Architecture in one paragraph
 
@@ -38,7 +37,8 @@ The **file server** is the only externally reachable component. It authenticates
 objects in S3 / MinIO / GCS, emits audit events to RabbitMQ, and **enqueues long-running jobs into
 Redis lists**. The **zip worker** blocks on `BRPOP jobs:zip` and produces `zips/<databankId>.zip` in
 the same bucket. The **report worker** blocks on `BRPOP jobs:report`, downloads the databank,
-scores it with the data-readiness framework (OpenAI-assisted column-role inference), writes the PDF/JSON
+scores it with the data-readiness framework (structured OpenAI inference is currently disabled;
+unstructured metadata inference is active), writes the PDF/JSON
 report to `reports/<databankId>/`, and updates the catalogue's Elasticsearch document with the score.
 No worker is reachable from outside the cluster and no worker talks back to the file server.
 

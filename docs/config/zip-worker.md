@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | **Service** | zip worker (`zip-worker`) |
-| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.2`, [workers/zip-worker/](../../workers/zip-worker/) |
+| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.3`, [workers/zip-worker/](../../workers/zip-worker/) |
 | **Config path** | environment only — [docker-compose.yml](../../docker-compose.yml) (`zip-worker` service) locally; [infra/worker-deployment.yaml](../../infra/worker-deployment.yaml) + `files-connect-config` / `files-connect-secret` in Kubernetes |
 | **Config schema version** | none — variables are read with `os.environ.get` at point of use |
-| **Maintainer / point of contact** | _TODO_ |
-| **Last updated** | 2026-07-29 |
+| **Maintainer / point of contact** | Repository maintainers |
+| **Last updated** | 2026-09-16 |
 
 ## 1. Top-level structure
 
@@ -108,7 +108,7 @@ whose cause is the first log line. Everything else fails later, per job.
 - **Type / format:** URL with scheme, no trailing slash.
 - **Required:** yes for `minio` (explicitly checked: `S3_ENDPOINT must be set for MinIO`); optional for `s3` (omit for real AWS, set for S3-compatible providers); unused for `gcs`.
 - **Purpose:** `endpoint_url` of the boto3 client.
-- **Example value:** `http://minio:9000`, `https://fs-prod.s3.cyfuture.cloud`
+- **Example value:** `http://minio:9000`, `https://storage.example.com`
 - **How to obtain:** same value as the file server's `STORAGE_ENDPOINT`; the k8s manifest maps `STORAGE_ENDPOINT` → `S3_ENDPOINT` for exactly this reason.
 - **Failure mode:** missing for MinIO → `ValueError: S3_ENDPOINT must be set for MinIO`, the job fails and the status hash records the error. Wrong host → `EndpointConnectionError` per job.
 

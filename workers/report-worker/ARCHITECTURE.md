@@ -35,7 +35,7 @@ The **Report Worker** is an asynchronous Python microservice that computes a **d
 - A **PDF visual report** (human-readable)
 - An **Elasticsearch update** (dataset catalogue entry)
 
-It runs continuously as a Kubernetes workload (or an AWS Lambda for legacy use), polling a Redis queue for jobs. Each job targets a **databank** — a logical folder in S3/MinIO containing one or more dataset files.
+It runs continuously as a Kubernetes workload (or an AWS Lambda for legacy use), polling a Redis queue for jobs. Each job targets a **databank** — a logical folder in S3/MinIO/GCS containing one or more dataset files.
 
 The worker supports two broad data classes:
 
@@ -169,12 +169,14 @@ The Lambda path downloads files, runs the framework, and uploads reports directl
 
 ### 3.3 Direct Execution (Testing / Debug)
 
-```bash
-python structured_main.py    # process local structured data
-python unstructured_main.py  # process local unstructured data
-```
+From `workers/report-worker`, run the synthetic structured example with
+`python local_lambda_tester.py` after installing the worker dependencies. It invokes
+`structured_main.main(directory, folder_key)` directly with Catalogue lookups and writeback
+turned off, and writes ignored outputs under `outputReports/`.
 
-Used during development; reads from `data/` and writes to `outputReports/`.
+The bare `python structured_main.py` / `python unstructured_main.py` entrypoints do not supply
+those required arguments. Use the tester or an explicit Python call instead. Unstructured
+inference makes external OpenAI calls; use only approved data and private credentials.
 
 ---
 
@@ -294,10 +296,10 @@ REPORT_QUEUE_NAME     jobs:report
 
 **Used for**: semantic column/metadata role inference (LLM-assisted metrics).
 
-- **Structured**: `structured_metrics/llm_api.py` — infers the semantic role of each column (e.g., "region", "date", "identifier") to improve coverage and completeness scoring.
+- **Structured**: `structured_metrics/llm_api.py` — an inactive helper for inferring the semantic role of each column (e.g., "region", "date", "identifier") to improve coverage and completeness scoring.
 - **Unstructured**: `unstructured_metrics/llm_api.py` — infers the semantic category of each file from its metadata.
 
-> **Note**: OpenAI calls are currently **disabled by default** in `structured_main.py` (line 101) to avoid API costs. Set `OPENAI_API_KEY` and re-enable the call to activate this path.
+> **Note**: Structured OpenAI calls are currently **disabled** in `structured_main.py`; setting a key alone does not enable them. Unstructured metadata inference still makes external calls. Approve data sharing before using it.
 
 **Configuration**:
 
@@ -600,43 +602,20 @@ Accessible via API at: `GET /v1/databanks/{databankId}/report/download`
 ### Infrastructure Level (Kubernetes)
 
 - `terminationGracePeriodSeconds: 120` — gives in-flight jobs time to finish on pod eviction.
-- HPA with min 2 replicas ensures no single-point-of-failure.
-- Redis AOF persistence protects the job queue from data loss.
+- The example HPA maintains at least 4 worker replicas, but Redis remains a single point of failure.
+- Redis AOF/PVC reduces data loss but cannot guarantee durability for jobs not yet persisted.
 
 ---
 
 ## 11. Configuration Reference
 
-### Required
+Use [the report-worker field reference](../../docs/config/report-worker.md) for required fields,
+provider-specific credentials, defaults, and failure modes. The [shared configuration overview](../../docs/config/README.md)
+lists the bucket, Redis DB, queues, and storage settings that must align with the API.
 
-| Variable | Purpose | Example |
-|---|---|---|
-| `REDIS_HOST` | Redis hostname | `redis` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `BUCKET_NAME` | S3/MinIO bucket | `files-connect-bucket` |
-| `S3_ACCESS_KEY` | Storage access key | `minioadmin` |
-| `S3_SECRET_KEY` | Storage secret key | `minioadmin` |
-| `STORAGE_PROVIDER` | Storage backend | `s3` or `minio` |
-| `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
-
-### Optional
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `REDIS_PASSWORD` | — | Redis AUTH password |
-| `REDIS_DB` | `0` | Redis database number |
-| `REDIS_CLUSTER` | `false` | Cluster-aware client (K8s) |
-| `REPORT_QUEUE_NAME` | `jobs:report` | Queue list name (`READINESS_QUEUE_NAME` is still accepted as a legacy alias) |
-| `S3_ENDPOINT` | AWS default | Custom endpoint (MinIO) |
-| `S3_REGION` | `us-east-1` | AWS region |
-| `USE_SSL` | `true` (S3) / `false` (MinIO) | TLS for storage |
-| `S3_VERIFY_SSL` | `true` | Verify TLS certificates |
-| `ELASTICSEARCH_URL` | — | Elasticsearch base URL |
-| `ELASTIC_CAT_INDEX` | `tgdex__cat` | Index name |
-| `ELASTIC_ID` | — | Elasticsearch username |
-| `ELASTIC_PASS` | — | Elasticsearch password |
-| `CAT_API_URL` | — | Catalogue API for name resolution |
-| `WORKER_TEMP_DIR` | auto | Override temp directory path |
+Configuration templates contain only localhost/example values. Keep populated `.env`,
+Kubernetes Secrets, key files, and Postman exports private. Structured OpenAI inference is
+currently disabled; unstructured metadata inference remains active.
 
 ---
 
@@ -684,161 +663,50 @@ Client
 
 ## 13. Infrastructure & Deployment
 
-### 13.1 Docker Images
+The active worker image is [Dockerfile.worker](Dockerfile.worker). The legacy Lambda container
+Dockerfile was removed. Kubernetes uses [report-worker-deployment.yaml](../../infra/report-worker-deployment.yaml)
+with non-root uid 1000, configurable storage/Redis credentials, and an HPA.
 
-**`Dockerfile.worker`** — Kubernetes worker image:
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-RUN pip install -r requirements.txt
-COPY worker.py readiness_processor.py structured_main.py unstructured_main.py .
-COPY structured_metrics/ unstructured_metrics/ report/ plots/ ./
-RUN useradd -m -u 1000 worker && chown -R worker:worker /app
-USER worker
-ENV PYTHONUNBUFFERED=1
-CMD ["python", "-u", "worker.py"]
-```
+Follow [the infrastructure guide](../../infra/README.md) to build pinned images and prepare
+private configuration copies. The current example manifest has 4 base/minimum replicas and
+an HPA maximum of 12; resource settings and scaling limits are documented centrally in
+[deployment configuration](../../docs/config/deployments.md).
 
----
-
-### 13.2 Kubernetes Deployment (`infra/report-worker-deployment.yaml`)
-
-| Parameter | Value |
-|---|---|
-| Replicas (base) | 2 |
-| Image pull policy | Always |
-| Memory request | 1 Gi |
-| CPU request | 500 m |
-| Memory limit | 4 Gi |
-| CPU limit | 2000 m |
-| Termination grace period | 120 s |
-| Run as user | 1000 (non-root) |
-| Filesystem group | 1000 |
-
-**HorizontalPodAutoscaler**:
-
-| Parameter | Value |
-|---|---|
-| Min replicas | 2 |
-| Max replicas | 10 |
-| CPU target utilization | 70 % |
-| Memory target utilization | 80 % |
-| Scale-up rate | +100 % per 30 s |
-| Scale-down rate | −50 % per 60 s |
-| Scale-down stabilization | 300 s |
-
-**ConfigMap sources**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `STORAGE_PROVIDER`, `S3_ENDPOINT`, `BUCKET_NAME`, `S3_REGION`, `USE_SSL`, `S3_VERIFY_SSL`, `CAT_API_URL`
-
-**Secret sources**: `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `OPENAI_API_KEY` (from `report-worker-secret`)
-
----
-
-### 13.3 Docker Compose (Local Stack)
-
-Services used by the worker locally:
-
-| Service | Purpose | Port |
-|---|---|---|
-| `minio` | S3-compatible object storage | 9000 (API), 9001 (console) |
-| `redis` | Job queue and status store | 6379 |
-| `report-worker` | Worker container | — |
-
-All services share a Docker network; containers communicate via service names (`redis:6379`, `minio:9000`).
-
-Persistent volumes: `minio_data`, `redis_data`.
+For verification, troubleshooting, scaling, and rollback, use [DEPLOYMENT.md](DEPLOYMENT.md).
+The [local Compose stack](../../docker-compose.yml) supplies MinIO, Redis, and the workers;
+its API is commented out. Local storage/Redis ports bind only to localhost.
 
 ---
 
 ## 14. Python Dependencies
 
-| Package | Version | Purpose |
-|---|---|---|
-| `pandas` | 2.2.3 | DataFrame operations, CSV/JSON loading |
-| `pyarrow` | 14.0.1 | Parquet file support |
-| `numpy` | 1.26.4 | Numerical computing |
-| `boto3` | 1.28.66 | AWS S3 / MinIO client |
-| `redis` | 5.0.1 | Redis client |
-| `openai` | 1.82.0 | OpenAI API client |
-| `requests` | 2.32.4 | HTTP client (CAT API) |
-| `fpdf` | 1.7.2 | PDF generation |
-| `pillow` | 12.3.0 | Image processing and metadata |
-| `pydicom` | 3.0.1 | DICOM medical imaging |
-| `mutagen` | 1.47.0 | Audio file metadata |
-| `openpyxl` | 3.1.5 | Excel file support (.xlsx) |
-| `xlrd` | 2.0.2 | Excel legacy support (.xls) |
-| `PyPDF2` | 3.0.1 | PDF file reading |
-| `chardet` | 5.2.0 | Character encoding detection |
-| `python-dotenv` | 1.0.0 | `.env` file loading (dev) |
-| `pytest` | 8.3.5 | Unit testing |
-| `urllib3` | ≥1.25.4,<2.1 | HTTP library (boto3 dependency) |
+[requirements.txt](requirements.txt) is the source of truth for worker dependencies and security
+version constraints. Do not copy dependency versions from an old documentation table.
+Install pytest separately when running the scoring test suite; it is not a runtime dependency.
 
 ---
 
 ## 15. Local Development & Testing
 
-### Start the local stack
+Start the local stack and private environment as described in [the root README](../../README.md).
+Use a synthetic databank when submitting report jobs through [Postman](../../postman/README.md).
+Do not put JWTs, presigned URLs, or credentials in command-line snippets or shared logs.
 
-```bash
-# MinIO
-docker run -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=minioadmin \
-  -e MINIO_ROOT_PASSWORD=minioadmin \
-  minio/minio server /data --console-address ":9001"
-
-# Redis
-docker run -p 6379:6379 redis:7-alpine
-```
-
-### Configure environment
-
-```bash
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-export STORAGE_PROVIDER=minio
-export S3_ENDPOINT=http://localhost:9000
-export S3_ACCESS_KEY=minioadmin
-export S3_SECRET_KEY=minioadmin
-export BUCKET_NAME=files-connect-local
-export USE_SSL=false
-export OPENAI_API_KEY=sk-...
-```
-
-### Run the worker
-
-```bash
-cd workers/report-worker
-python worker.py
-```
-
-### Trigger a job (via API)
-
-```bash
-curl -X POST http://localhost:3000/v1/databanks/test-databank/process \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "report"}'
-```
-
-### Inspect Redis state
-
-```bash
-redis-cli
-> LLEN jobs:report              # queue depth
-> HGETALL job:<jobId>           # job status
-> KEYS job:*                    # all active jobs
-```
-
-### Run tests
-
-```bash
-cd workers/report-worker
-pytest tests/
-```
-
-### Legacy local Lambda testing
+From this directory, after installing dependencies:
 
 ```bash
 python local_lambda_tester.py
+python -m pytest tests
+```
+
+The [synthetic tester](data/example/README.md) does not call a Catalogue or write back to
+Elasticsearch. Its structured path currently skips OpenAI inference. Generated reports and
+additional local input data are ignored by Git.
+
+Configuration-hygiene tests can run without the scoring dependencies (requests is required):
+
+```bash
+python -m unittest discover -s tests -p test_dataset_name_configuration.py
 ```
 
 ---
@@ -847,7 +715,7 @@ python local_lambda_tester.py
 
 | # | Limitation | Detail |
 |---|---|---|
-| 1 | **OpenAI disabled by default** | Column role inference in `structured_main.py` (line 101) is commented out to avoid API costs. Re-enable by restoring the LLM call and setting `OPENAI_API_KEY`. |
+| 1 | **Structured OpenAI inference disabled** | Column role inference in `structured_main.py` is commented out; unstructured metadata inference remains active. Re-enable by restoring the LLM call and setting `OPENAI_API_KEY`. |
 | 2 | **Single-bucket architecture** | Input files, intermediate state, and output reports all share the same `BUCKET_NAME`. No staging or output-only bucket separation. |
 | 3 | **No job timeout** | Individual jobs have no wall-clock timeout. A hung job will block the worker slot until Kubernetes kills the pod (`terminationGracePeriodSeconds: 120`). |
 | 4 | **Memory-bound on large files** | Files > 400 MB are sampled to 1 M rows. The sampling flag is noted in the PDF but the metric results may not represent the full dataset. |

@@ -44,7 +44,7 @@ export class MinIORepository implements StorageRepositoryInterface {
     this.bucketName = config.bucketName;
 
     // Parse endpoint to extract hostname and port
-    // Handle cases: "minio.iudx.io", "http://minio.iudx.io", "https://minio.iudx.io:443"
+    // Handle cases: "storage.example.com", "http://storage.example.com", "https://storage.example.com:443"
     let endpointUrl: URL;
     if (config.endpoint.startsWith("http://") || config.endpoint.startsWith("https://")) {
       endpointUrl = new URL(config.endpoint);

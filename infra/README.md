@@ -1,65 +1,80 @@
-# Files Connect API Infrastructure Guide
+# Infrastructure Guide
 
-## Documentation
+The Kubernetes manifests in this directory are examples for `stable/v2.3`. They are not a
+production environment export. Replace example hosts, bucket/role values, image references,
+namespace, TLS issuer, and resource settings before deployment.
 
-- **[Configuration reference](../docs/config/)** - every environment variable of the file server and
-  both workers: purpose, expected value, privileges, default, failure mode
-- **[Deployment wiring](../docs/config/deployments.md)** - how ConfigMap/Secret values reach each
-  container, apply order, scaling limits, and open items
-- **[STS Setup Guide](./STS_SETUP.md)** - Complete guide for configuring AWS STS temporary access
+## Build images
 
-## Getting Started
-
-First, clone the repository:
+Run from the repository root. Set your own registry and pin a release tag or digest:
 
 ```bash
-git clone https://github.com/datakaveri/files-connect-api.git
-cd files-connect-api
+docker build -t your-registry/files-connect-api:your-version -f infra/Dockerfile .
+docker build -t your-registry/files-connect-zip-worker:your-version workers/zip-worker
+docker build -t your-registry/files-connect-report-worker:your-version \
+  -f workers/report-worker/Dockerfile.worker workers/report-worker
 ```
 
-## Building Docker Image
+Push only to a registry you administer and update the Deployment image references. Create the
+referenced image-pull Secret in the same namespace if the registry is private; omit
+`imagePullSecrets` for public images when appropriate. Do not use mutable `latest` tags for production.
 
-To build the Docker image:
+## Private configuration
 
 ```bash
-cd files-connect-api
-
-docker build -t datakaveri/files-connect-api:tgdex-1.0.0 -f infra/Dockerfile .
+cp infra/secret.example.yaml infra/secret.yaml
+cp infra/configmap.yaml infra/configmap.local.yaml
+cp infra/ingress.yaml infra/ingress.local.yaml
+cp infra/manifest.yaml infra/manifest.local.yaml
 ```
 
-Note: Replace `tgdex-1.0.0` with the appropriate version tag you want to use. Avoid using `latest` tag for production deployments.
+These populated local copies are ignored by Git and Docker. Replace **every** Secret placeholder,
+and remove unused credential fields. Credentials must not go in a ConfigMap.
+`stringData` is plaintext, not encryption: restrict file permissions and Kubernetes access;
+prefer a secret manager and workload identity where supported. Do not print populated Secrets
+in CI logs or commit them, even when base64-encoded.
 
-## Kubernetes Deployment
+Keep all consuming Deployments, ConfigMaps, Secrets, Services, and Redis in the same namespace.
+The examples use `sandbox`; create it if needed. Prepare your storage bucket and external
+identity provider, Catalogue, ACL-APD, RabbitMQ/exchange, and optional Elasticsearch separately.
+Ensure the API and workers have the required storage privileges, matching queue names, and Redis DB.
 
-1. Create the required secrets:
+See [the configuration reference](../docs/config/README.md) and
+[deployment wiring](../docs/config/deployments.md) before filling values.
+
+## Apply configured manifests
+
+The commands below assume your private copies are configured and all remaining tracked
+manifests have been reviewed for your namespace, images, resources, and persistence needs.
+Do not apply `secret.example.yaml` or run `kubectl apply -f infra/`.
+
 ```bash
 kubectl apply -f infra/secret.yaml
+kubectl apply -f infra/configmap.local.yaml
+kubectl apply -f infra/redis-deployment.yaml
+kubectl apply -f infra/redis-service.yaml
+kubectl apply -f infra/manifest.local.yaml
+kubectl apply -f infra/worker-deployment.yaml
+kubectl apply -f infra/report-worker-deployment.yaml
+kubectl apply -f infra/ingress.local.yaml
+kubectl -n sandbox get pods
 ```
 
-2. Apply the ConfigMap:
-```bash
-kubectl apply -f infra/configmap.yaml
-```
+Use an explicit HTTPS CORS origin allow-list in both your ingress and app configuration, and
+keep Redis and storage administration endpoints private. Enable auth and authorization;
+do not ignore JWT expiry or disable TLS verification. The supplied Redis setup is a single
+instance, not a highly available production deployment.
 
-3. Deploy the application:
-```bash
-kubectl apply -f infra/manifest.yaml
-```
-
-4. Apply the ingress configuration:
-```bash
-kubectl apply -f infra/ingress.yaml
-```
-
-## AWS STS Configuration
-
-1. Follow the **[STS Setup Guide](./STS_SETUP.md)** for detailed instructions
-
-Key environment variables to configure:
+Environment values are injected when pods start. After changing ConfigMaps or Secrets:
 
 ```bash
-STS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_TEMP_ACCESS_ROLE
-STS_SESSION_DURATION_IN_SECONDS=900
+kubectl -n sandbox rollout restart deploy/files-connect-api deploy/zip-worker deploy/report-worker
+kubectl -n sandbox rollout status deploy/files-connect-api
 ```
 
-Add these to your `secret.yaml` or ConfigMap as appropriate.
+## Further reading
+
+- [Deployment wiring, scaling, and limitations](../docs/config/deployments.md)
+- [AWS STS setup](STS_SETUP.md)
+- [Report worker verification and troubleshooting](../workers/report-worker/DEPLOYMENT.md)
+- [Endpoint access checks](../docs/api/endpoints.md)

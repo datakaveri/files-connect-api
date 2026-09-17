@@ -23,6 +23,8 @@
 | [../workers/report-worker/README.md](../workers/report-worker/README.md) | Report worker quick start and module map |
 | [../workers/report-worker/ARCHITECTURE.md](../workers/report-worker/ARCHITECTURE.md) | Report worker internals: pipeline, metrics, scoring, output formats |
 | [../workers/report-worker/DEPLOYMENT.md](../workers/report-worker/DEPLOYMENT.md) | Report worker build, deploy, verification and troubleshooting runbook |
+| [../postman/README.md](../postman/README.md) | Local Postman example and private environment setup |
+| [../workers/report-worker/data/example/README.md](../workers/report-worker/data/example/README.md) | Synthetic local dataset and safe tester |
 
 ## Conventions
 

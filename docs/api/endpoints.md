@@ -3,8 +3,6 @@
 Every endpoint, the roles that may call it, the auth checks that run, and the behaviour worth
 knowing. Verified against the route definitions in [src/routes/](../../src/routes/).
 
-Consolidates what used to live in `API.md`, `API_ROLES.md` and `ENDPOINT_AUTH.md`.
-
 - **Base path:** `/v1` — mounted in [src/routes/index.ts](../../src/routes/index.ts); path segments come from `ApiPaths` in [src/config/constants.ts](../../src/config/constants.ts).
 - **Machine-readable spec:** [openapi.json](../../openapi.json); browsable at `/apis` (ReDoc) and `/openapi.json` on a running server.
 - **Roles:** `provider`, `consumer`, `cos_admin` — read from the JWT's `realm_access.roles` claim. See [docs/config/file-server.md](../config/file-server.md#keycloak_client_id) for the token requirements.
@@ -89,7 +87,7 @@ zip everything:
 | Method | Path | Roles | Auth checks | Notes |
 |---|---|---|---|---|
 | GET | `.../download` | provider, consumer | authenticate → authorize → checkItemAccessWithDatabankAccess | Presigned URL for the databank zip (`zips/{databankId}.zip`). |
-| GET | `.../report/download` | provider, consumer | authenticate → authorize → checkItemAccessWithDatabankAccess | Presigned URL for `reports/{databankId}/data_readiness_report.pdf`. |
+| GET | `.../report/download` | — | **none (public)** | Presigned URL for `reports/{databankId}/data_readiness_report.pdf`. Review this exposure before deploying with private reports. |
 | GET | `.../query-access` | provider, consumer | authenticate → authorize → checkItemAccessWithDatabankAccess | Temporary STS credentials scoped to the databank, for direct bucket access without proxying. Time-limited by `STS_SESSION_DURATION_IN_SECONDS` (default 15 min). **Returns 400 when `STORAGE_PROVIDER=gcs`** — GCS has no AssumeRole equivalent; use the presigned-URL endpoints instead. |
 
 ### Assets

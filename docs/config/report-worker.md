@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | **Service** | report worker (`report-worker`), a.k.a. readiness worker |
-| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.2`, [workers/report-worker/](../../workers/report-worker/) |
+| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.3`, [workers/report-worker/](../../workers/report-worker/) |
 | **Config path** | environment only — [docker-compose.yml](../../docker-compose.yml) (`report-worker` service) locally; [infra/report-worker-deployment.yaml](../../infra/report-worker-deployment.yaml) + `files-connect-config` / `files-connect-secret` / `report-worker-secret` in Kubernetes |
 | **Config schema version** | none — `os.environ.get` at point of use, plus `load_dotenv()` in the framework modules |
-| **Maintainer / point of contact** | _TODO_ |
-| **Last updated** | 2026-07-29 |
+| **Maintainer / point of contact** | Repository maintainers |
+| **Last updated** | 2026-09-16 |
 
 ## 1. Top-level structure
 
@@ -17,7 +17,7 @@
 |---|---|---|
 | Redis | [worker.py](../../workers/report-worker/worker.py) | Queue polling and job status |
 | Storage | [readiness_processor.py](../../workers/report-worker/readiness_processor.py), [gcs_client.py](../../workers/report-worker/gcs_client.py) | Download the databank, upload the generated report |
-| Scoring / LLM | [structured_main.py](../../workers/report-worker/structured_main.py), [structured_metrics/llm_api.py](../../workers/report-worker/structured_metrics/llm_api.py) | OpenAI-assisted column-role inference |
+| Scoring / LLM | [structured_main.py](../../workers/report-worker/structured_main.py), [unstructured_main.py](../../workers/report-worker/unstructured_main.py) | Structured inference is disabled; unstructured metadata inference uses OpenAI |
 | Catalogue REST | [report/dataset_clean_name_api.py](../../workers/report-worker/report/dataset_clean_name_api.py) | Resolve the human-readable dataset name for the report |
 | Catalogue index (Elasticsearch) | [report/post_to_cat_api.py](../../workers/report-worker/report/post_to_cat_api.py) | Write `dataReadiness`, `dataUploadStatus`, `lastUpdated`, optionally `publishStatus` |
 | Internal | `WORKER_TEMP_DIR`, `AWS_LAMBDA_FUNCTION_NAME` | Set by the worker itself / by the Lambda runtime — **not operator-configurable** |
@@ -71,15 +71,15 @@ code almost line for line. Only the differences are repeated here:
 ### `OPENAI_API_KEY`
 
 - **Type / format:** string, OpenAI API key (`sk-…`).
-- **Required:** effectively yes for structured datasets — the process starts without it.
-- **Purpose:** `infer_column_roles_openai()` asks the model to identify geographic, date, timestamp and categorical columns; those roles drive most structured readiness metrics.
-- **Expected value:** a key on a project with sufficient quota for one completion per structured dataset processed.
+- **Required:** for unstructured metadata inference; not currently required for structured inference, which is disabled. The process starts without a key.
+- **Purpose:** `infer_metadata_roles_openai()` infers roles from extracted file metadata. The structured column-role helper remains in the code but is not called by `structured_main.py` in this branch.
+- **Expected value:** a private key with quota/model access for the active inference path.
 - **Default if omitted:** none. At startup the worker logs `OPENAI_API_KEY not found in environment variables. Column role inference will fail.` (WARN) — **and keeps running**.
 - **How to obtain:** the OpenAI account owner for the project; stored in the `report-worker-secret` Secret, never in the ConfigMap. This is a paid external provider relationship — confirm who owns billing before rolling to a new environment.
 - **Privileges required:** a standard API key with model access; no admin scope.
-- **Failure mode:** missing → jobs fail inside the structured framework with an OpenAI authentication error, recorded per job. Quota exhausted → `RateLimitError` / `insufficient_quota` on every structured job, which looks like a worker bug but is a billing issue.
+- **Failure mode:** missing/invalid key or exhausted quota causes errors on the active unstructured inference path; inspect the job errors rather than assuming all report modes require a key.
 - **Change impact:** rotating the key requires restarting the report-worker pods (the value is read at import time).
-- **Notes:** unstructured datasets skip the LLM path entirely.
+- **Notes:** metadata may leave your environment on the unstructured path. Approve this data sharing before processing sensitive datasets. The startup warning about column-role inference is stale while structured inference is disabled.
 
 ### `CAT_API_URL`
 
@@ -87,10 +87,10 @@ code almost line for line. Only the differences are repeated here:
 - **Required:** no, but required in practice for correct report titles.
 - **Purpose:** Catalogue REST base for dataset-name resolution: `{CAT_API_URL}/item?id=<uuid>&auditEnabled=false`, reading `label` (TG-DEX) or `name` (IUDX/ForestDX) from the response ([dataset_clean_name_api.py](../../workers/report-worker/report/dataset_clean_name_api.py)).
 - **Expected value:** identical to the file server's `CAT_API_URL`.
-- **Example value:** `https://v2.dev.controlplane.iudx.io/iudx/v2/cat`
-- **Default if omitted:** hard-coded fallback `https://v2.dev.controlplane.iudx.io/iudx/v2/cat` — **a dev URL baked into the image**. In production this is worse than an error: reports quietly carry the wrong (or no) dataset name while everything reports success.
+- **Example value:** `https://catalogue.example.com/iudx/v2/cat`
+- **Default if omitted:** none. No external Catalogue endpoint is selected implicitly; lookup raises a configuration error and the pipeline falls back to the local dataset name.
 - **How to obtain:** the catalogue deployment for the environment.
-- **Failure mode:** unreachable → the HTTP call raises and the job fails; reachable but wrong environment → `true_name = None` and the report is titled from the UUID.
+- **Failure mode:** missing/unreachable → lookup raises and the pipeline uses its dataset-name fallback; a wrong environment can still produce the wrong or missing title. Always configure the intended Catalogue.
 - **Notes:** this is the **REST API**, distinct from `ELASTICSEARCH_URL` below. Setting one to the other's value is the single most common mistake in this service.
 
 ### `ELASTICSEARCH_URL`
@@ -101,7 +101,7 @@ code almost line for line. Only the differences are repeated here:
 - **Expected value:** cluster origin only, e.g. `https://es.<domain>:9200`. No index, no path.
 - **Default if omitted:** unset → `ELASTICSEARCH_URL is not set. Skipping readiness score update in catalogue index.` (WARN). The report is still generated and stored; only the catalogue is not updated.
 - **How to obtain:** the Elasticsearch owner for the environment.
-- **Failure mode:** absent in production is the quiet failure — reports exist in the bucket but the portal shows no readiness score and (with `CAT_SET_PUBLISH_STATUS=true`) datasets never move to `ACTIVE`. **It is missing from the current Deployment manifest**; see [deployments.md](./deployments.md).
+- **Failure mode:** absent is a quiet failure — reports exist but catalogue readiness/publication updates are skipped. The current Deployment wires this optional key from the ConfigMap; configure it only when writeback is intended. See [deployments.md](./deployments.md).
 - **Notes:** the same cluster the zip worker addresses as `CAT_URL`.
 
 ### `ELASTIC_CAT_INDEX`
