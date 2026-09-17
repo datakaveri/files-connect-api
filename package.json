@@ -21,7 +21,7 @@
     "uploads"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "AGPL-3.0",
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@aws-crypto/sha256-js": "^5.2.0",
