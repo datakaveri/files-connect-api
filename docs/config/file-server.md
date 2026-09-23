@@ -381,7 +381,7 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Example value:** `https://catalogue.example.com/iudx/v2/cat`
 - **Default if omitted:** none — exit 1.
 - **How to obtain:** the catalogue deployment for that environment.
-- **Failure mode:** the item lookup 404s and the request is rejected with `Databank <id> not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.` — logged with the configured value, so check the log line before blaming the data.
+- **Failure mode:** a Catalogue item lookup that returns 404 is exposed as a databank-not-found (404) response. Verify `CAT_API_URL` if a known databank unexpectedly returns 404. Catalogue 5xx and connection failures remain service-unavailable (503) responses.
 - **Notes / gotchas:** the **report worker uses the same value** for dataset-name resolution. It is **not** the same thing as the zip worker's `CAT_URL`, which must point at Elasticsearch — see [zip-worker.md](./zip-worker.md).
 
 ### `RABBITMQ_HOST`

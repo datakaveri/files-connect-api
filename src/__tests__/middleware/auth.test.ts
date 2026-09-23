@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import axios from 'axios';
-import { checkItemAccessWithDatabankAccess } from '../../middleware/auth';
+import { checkItemAccess, checkItemAccessWithDatabankAccess, checkIsOwner } from '../../middleware/auth';
 
 jest.mock('axios');
 jest.mock('../../config/environment', () => ({
@@ -38,6 +38,55 @@ function createResponse(): Response {
 describe('checkItemAccessWithDatabankAccess', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it.each([
+    ['file listing', checkItemAccess],
+    ['databank download', checkItemAccessWithDatabankAccess],
+    ['owner-only routes', checkIsOwner],
+  ])('returns 404 when Catalogue cannot find the databank for %s', async (_route, middleware) => {
+    mockedAxios.isAxiosError.mockReturnValueOnce(true);
+    mockedAxios.get.mockRejectedValueOnce({
+      response: { status: 404, statusText: 'Not Found' },
+    });
+
+    const next = jest.fn() as NextFunction;
+    await middleware(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 404,
+      code: 'RESOURCE_NOT_FOUND',
+    }));
+  });
+
+  it('keeps a Catalogue server failure as 503', async () => {
+    mockedAxios.isAxiosError.mockReturnValueOnce(true);
+    mockedAxios.get.mockRejectedValueOnce({
+      response: { status: 500, statusText: 'Internal Server Error' },
+    });
+
+    const next = jest.fn() as NextFunction;
+    await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 503,
+    }));
+  });
+
+  it('handles a returned Catalogue 404 as databank not found', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+      data: {},
+    });
+
+    const next = jest.fn() as NextFunction;
+    await checkItemAccessWithDatabankAccess(createRequest(), createResponse(), next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      statusCode: 404,
+      code: 'RESOURCE_NOT_FOUND',
+    }));
   });
 
   it('bypasses ACL/APD only when catalogue accessPolicy is OPEN', async () => {

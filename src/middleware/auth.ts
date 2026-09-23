@@ -523,6 +523,10 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
       }));
     }
 
+    if (response.status === 404) {
+      return next(new NotFoundError('Databank', databankId));
+    }
+
     if (response.status !== 200) {
       logger.warn(`[checkItemAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
       return next(new ServiceUnavailableError('Catalogue API', {
@@ -561,13 +565,10 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
         const status = error.response.status;
         const statusText = error.response.statusText;
 
-        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
+        // A missing Catalogue item is a missing databank, not a service outage.
         if (status === 404) {
-          logger.error(`[checkItemAccess] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
-          return next(new ServiceUnavailableError('Catalogue API', {
-            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
-            databankId,
-          }));
+          logger.warn(`Catalogue API returned 404 for databankId: ${databankId}`);
+          return next(new NotFoundError('Databank', databankId));
         }
 
         // Handle other 4xx errors - client errors
@@ -645,6 +646,10 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
       }));
     }
 
+    if (response.status === 404) {
+      return next(new NotFoundError('Databank', databankId));
+    }
+
     if (response.status !== 200) {
       logger.warn(`[checkItemAccess] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
       return next(new ServiceUnavailableError('Catalogue API', {
@@ -681,13 +686,10 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
         const status = error.response.status;
         const statusText = error.response.statusText;
 
-        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
+        // A missing Catalogue item is a missing databank, not a service outage.
         if (status === 404) {
-          logger.error(`[checkItemAccessWithDatabankAccess] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
-          return next(new ServiceUnavailableError('Catalogue API', {
-            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
-            databankId,
-          }));
+          logger.warn(`Catalogue API returned 404 for databankId: ${databankId}`);
+          return next(new NotFoundError('Databank', databankId));
         }
 
         // Handle other 4xx errors - client errors
@@ -791,6 +793,10 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
       }));
     }
 
+    if (response.status === 404) {
+      return next(new NotFoundError('Databank', databankId));
+    }
+
     if (response.status !== 200) {
       logger.warn(`[checkIsOwner] Catalogue API returned status ${response.status} for databankId: ${databankId}`);
       return next(new ServiceUnavailableError('Catalogue API', {
@@ -848,13 +854,10 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
         const status = error.response.status;
         const statusText = error.response.statusText;
 
-        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
+        // A missing Catalogue item is a missing databank, not a service outage.
         if (status === 404) {
-          logger.error(`[checkIsOwner] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
-          return next(new ServiceUnavailableError('Catalogue API', {
-            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
-            databankId,
-          }));
+          logger.warn(`Catalogue API returned 404 for databankId: ${databankId}`);
+          return next(new NotFoundError('Databank', databankId));
         }
 
         // Handle other 4xx errors - client errors

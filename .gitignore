@@ -43,3 +43,4 @@ workers/report-worker/data/**
 # Keep local automation configs (which may contain tokens/passwords) out of Git.
 scripts/**/*_config.json
 full-tests/
+/data/

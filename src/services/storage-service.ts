@@ -19,6 +19,7 @@ import { isFolder, getFileExtension } from '../core/utils/helpers';
 import { env } from '../config/environment';
 import { createStorageConfig } from '../config/storage';
 import { createStorageRepository } from '../repositories';
+import { NotFoundError } from '../core/errors/application-errors';
 
 // Define AWS S3 types to avoid namespace errors
 namespace AWSS3Types {
@@ -35,6 +36,17 @@ namespace AWSS3Types {
 
 // Create a logger for this module
 const logger = createLogger('StorageService');
+
+function isNoSuchUploadError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const storageError = error as { name?: string; code?: string; Code?: string };
+  return storageError.name === 'NoSuchUpload' ||
+    storageError.code === 'NoSuchUpload' ||
+    storageError.Code === 'NoSuchUpload';
+}
 
 /**
  * Interface for Storage service
@@ -821,6 +833,12 @@ export class StorageService implements StorageServiceInterface {
     });
 
     try {
+      // Object storage deletes missing keys successfully, so check existence to
+      // honor the API contract for single-file deletion.
+      if (!recursive && !(await this.s3Repository.headObject(normalizedKey))) {
+        throw new NotFoundError('File', key);
+      }
+
       // Check if key is a folder
       const isKeyFolder = this.isKeyFolder(normalizedKey);
 
@@ -899,6 +917,10 @@ export class StorageService implements StorageServiceInterface {
 
       return normalizedKey;
     } catch (error) {
+      if (isNoSuchUploadError(error)) {
+        throw new NotFoundError('Upload', uploadId);
+      }
+
       logger.error('Error completing multipart upload', error as Error, {
         key: normalizedKey,
         uploadId,
@@ -934,6 +956,10 @@ export class StorageService implements StorageServiceInterface {
         databankId
       });
     } catch (error) {
+      if (isNoSuchUploadError(error)) {
+        throw new NotFoundError('Upload', uploadId);
+      }
+
       logger.error('Error aborting multipart upload', error as Error, {
         key: normalizedKey,
         uploadId,

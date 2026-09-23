@@ -695,6 +695,14 @@ registry.registerPath({
         },
       },
     },
+    404: {
+      description: 'Upload not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
   },
 });
 
