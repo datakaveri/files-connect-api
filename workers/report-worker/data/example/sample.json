@@ -1,0 +1,6 @@
+[
+  { "date": "2026-01-01", "region": "Example North", "quantity": 10, "unit": "kg" },
+  { "date": "2026-01-02", "region": "Example South", "quantity": 20, "unit": "kg" },
+  { "date": "2026-01-03", "region": "Example North", "quantity": 15, "unit": "kg" },
+  { "date": "2026-01-04", "region": "Example South", "quantity": 25, "unit": "kg" }
+]

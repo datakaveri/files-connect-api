@@ -247,23 +247,25 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     // 1. Get authorization token from header
     const authHeader = req.header('Authorization');
     
-    // 2. Get databank ID from path parameters or determine if it's an asset route
+    // 2. Get databank ID from path parameters or determine if it's a route
+    // with no databank scope (assets, platform-level encryption key)
     const originalUrl = req.originalUrl || '';
     const isAssetRoute = originalUrl.includes('/assets');
-    
-    // For asset routes, we don't need a databank ID
+    const isDatabanklessRoute = isAssetRoute || originalUrl.includes('/encryption');
+
+    // For databank-less routes, we don't need a databank ID
     let databankId = req.params?.databankId?.toString() || '';
-    
-    // Only require databankId for non-asset routes
-    if (!databankId && !isAssetRoute) {
+
+    // Only require databankId for databank-scoped routes
+    if (!databankId && !isDatabanklessRoute) {
       const error = new Error('Databank ID is required in the URL path');
       (error as any).statusCode = 400;
       throw error;
     }
-    
-    // Use a placeholder value for asset routes
-    if (isAssetRoute && !databankId) {
-      databankId = 'assets';
+
+    // Use a placeholder value for databank-less routes
+    if (isDatabanklessRoute && !databankId) {
+      databankId = isAssetRoute ? 'assets' : 'platform';
     }
     
     // 3. Extract and decode token

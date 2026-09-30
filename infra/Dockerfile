@@ -23,6 +23,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# The runtime only needs Node. Removing the bundled package managers keeps
+# npm's build/install-only dependency tree out of the production image.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
+
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./

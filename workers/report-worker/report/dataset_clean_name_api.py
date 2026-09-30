@@ -2,12 +2,16 @@ import os
 import requests
 
 # Catalogue API base URL from env (e.g. CAT_API_URL). Item endpoint: {base}/item?id={uuid}&auditEnabled=false
-_CAT_BASE = os.environ.get('CAT_API_URL', 'https://v2.dev.controlplane.iudx.io/iudx/v2/cat').rstrip('/')
-url_format = f'{_CAT_BASE}/item?id={{}}&auditEnabled=false'
+_CAT_BASE = os.environ.get('CAT_API_URL', '').rstrip('/')
+url_format = f'{_CAT_BASE}/item?id={{}}&auditEnabled=false' if _CAT_BASE else None
 def get_uuid_from_dataset_name(folder_name):
     return folder_name.split('.')[0]
 
 def get_dataset_name_from_url(uuid, url_format=url_format):
+    # Callers already fall back to the local dataset name on configuration errors.
+    # Never send a dataset identifier to a shared external environment by default.
+    if not url_format:
+        raise ValueError('CAT_API_URL must be configured for dataset-name lookup')
     # uuid = url.split('=')[-1]
     url= url_format.format(uuid)
     headers = {
@@ -27,4 +31,3 @@ def get_dataset_name_from_url(uuid, url_format=url_format):
     else:
         true_name = None
     return true_name, dataset_uuid
-

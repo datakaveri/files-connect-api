@@ -6,7 +6,9 @@
 import { Router } from 'express';
 import { databanksRoutes } from './databanks-routes';
 import { assetsRoutes, initAssetRoutes } from './assets-routes';
+import { encryptionRoutes } from './encryption-routes';
 import { ApiPaths } from '../config/constants';
+import { env } from '../config/environment';
 import { createStorageService } from '../services/storage-service';
 
 // Create a main router
@@ -26,6 +28,13 @@ router.use(ApiPaths.DATABANKS, databanksRoutes);
 
 // Mount assets routes
 router.use(ApiPaths.ASSETS, assetRoutesWithHandlers);
+
+// Mount encryption routes (public key for client-side envelope encryption)
+// only when explicitly enabled — TANUH deployments only. When disabled the
+// path does not exist (404) and no KMS access is ever attempted.
+if (env.ENCRYPTION_ENABLED) {
+  router.use(ApiPaths.ENCRYPTION, encryptionRoutes);
+}
 
 // Export the router
 export default router;

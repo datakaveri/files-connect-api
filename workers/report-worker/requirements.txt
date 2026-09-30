@@ -1,6 +1,7 @@
 chardet==5.2.0
 fpdf==1.7.2
 metrics==0.0.2
+msgpack==1.2.1
 pandas==2.2.3
 pytest==8.3.5
 openai==1.82.0
@@ -14,7 +15,7 @@ pydicom==3.0.2
 xlrd==2.0.2
 PyPDF2==3.0.1
 mutagen==1.47.0
-pillow==12.2.0
+pillow==12.3.0
 redis>=5.0.8,<6.0.0
 urllib3==2.7.0
 python-dotenv==1.0.0

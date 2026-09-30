@@ -48,46 +48,48 @@ cluster/standalone settings.
 
 ## 3. What to change, per component
 
-Three workloads connect to Redis (API, zip-worker, report-worker). **All three now read their
-Redis config from the `files-connect-config` ConfigMap**, so in the normal case the only file you
-edit is the ConfigMap (§3d) — the Deployment manifests need no changes. The per-component notes
-below explain how each one consumes the ConfigMap.
+Three workloads connect to Redis (API, zip-worker, report-worker). All three read
+non-secret Redis settings from `files-connect-config` and passwords from
+`files-connect-secret`. Make private copies of the templates as described in
+[the infrastructure guide](README.md#private-configuration); the committed templates
+contain example values and are not ready to apply. The Deployment manifests need no
+changes when using those Secret and ConfigMap names.
 
-### 3a. API (`infra/manifest.yaml`) — ✅ ConfigMap only, no manifest change
+### 3a. API (`infra/manifest.yaml`)
 
 The API container uses `envFrom: configMapRef: files-connect-config`, so it automatically picks up
-every key in the ConfigMap. **Updating the ConfigMap (§3d) is sufficient for the API.**
+every key in the ConfigMap. It also reads `files-connect-secret` through `envFrom`
+for `REDIS_PASSWORD` and `REDIS_SENTINEL_PASSWORD` when configured.
 
-### 3b. report-worker (`infra/report-worker-deployment.yaml`) — ✅ already wired
+### 3b. report-worker (`infra/report-worker-deployment.yaml`)
 
 This deployment reads all Redis settings (including the new `REDIS_SENTINEL_ENABLED`,
 `REDIS_SENTINEL_MASTER_NAME`, `REDIS_SENTINEL_HOSTS`) from the ConfigMap via `configMapKeyRef`.
 The Sentinel keys are marked `optional: true`, so a missing `REDIS_SENTINEL_HOSTS` is harmless.
-**No manifest change needed** — the ConfigMap (§3d) drives it.
+Both password keys are optional references to `files-connect-secret`.
 
-### 3c. zip-worker (`infra/worker-deployment.yaml`) — ✅ already wired
+### 3c. zip-worker (`infra/worker-deployment.yaml`)
 
-Previously this deployment hardcoded `REDIS_HOST/PORT/DB` as literals. It has been converted to
-read the same ConfigMap keys as the report-worker (including the Sentinel keys, `optional: true`),
-so both workers are now configured identically. **No manifest change needed** — the ConfigMap
-(§3d) drives it.
+The zip worker reads the same ConfigMap keys as the report worker, including the optional
+Sentinel keys. Both password keys are optional references to `files-connect-secret`.
 
-### 3d. ConfigMap (`infra/configmap.yaml`) — the single source of truth
+### 3d. ConfigMap and Secret
 
-The committed ConfigMap already contains:
+In your private `infra/configmap.local.yaml`, set:
 
 ```yaml
   REDIS_HOST: "redis-redis-ha.redis.svc.cluster.local"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
   REDIS_SENTINEL_ENABLED: "true"
-  REDIS_SENTINEL_MASTER_NAME: "mymaster"          # ⚠️ confirm — see §4
+  REDIS_SENTINEL_MASTER_NAME: "mymaster"          # confirm — see §4
   # REDIS_SENTINEL_HOSTS: "redis-redis-ha.redis.svc.cluster.local:26379"
 ```
 
-Adjust `REDIS_SENTINEL_MASTER_NAME` (and add auth keys) after the checks in §4.
-If auth is required, add `REDIS_PASSWORD` / `REDIS_SENTINEL_PASSWORD` to `infra/secret.yaml`
-and reference them via `secretKeyRef` in each workload.
+The committed `infra/configmap.yaml` defaults to standalone Redis and comments out Sentinel
+settings. Confirm `REDIS_SENTINEL_MASTER_NAME` after the checks in §4. If authentication
+is required, add `REDIS_PASSWORD` and/or `REDIS_SENTINEL_PASSWORD` to your private
+`infra/secret.yaml`. The three workloads already reference that Secret.
 
 ---
 
@@ -131,15 +133,15 @@ Should include `26379`. If the sentinel port is on a differently-named Service, 
 ## 5. Deploy
 
 ```bash
-kubectl apply -f infra/configmap.yaml
-kubectl apply -f infra/manifest.yaml                 # API
+kubectl apply -f infra/secret.yaml
+kubectl apply -f infra/configmap.local.yaml
+kubectl apply -f infra/manifest.local.yaml           # API
 kubectl apply -f infra/worker-deployment.yaml        # zip-worker
 kubectl apply -f infra/report-worker-deployment.yaml # report-worker
 
 # Restart so pods pick up the new ConfigMap/env
-kubectl rollout restart deployment/files-connect-api        # adjust names/namespace as needed
-kubectl rollout restart deployment/files-connect-zip-worker
-kubectl rollout restart deployment/files-connect-report-worker
+kubectl -n sandbox rollout restart deployment/files-connect-api \
+  deployment/zip-worker deployment/report-worker
 ```
 
 ---
@@ -149,11 +151,11 @@ kubectl rollout restart deployment/files-connect-report-worker
 **Logs** — each workload should log Sentinel mode on startup:
 
 ```bash
-kubectl logs deploy/files-connect-api | grep -i sentinel
+kubectl -n sandbox logs deploy/files-connect-api | grep -i sentinel
 # expect: "Creating Redis Sentinel client" and "Redis client ready {mode: sentinel}"
 
-kubectl logs deploy/files-connect-zip-worker | grep -i sentinel
-kubectl logs deploy/files-connect-report-worker | grep -i sentinel
+kubectl -n sandbox logs deploy/zip-worker | grep -i sentinel
+kubectl -n sandbox logs deploy/report-worker | grep -i sentinel
 # expect: "Connecting to Redis Sentinel ..." / "Successfully connected to Redis Sentinel master"
 ```
 
@@ -175,8 +177,8 @@ kubectl exec -n redis redis-redis-ha-server-0 -c sentinel -- \
 ## 7. Rollback
 
 Sentinel is gated entirely behind `REDIS_SENTINEL_ENABLED`. To revert to the previous behaviour,
-set `REDIS_SENTINEL_ENABLED: "false"` (and restore the old `REDIS_HOST`) in the ConfigMap, then
-`kubectl rollout restart` the API and both workers. No image rollback required.
+set `REDIS_SENTINEL_ENABLED: "false"` (and restore the old `REDIS_HOST`) in the private
+ConfigMap, then restart the API and both workers. No image rollback required.
 
 ---
 

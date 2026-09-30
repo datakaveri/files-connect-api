@@ -17,8 +17,11 @@ COPY requirements.txt .
 # Keep Python packaging tooling patched before installing runtime deps.
 RUN pip install --no-cache-dir --upgrade pip setuptools==82.0.1 wheel==0.47.0
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies, then remove build-only packaging tools. Pip's
+# vendored SBOM also contains stale components that are not runtime dependencies.
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall --yes setuptools wheel && \
+    pip uninstall --yes pip
 
 # Copy worker code
 COPY worker.py .
