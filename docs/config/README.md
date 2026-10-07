@@ -69,6 +69,10 @@ that write to the wrong bucket. Each row is cross-referenced in both field block
 | Catalogue REST API | `CAT_API_URL` | — | `CAT_API_URL` | Item lookup: `{base}/item?id=…` |
 | Catalogue ES index | — | `CAT_URL` (**Elasticsearch base URL**, not the REST API) | `ELASTICSEARCH_URL` + `ELASTIC_CAT_INDEX` | See the warning in both worker docs |
 
+For Redis Sentinel, all three services also need the same `REDIS_SENTINEL_ENABLED`,
+`REDIS_SENTINEL_MASTER_NAME`, and `REDIS_SENTINEL_HOSTS` values. See the
+[Sentinel deployment guide](../../infra/REDIS_SENTINEL_DEPLOYMENT.md).
+
 ## Deprecated / dead fields (removed from the example and infra files)
 
 Verified by grepping the whole source tree. These were declared in config but **never read by any

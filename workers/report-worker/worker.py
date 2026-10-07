@@ -10,6 +10,7 @@ import json
 import time
 import redis
 from redis.cluster import RedisCluster
+from redis.sentinel import Sentinel
 from readiness_processor import process_readiness_job
 
 # Configure logging
@@ -32,17 +33,57 @@ def signal_handler(signum, frame):
 
 def get_redis_client():
     """
-    Create and return a Redis client (standalone or cluster).
-    Use REDIS_CLUSTER=true when connecting to a Redis Cluster (e.g. in Kubernetes).
+    Create and return a Redis client (standalone, cluster or sentinel).
+    Set REDIS_SENTINEL_ENABLED=true for Redis Sentinel (HA), or REDIS_CLUSTER=true for
+    a Redis Cluster (e.g. in Kubernetes). Sentinel takes precedence over cluster.
     """
     redis_host = os.environ.get('REDIS_HOST', 'localhost')
     redis_port = int(os.environ.get('REDIS_PORT', '6379'))
     redis_password = os.environ.get('REDIS_PASSWORD')
     redis_db = int(os.environ.get('REDIS_DB', '0'))
+    use_sentinel = os.environ.get('REDIS_SENTINEL_ENABLED', '').lower() in ('1', 'true', 'yes')
     use_cluster = (
         os.environ.get('REDIS_CLUSTER')
         or os.environ.get('REDIS_CLUSTER_MODE', '')
     ).lower() in ('1', 'true', 'yes')
+
+    if use_sentinel:
+        # Sentinel (HA) mode takes precedence over cluster/standalone.
+        master_name = os.environ.get('REDIS_SENTINEL_MASTER_NAME', 'mymaster')
+        sentinel_hosts_raw = os.environ.get(
+            'REDIS_SENTINEL_HOSTS', f'{redis_host}:26379'
+        )
+        sentinel_nodes = []
+        for entry in sentinel_hosts_raw.split(','):
+            entry = entry.strip()
+            if not entry:
+                continue
+            host, _, port = entry.rpartition(':')
+            sentinel_nodes.append((host or entry, int(port) if port else 26379))
+        logger.info(f"Connecting to Redis Sentinel {sentinel_nodes} master={master_name}")
+        sentinel_password = os.environ.get('REDIS_SENTINEL_PASSWORD')
+        sentinel_kwargs = {'password': sentinel_password} if sentinel_password else None
+        try:
+            sentinel = Sentinel(
+                sentinel_nodes,
+                socket_timeout=5,
+                sentinel_kwargs=sentinel_kwargs,
+            )
+            client = sentinel.master_for(
+                master_name,
+                db=redis_db,
+                password=redis_password,
+                decode_responses=True,
+                socket_timeout=5,
+                socket_keepalive=True,
+                health_check_interval=30,
+            )
+            client.ping()
+            logger.info("Successfully connected to Redis Sentinel master")
+            return client
+        except Exception as e:
+            logger.exception(f"Failed to connect to Redis Sentinel: {str(e)}")
+            raise
 
     if use_cluster:
         logger.info(f"Connecting to Redis Cluster: {redis_host}:{redis_port}")

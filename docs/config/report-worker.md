@@ -179,6 +179,10 @@ scoring on sensitive datasets.
 |---|---|---|
 | `CAT_SET_PUBLISH_STATUS` (default **true**) | auto-publishing on report completion | `ELASTICSEARCH_URL`, `ELASTIC_ID`, `ELASTIC_PASS` |
 | `REDIS_CLUSTER_MODE` (default false) | cluster client | cluster-capable Redis; `REDIS_DB` ignored |
+| `REDIS_SENTINEL_ENABLED` (default false) | Sentinel client, overriding cluster mode | matching `REDIS_SENTINEL_MASTER_NAME` and `REDIS_SENTINEL_HOSTS` across all three services; optional `REDIS_SENTINEL_PASSWORD` in `files-connect-secret` |
+
+See the [Sentinel deployment guide](../../infra/REDIS_SENTINEL_DEPLOYMENT.md) for
+the API and both workers' shared settings.
 
 ### Tuning knobs
 

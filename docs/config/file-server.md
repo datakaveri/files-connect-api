@@ -456,17 +456,27 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Which system the account lives in:** Redis `requirepass` / ACL user.
 - **Privileges required:** with Redis ACLs, the user needs `+brpop +lpush +hset +hgetall +expire +exists` on the `jobs:*` and `job:*` key patterns; the default `allkeys` user is what most deployments use.
 - **Failure mode:** required but missing → `NOAUTH Authentication required`; wrong → `WRONGPASS invalid username-password pair`.
-- **Notes:** must be given to **both workers** as well; currently commented out in the worker manifests.
+- **Notes:** must be given to **both workers** as well; their manifests read this key from `files-connect-secret` when present.
 
 ### `REDIS_CLUSTER_MODE` *(feature flag)*
 
 - **Type / format:** bool as string (`"true"` ⇒ true).
 - **Required:** no.
-- **Purpose:** selects an ioredis Cluster client instead of a standalone client.
+- **Purpose:** selects a Redis Cluster client instead of a standalone client unless Sentinel is enabled.
 - **Expected value:** `true` only against a real Redis Cluster; `false` for a single instance or Sentinel-fronted primary.
 - **Default if omitted:** `false`
 - **Failure mode:** `true` against a standalone server → `ERR This instance has cluster support disabled`; `false` against a cluster → `MOVED` errors on every keyed command.
 - **Notes:** the workers accept the same flag, plus a legacy alias `REDIS_CLUSTER` and a cluster-only knob `REDIS_CLUSTER_DYNAMIC_STARTUP_NODES` that the **file server does not read**.
+
+### Redis Sentinel settings
+
+Set `REDIS_SENTINEL_ENABLED=true` for Sentinel; it takes precedence over cluster mode.
+`REDIS_SENTINEL_MASTER_NAME` defaults to `mymaster`. Set `REDIS_SENTINEL_HOSTS` to a
+comma-separated list of `host:port` entries, or leave it empty to use `REDIS_HOST:26379`.
+`REDIS_PASSWORD` authenticates to data nodes; `REDIS_SENTINEL_PASSWORD` separately
+authenticates to Sentinel nodes. Keep both passwords in `files-connect-secret`.
+Configure the same values for both workers. See the
+[Sentinel deployment guide](../../infra/REDIS_SENTINEL_DEPLOYMENT.md).
 
 ### `ZIP_QUEUE_NAME`
 
