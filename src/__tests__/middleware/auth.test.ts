@@ -7,6 +7,8 @@ jest.mock('../../config/environment', () => ({
   env: {
     AUTH_ENABLED: true,
     AUTHZ_ENABLED: true,
+    ADDITIONAL_ASSET_FILE_TYPES: [],
+    ADDITIONAL_DATABANK_FILE_TYPES: [],
     ACL_APD_API_URL: 'https://acl.example.test',
     CAT_API_URL: 'https://catalogue.example.test',
   },

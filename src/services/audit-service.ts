@@ -175,9 +175,9 @@ export class AuditService implements AuditServiceInterface {
       if (context.authToken) {
         const decodedTokenInfo = this.decodeJWTToken(context.authToken);
         tokenInfo = {
-          orgId: context.orgId || decodedTokenInfo.orgId,
-          orgName: context.orgName || decodedTokenInfo.orgName,
-          orgType: context.orgType || decodedTokenInfo.orgType,
+          orgId: context.orgId || (context.delegatorId ? undefined : decodedTokenInfo.orgId),
+          orgName: context.orgName || (context.delegatorId ? undefined : decodedTokenInfo.orgName),
+          orgType: context.orgType || (context.delegatorId ? undefined : decodedTokenInfo.orgType),
           issuer: decodedTokenInfo.issuer || "",
           delegatorId: context.delegatorId || decodedTokenInfo.delegatorId,
           delegatorRole: context.delegatorRole || decodedTokenInfo.delegatorRole,
@@ -185,7 +185,7 @@ export class AuditService implements AuditServiceInterface {
       }
 
       // Fetch asset information from catalogue API
-      const assetInfo = await this.fetchAssetInfo(context.databankId, context.authToken);
+      const assetInfo = await this.fetchAssetInfo(context.databankId, context.authToken, context.delegatorId);
 
       // Determine log type - default to ASSET for file operations
       const logType: AuditLogType = context.logType || "ASSET";
@@ -337,7 +337,7 @@ export class AuditService implements AuditServiceInterface {
     }
   }
 
-  private async fetchAssetInfo(databankId: string, authToken?: string): Promise<AssetInfo> {
+  private async fetchAssetInfo(databankId: string, authToken?: string, delegatorId?: string): Promise<AssetInfo> {
     try {
       logger.debug("Fetching asset info from catalogue API", { databankId });
 
@@ -352,6 +352,7 @@ export class AuditService implements AuditServiceInterface {
         headers.Authorization = authToken;
         logger.debug("Forwarding authorization token to catalogue API");
       }
+      if (delegatorId) headers.DID = delegatorId;
 
       const response = await axios.get<CatalogueApiResponse>(this.buildCatalogueItemUrl(databankId), {
         timeout: 5000, // 5 second timeout

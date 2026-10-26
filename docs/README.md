@@ -4,6 +4,7 @@
 |---|---|
 | [api/endpoints.md](./api/endpoints.md) | Every endpoint: roles, auth-check order, request/response behaviour |
 | [api/multipart-uploads.md](./api/multipart-uploads.md) | Databank upload lifecycle, client chunk sizes, provider behavior, and known limits |
+| [delegation.md](./delegation.md) | Delegation implementation walkthrough, current progress and remaining integration |
 | [config/README.md](./config/README.md) | Configuration overview, architecture, values that must match across services |
 | [config/file-server.md](./config/file-server.md) | Every environment variable of the Node API |
 | [config/zip-worker.md](./config/zip-worker.md) | Every environment variable of the zip worker |

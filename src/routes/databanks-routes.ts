@@ -33,11 +33,13 @@ import {
   databankAccess,
   checkItemAccessWithDatabankAccess,
   checkItemAccess, // Import new middleware
-  checkIsOwner
+  checkIsOwner,
+  checkDelegatedOwner
 } from "../middleware/auth";
 import { validateBody, VALIDATED_BODY } from "../middleware/validation";
 import { asyncHandler } from "../middleware/async-handler";
 import { UserRole } from "../core/types/auth";
+import { DelegationScope } from "../core/types/delegation";
 import { FileType } from "../core/types/file";
 import { buildResponse } from "../core/utils/route-utils";
 import {
@@ -86,7 +88,7 @@ export const databanksRoutes = Router();
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccess, // Use new middleware here
   validateBody(listObjectsSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -138,7 +140,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/download`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccessWithDatabankAccess, // Use new middleware 
   validateBody(getObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -293,7 +295,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/delete`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(deleteObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -345,7 +347,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/preview`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccess, // Use new middleware here
   validateBody(filePreviewSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -426,7 +428,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(initiateUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -493,7 +495,7 @@ databanksRoutes.post(
 databanksRoutes.put(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(completeUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -570,7 +572,7 @@ databanksRoutes.put(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId/cancel`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(abortMultipartUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -619,7 +621,8 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_PROCESS}`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
+  checkDelegatedOwner,
   validateBody(createProcessingJobSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -687,7 +690,8 @@ databanksRoutes.post(
 databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_PROCESS}/:jobId`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
+  checkDelegatedOwner,
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     const jobId = req.params.jobId;
@@ -744,7 +748,8 @@ databanksRoutes.get(
 databanksRoutes.put(
   `/:databankId/${ApiPaths.DATABANK_PROCESS}/:jobId/status`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
+  checkDelegatedOwner,
   validateBody(updateProcessingJobStatusSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -815,7 +820,7 @@ databanksRoutes.put(
 databanksRoutes.get(
   `/:databankId/query-access`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccessWithDatabankAccess, // Check if user has access to the databank
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -886,7 +891,7 @@ databanksRoutes.get(
 databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_DOWNLOAD}`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccessWithDatabankAccess, // Use new middleware here
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
