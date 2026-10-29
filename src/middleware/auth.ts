@@ -4,14 +4,15 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { createAuthService } from '../services/auth-service';
-import { AuthenticationError, AuthorizationError } from '../core/errors';
+import { ApplicationError, AuthenticationError, AuthorizationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
 import { UserRole } from '../core/types/auth';
 import axios from 'axios';
 import { env } from '../config/environment';
 import {
   checkDatabankAccess,
-  extractUserInfo
+  extractUserInfo,
+  UserInfo
 } from '../core/utils/auth-utils';
 import { ServiceUnavailableError, ValidationError, NotFoundError } from '../core/errors/application-errors';
 
@@ -38,6 +39,35 @@ function buildCatalogueItemUrl(databankId: string): string {
   });
 
   return `${env.CAT_API_URL}/item?${queryParams.toString()}`;
+}
+
+function forwardAuthHeaders(req: Request, res: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+  if (res.locals.isDelegated) headers.DID = res.locals.userId;
+  return headers;
+}
+
+function storeUserInfo(res: Response, userInfo: UserInfo): void {
+  const role = userInfo.isProvider ? UserRole.PROVIDER
+    : userInfo.isAdmin ? UserRole.ADMIN
+    : userInfo.isDelegated ? (userInfo.roles[0] ?? 'delegated') : UserRole.CONSUMER;
+  Object.assign(res.locals, {
+    userId: userInfo.userId,
+    userRole: role,
+    databankId: userInfo.databankId,
+    userRoles: userInfo.roles,
+    isProvider: userInfo.isProvider,
+    isConsumer: userInfo.isConsumer,
+    isAdmin: userInfo.isAdmin,
+    orgId: userInfo.orgId,
+    orgName: userInfo.orgName,
+    scopes: userInfo.scopes ?? [],
+    isDelegated: userInfo.isDelegated === true,
+    delegateeId: userInfo.delegateeId,
+    delegateeRoles: userInfo.delegateeRoles,
+    user: { id: userInfo.userId, role, scopes: userInfo.scopes ?? [] },
+  });
 }
 
 function getStringProperty(value: unknown, key: string): string | undefined {
@@ -129,6 +159,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     // If authentication is disabled via environment, skip this middleware
     if (!isAuthEnabled) {
+      if (req.header('DID') !== undefined) {
+        return next(new AuthorizationError('Delegation requires authentication'));
+      }
       logger.debug('Authentication disabled via AUTH_ENABLED env flag; skipping authenticate middleware');
       return next();
     }
@@ -136,23 +169,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Use extractUserInfo to get user information from the request
     const userInfo = await extractUserInfo(req, res);
 
-    // Set user role based on provider status
-    const userRole = userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER;
-
-    // Store user information in response locals for access in route handlers
-    res.locals.userId = userInfo.userId;
-    res.locals.userRole = userRole;
-    res.locals.databankId = userInfo.databankId;
-    res.locals.userRoles = userInfo.roles;
-    res.locals.isProvider = userInfo.isProvider;
-    res.locals.isConsumer = userInfo.isConsumer;
-    res.locals.isAdmin = userInfo.isAdmin;
-    res.locals.orgId = userInfo.orgId;
-    res.locals.orgName = userInfo.orgName;
-    res.locals.user = {
-      id: userInfo.userId,
-      role: userRole
-    };
+    storeUserInfo(res, userInfo);
 
     // Log successful authentication
     logger.info(`Authentication successful: userId=${userInfo.userId}, databankId=${userInfo.databankId}, roles=${userInfo.roles.join(',')}, isProvider=${userInfo.isProvider}, isConsumer=${userInfo.isConsumer}, isAdmin=${userInfo.isAdmin}`);
@@ -160,8 +177,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Continue to next middleware or route handler
     next();
   } catch (err) {
-    // If error is already an AuthenticationError, pass it to error handler
-    if (err instanceof AuthenticationError) {
+    // Preserve authentication, delegation denial, validation and dependency error statuses.
+    if (err instanceof ApplicationError) {
       return next(err);
     }
 
@@ -181,22 +198,23 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
  * Creates middleware that checks if user has required roles
  * 
  * @param allowedRoles - Roles that are allowed to access the route
+ * @param delegatedScopes - Any one of these exact scopes is required for a delegated request.
+ * An omitted scope mapping denies delegated requests.
  * @returns Middleware function that checks user roles
  */
-export function authorize(allowedRoles: UserRole[]) {
+export function authorize(allowedRoles: UserRole[], delegatedScopes: readonly string[] = []) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       // If authorization is disabled via environment, skip this middleware
       if (!isAuthEnabled || !isAuthzEnabled) {
+        if (res.locals.isDelegated || req.header('DID') !== undefined) {
+          return next(new AuthorizationError('Delegation requires authentication and authorization'));
+        }
         logger.debug('Authorization disabled via AUTH_ENABLED/AUTHZ_ENABLED env flags; skipping authorize middleware');
         return next();
       }
 
       // Check if user is already authenticated
-      const userId = res.locals.userId;
-      const isProvider = res.locals.isProvider;
-      const isConsumer = res.locals.isConsumer;
-      const isAdmin = res.locals.isAdmin;
 
       // Determine if this is a route with no databank scope (assets, encryption)
       // by checking the originalUrl. This is more reliable than req.path which
@@ -206,23 +224,12 @@ export function authorize(allowedRoles: UserRole[]) {
       const isDatabanklessRoute = isAssetRoute || originalUrl.includes('/encryption');
 
       // If not authenticated, try to authenticate
-      if (!userId) {
+      if (!res.locals.userId) {
         try {
           // Extract user information from request
           const userInfo = await extractUserInfo(req, res);
 
-          // Store user information in response locals
-          res.locals.userId = userInfo.userId;
-          res.locals.userRoles = userInfo.roles;
-          res.locals.isProvider = userInfo.isProvider;
-          res.locals.isConsumer = userInfo.isConsumer;
-          res.locals.isAdmin = userInfo.isAdmin;
-          res.locals.orgId = userInfo.orgId;
-          res.locals.orgName = userInfo.orgName;
-          res.locals.user = {
-            id: userInfo.userId,
-            role: userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER
-          };
+          storeUserInfo(res, userInfo);
 
           // For databank-less routes (assets, encryption), we don't need a databank ID
           if (isDatabanklessRoute) {
@@ -240,9 +247,23 @@ export function authorize(allowedRoles: UserRole[]) {
             res.locals.databankId = databankId;
           }
         } catch (authErr) {
+          if (authErr instanceof ApplicationError) return next(authErr);
           return next(new AuthenticationError('Authentication required'));
         }
       }
+
+      // Delegated scopes never inherit permissions from either user's roles.
+      if (res.locals.isDelegated) {
+        const scopes: string[] = res.locals.scopes ?? [];
+        if (!delegatedScopes.some((scope) => scopes.includes(scope))) {
+          return next(new AuthorizationError('Required delegated scope not found'));
+        }
+        res.locals.roleForAccess = res.locals.userRole;
+        return next();
+      }
+
+      // Read after fallback authentication, which may have just populated these fields.
+      const { userId, isProvider, isConsumer, isAdmin } = res.locals;
 
       // Check if user has any of the allowed roles
       let hasAllowedRole = false;
@@ -254,7 +275,7 @@ export function authorize(allowedRoles: UserRole[]) {
       } else if (allowedRoles.includes(UserRole.CONSUMER) && isConsumer) {
         hasAllowedRole = true;
         roleForAccess = UserRole.CONSUMER;
-      } else if (allowedRoles.includes(UserRole.ADMIN)) {
+      } else if (allowedRoles.includes(UserRole.ADMIN) && isAdmin) {
         hasAllowedRole = true;
         roleForAccess = UserRole.ADMIN;
       }
@@ -296,6 +317,7 @@ export function authorize(allowedRoles: UserRole[]) {
       // Continue to next middleware or route handler
       next();
     } catch (err) {
+      if (err instanceof ApplicationError) return next(err);
       // Log error and pass to error handler
       logger.warn('Authorization failed', {
         path: req.path,
@@ -388,7 +410,7 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       const response = await axios.post(
         aclApiUrl,
         { itemId: requestedDatabankId },
-        { headers: { Authorization: authHeader } }
+        { headers: forwardAuthHeaders(req, res) }
       );
 
       // Validate that the response is JSON — if ACL_APD_API_URL is misconfigured,
@@ -507,7 +529,7 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
 
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
-    const headers = authHeader ? { Authorization: authHeader } : {};
+    const headers = forwardAuthHeaders(req, res);
     logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
 
     const response = await axios.get(catalogApiUrl, { headers });
@@ -544,11 +566,11 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
         return next();
       } else if (accessPolicy === 'PRIVATE') {
-        return next();
+        return res.locals.isDelegated ? databankAccess(req, res, next) : next();
       } else {
         logger.info(`[checkItemAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
         // Not public, delegate to existing databankAccess middleware
-        return next();
+        return res.locals.isDelegated ? databankAccess(req, res, next) : next();
       }
     } else {
       logger.warn(`[checkItemAccess] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
@@ -630,7 +652,7 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
 
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
-    const headers = authHeader ? { Authorization: authHeader } : {};
+    const headers = forwardAuthHeaders(req, res);
     logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
 
     const response = await axios.get(catalogApiUrl, { headers });
@@ -749,6 +771,10 @@ export function flexibleAuthMiddleware(allowedRoles: UserRole[]) {
  * @param res Express response object, with `userId` in `res.locals`.
  * @param next Express next function.
  */
+export function checkDelegatedOwner(req: Request, res: Response, next: NextFunction) {
+  return res.locals.isDelegated ? checkIsOwner(req, res, next) : next();
+}
+
 export async function checkIsOwner(req: Request, res: Response, next: NextFunction) {
   const { databankId } = req.params;
   const userId = res.locals.userId;
@@ -777,7 +803,7 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
 
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
-    const headers = authHeader ? { Authorization: authHeader } : {};
+    const headers = forwardAuthHeaders(req, res);
     logger.debug(`[checkIsOwner] Forwarding authorization token to Catalogue API`);
 
     const response = await axios.get(catalogApiUrl, { headers });

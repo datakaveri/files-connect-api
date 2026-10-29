@@ -6,6 +6,7 @@ import { z } from "zod";
 import dotenv from "dotenv";
 import { createLogger } from "../core/utils/logger";
 import { exit } from "process";
+import { delegationConfigSchema } from './delegation';
 
 // Create a logger for this module
 const logger = createLogger("Environment");
@@ -206,6 +207,12 @@ const envSchema = z
 			.string()
 			.transform((val) => parseInt(val, 10))
 			.default("900"), // Default 15 minutes (900 seconds)
+	})
+	.and(delegationConfigSchema)
+	.superRefine((env, ctx) => {
+		if (env.DELEGATION_ENABLED && (!env.AUTH_ENABLED || !env.AUTHZ_ENABLED)) {
+			ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DELEGATION_ENABLED'], message: 'Delegation requires AUTH_ENABLED=true and AUTHZ_ENABLED=true' });
+		}
 	})
 	.transform((env) => ({
 		...env,

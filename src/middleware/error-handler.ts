@@ -105,6 +105,8 @@ function mapErrorCode(code: string): ErrorCode {
       return ErrorCode.UNAUTHORIZED;
     case 'FORBIDDEN':
       return ErrorCode.FORBIDDEN;
+    case 'SERVICE_UNAVAILABLE':
+      return ErrorCode.SERVICE_UNAVAILABLE;
     case 'CONFLICT':
       return ErrorCode.CONFLICT;
     case 'FILE_NOT_FOUND':

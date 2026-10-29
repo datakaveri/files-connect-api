@@ -266,12 +266,13 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Required:** **yes**.
 - **Purpose:** the Keycloak client used when the test helper requests tokens; documents which client's tokens this deployment expects.
 - **Client documentation:**
-  - **No client is created by this repository.** The file server is a pure token *consumer*: it never
-    calls Keycloak's admin API, has no service account, no client secret, and no realm import. It
-    reuses the platform's existing front-end client (`files-connect-client` for TG-DEX), which is
-    owned by the portal/DevOps team. Nothing here needs `realm-management` roles.
+  - **No client is created by this repository.** For user login, the file server reuses the
+    platform's existing front-end client (`files-connect-client` for TG-DEX), owned by the
+    portal/DevOps team. Delegation adds a separate service identity described below. The file
+    server does not call Keycloak's admin API or import a realm. Nothing here needs
+    `realm-management` roles.
   - Naming convention: `<app>-<project>-client`, e.g. `files-connect-client`.
-  - Type: **public** client (browser SPA), standard flow + direct grant enabled (direct grant is what the e2e tests use). No confidential client, no client secret is configured anywhere in this service.
+  - Type: **public** client (browser SPA), standard flow + direct grant enabled (direct grant is what the e2e tests use). This user-login client is separate from `DELEGATION_CLIENT_ID`.
   - The audience presented in its tokens must appear in the matching `audience` array of `ISSUER_CONFIG` when audience checking is enabled.
   - **Required token claims:** `sub` (user id), `iss`, `exp`, and **`realm_access.roles`** containing at least one of `provider`, `consumer`, `cos_admin` ([src/core/types/auth.ts](../../src/core/types/auth.ts)). Per-endpoint role requirements are in [docs/api/endpoints.md](../api/endpoints.md). A token whose roles live only in `resource_access.<client>.roles` will authenticate but fail authorisation.
   - Fine-grained per-databank access is **not** a Keycloak concern — it is resolved at request time against ACL-APD (`ACL_APD_API_URL`) and the catalogue (`CAT_API_URL`).
@@ -330,6 +331,46 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Fields that become relevant when true:** `ACL_APD_API_URL`, `CAT_API_URL`.
 - **Default if omitted:** `true`
 - **Failure mode:** `false` → authenticated users bypass ACL checks and can reach other providers' databanks.
+
+### Delegation configuration
+
+Delegation is opt-in and applies to protected requests with a `DID` header. Its schema is
+in [src/config/delegation.ts](../../src/config/delegation.ts), composed into startup environment
+validation. See [the walkthrough](../delegation.md) for the scope mapping and audit behavior.
+
+| Variable | Required / default | Meaning |
+|---|---|---|
+| `DELEGATION_ENABLED` | Optional, `false` | Enable JWT + DID delegation. Requires both auth flags to remain true. Disabled delegation rejects DID on protected routes with 403. |
+| `DELEGATION_GRPC_ADDRESS` | Optional, `controlplane:9090` | Internal control-plane host:port, reachable from the file server. |
+| `DELEGATION_GRPC_TLS` | Required when enabled; `true` or `false` | Explicit gRPC transport choice. Java uses plaintext (`false`) inside its deployment network. `true` verifies the server using Node's trusted CA roots; use `NODE_EXTRA_CA_CERTS` for a private CA. mTLS is not implemented. |
+| `DELEGATION_GRPC_TIMEOUT_MS` | Optional, `5000` | Positive integer deadline for each delegation RPC. |
+| `DELEGATION_TOKEN_URL` | Required when enabled | Full HTTP(S) Keycloak token endpoint; usually `https://<idp>/realms/<realm>/protocol/openid-connect/token`. URL credentials and fragments are rejected. |
+| `DELEGATION_CLIENT_ID` | Required when enabled | A separate confidential Keycloak client with service accounts enabled. Examples use `svc-file-server`, matching the referenced control-plane allow-list. Its token must include audience `dx-controlplane` and scope `grpc:controlplane`, and its ID must be in `grpcAllowedServiceClients`. Obtain it from the platform/Keycloak administrator. |
+| `DELEGATION_CLIENT_SECRET` | Required when enabled; secret | Client credential, stored in a private env file or `files-connect-secret`. Never use the public front-end client or commit the secret. |
+| `DELEGATION_TOKEN_TIMEOUT_MS` | Optional, `5000` | Positive integer timeout for obtaining a service token. |
+
+Both timeout settings accept integer strings from 1 to 2147483647. Enabled delegation with
+missing settings, or disabled authentication/authorization, fails startup validation. An
+unreachable token endpoint or control plane returns 503 for delegated requests; no JWT-role
+fallback occurs. Rejected/expired delegation returns 403. Requests without DID do not create
+the gRPC client or fetch a service token.
+
+Confirm Catalogue and ACL accept the original bearer token together with DID before rollout.
+The service client must be provisioned externally; this repository supplies no realm import
+or service-account creation script. Scope decisions are checked for each delegated request;
+only the service token is cached (renewed 60 seconds before expiry).
+
+**Service-account setup:** in Keycloak, enable client authentication and service accounts
+for `svc-file-server`. Assign `grpc:controlplane` as a **Default** client scope and ensure
+it is included in the token's `scope` claim. Add an Audience mapper that includes client
+audience `dx-controlplane` in the access token. On the control plane, include the exact
+`DELEGATION_CLIENT_ID` in `grpcAllowedServiceClients`. Other client names are supported
+when provisioned and allow-listed consistently.
+
+The token request intentionally sends no `scope` parameter, following Java. An Optional
+scope alone will not be requested by this provider. These are external Keycloak/control-plane
+settings; there are no audience or service-scope environment overrides in the file server.
+See [the setup walkthrough](../delegation.md#service-account-setup) for verification steps.
 
 ### `LOG_LEVEL`
 

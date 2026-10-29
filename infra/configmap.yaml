@@ -21,6 +21,18 @@ data:
   AUTHZ_ENABLED: "true"
   KEYCLOAK_AUTH_URL: "https://idp.example.com/realms/example"
   KEYCLOAK_CLIENT_ID: "files-connect-client"
+  DELEGATION_ENABLED: "false"
+  # Enable only after configuring the service identity and confirming downstream DID support.
+  # AUTH_ENABLED and AUTHZ_ENABLED must both remain true.
+  # DELEGATION_GRPC_ADDRESS: "controlplane:9090"
+  # DELEGATION_GRPC_TLS: "false"  # explicitly confirm transport security for your deployment
+  # DELEGATION_GRPC_TIMEOUT_MS: "5000"
+  # DELEGATION_TOKEN_URL: "https://idp.example.com/realms/example/protocol/openid-connect/token"
+  # DELEGATION_CLIENT_ID: "svc-file-server"
+  # Keycloak tokens need aud=dx-controlplane and the Default client scope grpc:controlplane.
+  # This client ID must also be in the control plane's grpcAllowedServiceClients.
+  # Setup instructions: docs/delegation.md#service-account-setup
+  # DELEGATION_TOKEN_TIMEOUT_MS: "5000"
   # Multi-IDP JWKS verification. When set it replaces the static KEYCLOAK_PUBLIC_KEY
   # in files-connect-secret. Keys must equal the token "iss" claim verbatim.
   # ISSUER_CONFIG: '{"jwtIgnoreExpiry":false,"leeway":30,"jwksRefreshIntervalMs":21600000,"https://idp.example.com/realms/example":{"type":"remote","jwksUrl":"https://idp.example.com/realms/example/protocol/openid-connect/certs","audience":["files-connect-client"]}}'

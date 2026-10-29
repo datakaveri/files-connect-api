@@ -24,6 +24,15 @@ Applied in the order listed in each table ([src/middleware/auth.ts](../../src/mi
 Both layers can be switched off with `AUTH_ENABLED=false` / `AUTHZ_ENABLED=false`, which makes the
 affected routes effectively public — local development only.
 
+For delegated requests, send the actor's bearer token and `DID: <delegator UUID>`. When delegation
+is enabled, authentication resolves the effective identity through gRPC and authorization uses
+the exact returned scopes instead of roles. Reads/downloads require `data-access`; writes and
+processing require `own-asset-management` plus delegator ownership. Delegated non-public listings
+and previews also run ACL/owner checks; asset downloads cannot bypass ownership through an admin
+role. Processing adds an owner check for delegated requests. See [the delegation walkthrough](../delegation.md)
+for the complete mapping, deployment settings, downstream requirements and audit identities.
+Public endpoints listed below remain public.
+
 ## Endpoints
 
 ### Health
