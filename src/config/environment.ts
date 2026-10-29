@@ -180,6 +180,16 @@ const envSchema = z
 			.string()
 			.transform((val) => val === "true")
 			.default("false"),
+		// Sentinel takes precedence over cluster and standalone Redis.
+		REDIS_SENTINEL_ENABLED: z
+			.string()
+			.transform((val) => val === "true")
+			.default("false"),
+		REDIS_SENTINEL_MASTER_NAME: z.string().default("mymaster"),
+		// Comma-separated sentinel nodes; defaults to REDIS_HOST:26379.
+		REDIS_SENTINEL_HOSTS: z.string().optional(),
+		// Sentinel authentication is separate from data-node REDIS_PASSWORD.
+		REDIS_SENTINEL_PASSWORD: z.string().optional(),
 		ZIP_QUEUE_NAME: z.string().default("jobs:zip"),
 		REPORT_QUEUE_NAME: z.string().optional(),
 		READINESS_QUEUE_NAME: z.string().optional(),

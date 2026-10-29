@@ -4,9 +4,8 @@ A TypeScript/Express service for databank file uploads, downloads, previews, and
 processing. The API supports AWS S3, MinIO, and native Google Cloud Storage (GCS), with Python
 workers for ZIP archives and data-readiness reports.
 
-This README documents the latest stable release, `stable/v2.3`. Other branches may contain
-older code or configuration; the setup defaults and dependency inventory below apply to
-`stable/v2.3`. The documentation links point to that release's files.
+This branch combines `stable/v2.3` with Redis Sentinel support. The setup defaults and
+dependency inventory below apply to this branch.
 
 ## Features
 
@@ -15,12 +14,13 @@ older code or configuration; the setup defaults and dependency inventory below a
 - JWT verification through Keycloak-compatible static RS256 keys or multiple JWKS issuers,
   role-based authorization, and Catalogue/ACL-APD access checks.
 - Redis-backed asynchronous jobs: `zip`, `report`, or `all` (one job of each type).
+- Redis Sentinel support for highly available job queues in the API and both workers.
 - Time-limited AWS/MinIO STS credentials; GCS clients use presigned URLs instead.
 - Optional Cloud KMS public-key delivery for client-side envelope encryption.
 - OpenAPI documentation rendered with ReDoc.
 
 File-extension validation is an allow-list, not malware scanning. See the
-[endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md) for actual per-route access checks and limitations.
+[endpoint reference](docs/api/endpoints.md) for actual per-route access checks and limitations.
 
 ## Architecture
 
@@ -31,11 +31,11 @@ Report writeback to Elasticsearch is optional.
 
 One `BUCKET_NAME` holds databank files (`{databankId}/`), assets (`assets/`), archives (`zips/`),
 and reports (`reports/`). The API and workers must use the same bucket, Redis database, and
-queue names. See the [configuration overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md) for the full wiring.
+queue names. See the [configuration overview](docs/config/README.md) for the full wiring.
 
 ## Prerequisites
 
-- Node.js 24 (matching [the API container image](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/Dockerfile)).
+- Node.js 24 (matching [the API container image](infra/Dockerfile)).
 - pnpm 10.20.0 (the version declared in `package.json`); TypeScript is installed as a dependency.
 - Docker with the Compose plugin for local MinIO, Redis, and workers.
 - Python 3.11 if running workers outside Docker.
@@ -45,7 +45,7 @@ queue names. See the [configuration overview](https://github.com/datakaveri/file
 ## Local quick start
 
 ```bash
-git clone --branch stable/v2.3 https://github.com/datakaveri/files-connect-api.git
+git clone --branch sentinel-new-one https://github.com/datakaveri/files-connect-api.git
 cd files-connect-api
 pnpm install --frozen-lockfile
 cp .env.example .env
@@ -85,6 +85,11 @@ docker compose up -d report-worker
 docker compose logs -f report-worker
 ```
 
+For Redis Sentinel, set `REDIS_SENTINEL_ENABLED=true`, the master group name, and a
+comma-separated `REDIS_SENTINEL_HOSTS` list in the API and both workers. Sentinel takes
+precedence over cluster mode. See the [deployment guide](infra/REDIS_SENTINEL_DEPLOYMENT.md)
+and [local Sentinel Compose file](docker-compose.sentinel.yml).
+
 In this branch, structured column-role inference is disabled; unstructured metadata inference
 still calls OpenAI and needs a private `OPENAI_API_KEY`. Confirm that your data-sharing policy
 permits metadata to leave your environment before enabling that path.
@@ -104,11 +109,11 @@ For private overrides, copy `docker-compose.override.example.yml` to the ignored
 
 Keep `STORAGE_*` (API) and `S3_*` (workers) aligned in local configuration. Kubernetes worker
 manifests remap these names. GCS multipart uploads stage temporary objects and compose them
-on completion; see [multipart uploads](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/multipart-uploads.md) for provider differences
+on completion; see [multipart uploads](docs/api/multipart-uploads.md) for provider differences
 and current size-validation limits.
 
-Use [.env.example](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/.env.example) as a template and the
-[configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md) for required fields, privileges, and failure modes.
+Use [.env.example](.env.example) as a template and the
+[configuration reference](docs/config/README.md) for required fields, privileges, and failure modes.
 Never commit `.env` variants, private keys, service-account files, populated Kubernetes Secrets,
 or exported Postman credentials.
 

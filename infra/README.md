@@ -63,7 +63,8 @@ kubectl -n sandbox get pods
 Use an explicit HTTPS CORS origin allow-list in both your ingress and app configuration, and
 keep Redis and storage administration endpoints private. Enable auth and authorization;
 do not ignore JWT expiry or disable TLS verification. The supplied Redis setup is a single
-instance, not a highly available production deployment.
+instance. For a highly available Redis deployment, see the
+[Redis Sentinel deployment guide](REDIS_SENTINEL_DEPLOYMENT.md).
 
 Environment values are injected when pods start. After changing ConfigMaps or Secrets:
 
@@ -76,5 +77,6 @@ kubectl -n sandbox rollout status deploy/files-connect-api
 
 - [Deployment wiring, scaling, and limitations](../docs/config/deployments.md)
 - [AWS STS setup](STS_SETUP.md)
+- [Redis Sentinel deployment](REDIS_SENTINEL_DEPLOYMENT.md)
 - [Report worker verification and troubleshooting](../workers/report-worker/DEPLOYMENT.md)
 - [Endpoint access checks](../docs/api/endpoints.md)

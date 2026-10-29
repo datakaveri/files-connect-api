@@ -52,6 +52,12 @@ data:
   REDIS_PORT: "6379"
   REDIS_DB: "0"
   REDIS_CLUSTER_MODE: "false"
+  # For Sentinel, set REDIS_HOST to its service address and confirm the master name.
+  # REDIS_SENTINEL_ENABLED: "true"
+  # REDIS_SENTINEL_MASTER_NAME: "mymaster"
+  # REDIS_SENTINEL_HOSTS: "sentinel-1.example.com:26379,sentinel-2.example.com:26379"
+  # If hosts are omitted, the API and workers use REDIS_HOST:26379.
+  # Keep REDIS_PASSWORD and REDIS_SENTINEL_PASSWORD in files-connect-secret.
   ZIP_QUEUE_NAME: "jobs:zip"
   REPORT_QUEUE_NAME: "jobs:report"
 

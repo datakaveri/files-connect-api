@@ -67,7 +67,7 @@ whose cause is the first log line. Everything else fails later, per job.
 - **Purpose:** added to the client config only when non-empty.
 - **Privileges required:** list ops on the queue key and hash ops on `job:*` (`brpop`, `exists`, `hset`, `expire`).
 - **Failure mode:** missing → `NOAUTH Authentication required` at startup, exit 1; wrong → `WRONGPASS`.
-- **Notes:** currently commented out in [infra/worker-deployment.yaml](../../infra/worker-deployment.yaml); uncomment together with the file server's.
+- **Notes:** [infra/worker-deployment.yaml](../../infra/worker-deployment.yaml) reads this key from `files-connect-secret` when present.
 
 ### `REDIS_CLUSTER_MODE` *(feature flag)* / `REDIS_CLUSTER` *(legacy alias)*
 
@@ -76,6 +76,15 @@ whose cause is the first log line. Everything else fails later, per job.
 - **Purpose:** selects `redis.cluster.RedisCluster` instead of `redis.Redis`.
 - **Notes / gotchas:** `REDIS_CLUSTER` is checked **first** and wins over `REDIS_CLUSTER_MODE` ([worker.py:43](../../workers/zip-worker/worker.py#L43)). Prefer `REDIS_CLUSTER_MODE` — it is the name the file server uses — and do not set both.
 - **Failure mode:** on against a standalone server → `Failed to connect to Redis Cluster: … cluster support disabled`, exit 1; off against a cluster → `MOVED` errors while processing.
+
+### Redis Sentinel settings
+
+Set `REDIS_SENTINEL_ENABLED=true` to use Sentinel instead of cluster or standalone mode.
+Set `REDIS_SENTINEL_MASTER_NAME` and `REDIS_SENTINEL_HOSTS` to the same values as the
+file server; an empty hosts list uses `REDIS_HOST:26379`. If Sentinel nodes require
+authentication, put `REDIS_SENTINEL_PASSWORD` in `files-connect-secret`. The worker
+Deployment already maps these optional keys. See the
+[Sentinel deployment guide](../../infra/REDIS_SENTINEL_DEPLOYMENT.md).
 
 ### `REDIS_CLUSTER_DYNAMIC_STARTUP_NODES`
 
