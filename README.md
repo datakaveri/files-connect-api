@@ -33,6 +33,10 @@ One `BUCKET_NAME` holds databank files (`{databankId}/`), assets (`assets/`), ar
 and reports (`reports/`). The API and workers must use the same bucket, Redis database, and
 queue names. See the [configuration overview](docs/config/README.md) for the full wiring.
 
+For the proposed normal file server instance (HTTPS) and sandbox file server instance (mTLS),
+access rules, and download flow diagrams, see
+[mTLS-based file server architecture](docs/mtls-based-architecture.md).
+
 ## Prerequisites
 
 - Node.js 24 (matching [the API container image](infra/Dockerfile)).
