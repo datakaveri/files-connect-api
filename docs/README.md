@@ -5,7 +5,9 @@
 | [api/endpoints.md](./api/endpoints.md) | Every endpoint: roles, auth-check order, request/response behaviour |
 | [api/multipart-uploads.md](./api/multipart-uploads.md) | Databank upload lifecycle, client chunk sizes, provider behavior, and known limits |
 | [delegation.md](./delegation.md) | Delegation implementation walkthrough, current progress and remaining integration |
-| [mtls-based-architecture.md](./mtls-based-architecture.md) | Proposed normal and sandbox file server instances, dataset access rules, and download flow diagrams |
+| [mtls/mtls-explained.md](./mtls/mtls-explained.md) | Simple explanation of mTLS, certificate files, configuration, and example downloads |
+| [mtls/mtls-based-architecture.md](./mtls/mtls-based-architecture.md) | Proposed normal and sandbox file server instances, dataset access rules, and download flow diagrams |
+| [mtls/implementation-guide.md](./mtls/implementation-guide.md) | Ordered implementation steps with code, certificates, gateway/Kubernetes examples, tests, and rollout guidance |
 | [config/README.md](./config/README.md) | Configuration overview, architecture, values that must match across services |
 | [config/file-server.md](./config/file-server.md) | Every environment variable of the Node API |
 | [config/zip-worker.md](./config/zip-worker.md) | Every environment variable of the zip worker |

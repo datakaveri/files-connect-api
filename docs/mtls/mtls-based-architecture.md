@@ -3,6 +3,11 @@
 **Design proposal:** the architecture below describes the intended deployment and access rules.
 The current application and example manifests do not yet enforce all of these rules.
 
+For the ordered code and deployment changes, see the
+[step-by-step implementation guide](./implementation-guide.md).
+For a plain-language explanation of the certificates and connection checks, start with
+[how mTLS works here](./mtls-explained.md).
+
 Deploy the same application as two independently configured file server instances in the cloud
 or Kubernetes, each with its own hostname, ingress/load balancer, and backend service:
 
@@ -145,9 +150,9 @@ sequenceDiagram
   the deployed instances.
 
 Implementation work includes explicit sandbox-only enforcement in
-[dataset access middleware](../src/middleware/auth.ts), protected streaming in
-[download routes](../src/routes/databanks-routes.ts), and separate ingress/service configuration.
-The current [server entry point](../src/server.ts) starts an HTTP listener, while the example
-[ingress](../infra/ingress.yaml) provides server TLS without client-certificate authentication.
+[dataset access middleware](../../src/middleware/auth.ts), protected streaming in
+[download routes](../../src/routes/databanks-routes.ts), and separate ingress/service configuration.
+The current [server entry point](../../src/server.ts) starts an HTTP listener, while the example
+[ingress](../../infra/ingress.yaml) provides server TLS without client-certificate authentication.
 Current file and ZIP download routes can issue presigned URLs; they need different handling
 for sandbox-only content before this design is enforced.

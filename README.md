@@ -35,7 +35,7 @@ queue names. See the [configuration overview](docs/config/README.md) for the ful
 
 For the proposed normal file server instance (HTTPS) and sandbox file server instance (mTLS),
 access rules, and download flow diagrams, see
-[mTLS-based file server architecture](docs/mtls-based-architecture.md).
+[mTLS-based file server architecture](docs/mtls/mtls-based-architecture.md).
 
 ## Prerequisites
 
