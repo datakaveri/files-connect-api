@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | **Service** | zip worker (`zip-worker`) |
-| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.2`, [workers/zip-worker/](../../workers/zip-worker/) |
+| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.3`, [workers/zip-worker/](../../workers/zip-worker/) |
 | **Config path** | environment only — [docker-compose.yml](../../docker-compose.yml) (`zip-worker` service) locally; [infra/worker-deployment.yaml](../../infra/worker-deployment.yaml) + `files-connect-config` / `files-connect-secret` in Kubernetes |
 | **Config schema version** | none — variables are read with `os.environ.get` at point of use |
-| **Maintainer / point of contact** | _TODO_ |
-| **Last updated** | 2026-07-29 |
+| **Maintainer / point of contact** | Repository maintainers |
+| **Last updated** | 2026-09-16 |
 
 ## 1. Top-level structure
 
@@ -67,7 +67,7 @@ whose cause is the first log line. Everything else fails later, per job.
 - **Purpose:** added to the client config only when non-empty.
 - **Privileges required:** list ops on the queue key and hash ops on `job:*` (`brpop`, `exists`, `hset`, `expire`).
 - **Failure mode:** missing → `NOAUTH Authentication required` at startup, exit 1; wrong → `WRONGPASS`.
-- **Notes:** currently commented out in [infra/worker-deployment.yaml](../../infra/worker-deployment.yaml); uncomment together with the file server's.
+- **Notes:** [infra/worker-deployment.yaml](../../infra/worker-deployment.yaml) reads this key from `files-connect-secret` when present.
 
 ### `REDIS_CLUSTER_MODE` *(feature flag)* / `REDIS_CLUSTER` *(legacy alias)*
 
@@ -76,6 +76,15 @@ whose cause is the first log line. Everything else fails later, per job.
 - **Purpose:** selects `redis.cluster.RedisCluster` instead of `redis.Redis`.
 - **Notes / gotchas:** `REDIS_CLUSTER` is checked **first** and wins over `REDIS_CLUSTER_MODE` ([worker.py:43](../../workers/zip-worker/worker.py#L43)). Prefer `REDIS_CLUSTER_MODE` — it is the name the file server uses — and do not set both.
 - **Failure mode:** on against a standalone server → `Failed to connect to Redis Cluster: … cluster support disabled`, exit 1; off against a cluster → `MOVED` errors while processing.
+
+### Redis Sentinel settings
+
+Set `REDIS_SENTINEL_ENABLED=true` to use Sentinel instead of cluster or standalone mode.
+Set `REDIS_SENTINEL_MASTER_NAME` and `REDIS_SENTINEL_HOSTS` to the same values as the
+file server; an empty hosts list uses `REDIS_HOST:26379`. If Sentinel nodes require
+authentication, put `REDIS_SENTINEL_PASSWORD` in `files-connect-secret`. The worker
+Deployment already maps these optional keys. See the
+[Sentinel deployment guide](../../infra/REDIS_SENTINEL_DEPLOYMENT.md).
 
 ### `REDIS_CLUSTER_DYNAMIC_STARTUP_NODES`
 
@@ -108,7 +117,7 @@ whose cause is the first log line. Everything else fails later, per job.
 - **Type / format:** URL with scheme, no trailing slash.
 - **Required:** yes for `minio` (explicitly checked: `S3_ENDPOINT must be set for MinIO`); optional for `s3` (omit for real AWS, set for S3-compatible providers); unused for `gcs`.
 - **Purpose:** `endpoint_url` of the boto3 client.
-- **Example value:** `http://minio:9000`, `https://fs-prod.s3.cyfuture.cloud`
+- **Example value:** `http://minio:9000`, `https://storage.example.com`
 - **How to obtain:** same value as the file server's `STORAGE_ENDPOINT`; the k8s manifest maps `STORAGE_ENDPOINT` → `S3_ENDPOINT` for exactly this reason.
 - **Failure mode:** missing for MinIO → `ValueError: S3_ENDPOINT must be set for MinIO`, the job fails and the status hash records the error. Wrong host → `EndpointConnectionError` per job.
 

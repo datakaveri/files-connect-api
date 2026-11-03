@@ -3,14 +3,45 @@
  * Provides a singleton Redis client with connection management and retry logic
  * Supports both standalone and cluster modes
  */
-import { createClient, createCluster, RedisClientType, RedisClusterType } from "redis";
+import {
+  createClient,
+  createCluster,
+  createSentinel,
+  RedisClientType,
+  RedisClusterType,
+  RedisSentinelType,
+} from "redis";
 import { env } from "../../config/environment";
 import { createLogger } from "./logger";
 
 const logger = createLogger("RedisClient");
 
-// Union type for both client types
-export type RedisConnection = RedisClientType | RedisClusterType;
+// Union type for standalone, cluster and sentinel clients
+export type RedisConnection = RedisClientType | RedisClusterType | RedisSentinelType;
+
+const DEFAULT_SENTINEL_PORT = 26379;
+
+/**
+ * Parse REDIS_SENTINEL_HOSTS ("host:port,host:port") into sentinel root nodes.
+ * Falls back to `${REDIS_HOST}:26379` when unset so a single-value REDIS_HOST still works.
+ */
+function parseSentinelRootNodes(): Array<{ host: string; port: number }> {
+  const raw = env.REDIS_SENTINEL_HOSTS?.trim();
+  const entries = raw ? raw.split(",") : [`${env.REDIS_HOST}:${DEFAULT_SENTINEL_PORT}`];
+
+  return entries
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map((entry) => {
+      const lastColon = entry.lastIndexOf(":");
+      if (lastColon === -1) {
+        return { host: entry, port: DEFAULT_SENTINEL_PORT };
+      }
+      const host = entry.slice(0, lastColon);
+      const port = parseInt(entry.slice(lastColon + 1), 10);
+      return { host, port: Number.isNaN(port) ? DEFAULT_SENTINEL_PORT : port };
+    });
+}
 
 function isClientClosedError(error: unknown): boolean {
   return (
@@ -156,7 +187,50 @@ class RedisClient {
       },
     };
 
-    return createCluster(clusterOptions) as RedisClusterType;
+    // node-redis v5's cluster generics don't structurally narrow to the bare alias; route
+    // through unknown (the client is used via the RedisConnection union at the call sites).
+    return createCluster(clusterOptions) as unknown as RedisClusterType;
+  }
+
+  /**
+   * Create a Redis Sentinel (HA) client.
+   * The client discovers the current master via the sentinel nodes and transparently
+   * re-discovers it on failover. Data-node auth uses REDIS_PASSWORD; sentinel auth (if any)
+   * uses REDIS_SENTINEL_PASSWORD.
+   */
+  private createSentinelClient(): RedisSentinelType {
+    const sentinelRootNodes = parseSentinelRootNodes();
+
+    logger.info("Creating Redis Sentinel client", {
+      masterName: env.REDIS_SENTINEL_MASTER_NAME,
+      sentinels: sentinelRootNodes,
+      db: env.REDIS_DB,
+    });
+
+    const reconnectStrategy = (retries: number): number | Error => {
+      if (retries > this.maxReconnectAttempts) {
+        logger.error("Max Redis Sentinel reconnection attempts reached");
+        return new Error("Max reconnection attempts reached");
+      }
+      const delay = Math.min(100 * Math.pow(2, retries), 3000);
+      logger.warn(`Redis Sentinel reconnection attempt ${retries}, waiting ${delay}ms`);
+      return delay;
+    };
+
+    return createSentinel({
+      name: env.REDIS_SENTINEL_MASTER_NAME,
+      sentinelRootNodes,
+      // Options for the master/replica data-node connections
+      nodeClientOptions: {
+        socket: { reconnectStrategy },
+        database: env.REDIS_DB,
+        ...(env.REDIS_PASSWORD && { password: env.REDIS_PASSWORD }),
+      },
+      // Options for the connections to the sentinel nodes themselves
+      sentinelClientOptions: {
+        ...(env.REDIS_SENTINEL_PASSWORD && { password: env.REDIS_SENTINEL_PASSWORD }),
+      },
+    }) as RedisSentinelType;
   }
 
   /**
@@ -166,16 +240,20 @@ class RedisClient {
     this.isConnecting = true;
 
     try {
+      const isSentinelMode = env.REDIS_SENTINEL_ENABLED;
       const isClusterMode = env.REDIS_CLUSTER_MODE;
+      const mode = isSentinelMode ? "sentinel" : isClusterMode ? "cluster" : "standalone";
 
       logger.info("Connecting to Redis", {
         host: env.REDIS_HOST,
         port: env.REDIS_PORT,
-        clusterMode: isClusterMode,
+        mode,
       });
 
-      // Create appropriate client based on mode
-      if (isClusterMode) {
+      // Create appropriate client based on mode (sentinel takes precedence over cluster)
+      if (isSentinelMode) {
+        this.client = this.createSentinelClient();
+      } else if (isClusterMode) {
         this.client = this.createClusterClient();
       } else {
         this.client = this.createStandaloneClient();
@@ -187,30 +265,30 @@ class RedisClient {
       });
 
       this.client.on("connect", () => {
-        logger.info("Redis client connected", { clusterMode: isClusterMode });
+        logger.info("Redis client connected", { mode });
         this.reconnectAttempts = 0;
       });
 
       this.client.on("ready", () => {
-        logger.info("Redis client ready", { clusterMode: isClusterMode });
+        logger.info("Redis client ready", { mode });
       });
 
       this.client.on("reconnecting", () => {
         this.reconnectAttempts++;
         logger.warn("Redis client reconnecting", {
           attempt: this.reconnectAttempts,
-          clusterMode: isClusterMode,
+          mode,
         });
       });
 
       this.client.on("end", () => {
-        logger.warn("Redis client connection closed", { clusterMode: isClusterMode });
+        logger.warn("Redis client connection closed", { mode });
       });
 
       // Connect to Redis
       await this.client.connect();
 
-      logger.info("Successfully connected to Redis", { clusterMode: isClusterMode });
+      logger.info("Successfully connected to Redis", { mode });
       this.isConnecting = false;
       return this.client;
     } catch (error) {
@@ -239,7 +317,8 @@ class RedisClient {
   public async disconnect(): Promise<void> {
     if (this.client) {
       try {
-        await this.client.quit();
+        // close() gracefully tears down standalone, cluster and sentinel clients (v5).
+        await this.client.close();
         logger.info("Redis client disconnected");
       } catch (error) {
         logger.error("Error disconnecting Redis client", error as Error);
@@ -255,7 +334,7 @@ class RedisClient {
 
     if (client?.isOpen) {
       try {
-        await client.disconnect();
+        await client.close();
       } catch (error) {
         logger.warn("Error disconnecting stale Redis client", {
           error: error instanceof Error ? error.message : String(error),

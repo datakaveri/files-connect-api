@@ -6,6 +6,7 @@ import { z } from "zod";
 import dotenv from "dotenv";
 import { createLogger } from "../core/utils/logger";
 import { exit } from "process";
+import { delegationConfigSchema } from './delegation';
 
 // Create a logger for this module
 const logger = createLogger("Environment");
@@ -180,6 +181,16 @@ const envSchema = z
 			.string()
 			.transform((val) => val === "true")
 			.default("false"),
+		// Sentinel takes precedence over cluster and standalone Redis.
+		REDIS_SENTINEL_ENABLED: z
+			.string()
+			.transform((val) => val === "true")
+			.default("false"),
+		REDIS_SENTINEL_MASTER_NAME: z.string().default("mymaster"),
+		// Comma-separated sentinel nodes; defaults to REDIS_HOST:26379.
+		REDIS_SENTINEL_HOSTS: z.string().optional(),
+		// Sentinel authentication is separate from data-node REDIS_PASSWORD.
+		REDIS_SENTINEL_PASSWORD: z.string().optional(),
 		ZIP_QUEUE_NAME: z.string().default("jobs:zip"),
 		REPORT_QUEUE_NAME: z.string().optional(),
 		READINESS_QUEUE_NAME: z.string().optional(),
@@ -196,6 +207,12 @@ const envSchema = z
 			.string()
 			.transform((val) => parseInt(val, 10))
 			.default("900"), // Default 15 minutes (900 seconds)
+	})
+	.and(delegationConfigSchema)
+	.superRefine((env, ctx) => {
+		if (env.DELEGATION_ENABLED && (!env.AUTH_ENABLED || !env.AUTHZ_ENABLED)) {
+			ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DELEGATION_ENABLED'], message: 'Delegation requires AUTH_ENABLED=true and AUTHZ_ENABLED=true' });
+		}
 	})
 	.transform((env) => ({
 		...env,

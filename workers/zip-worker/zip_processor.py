@@ -271,8 +271,11 @@ def update_cat_api(cat_url, cat_username, cat_password, databank_id, zip_size_mb
     Update the CAT API with dataUploadStatus and fileSize
     """
     try:
+        # Catalogue index name; defaults to tgdex__cat like the report worker
+        cat_index = os.environ.get('ELASTIC_CAT_INDEX', 'tgdex__cat')
+
         # Define the URL for the GET request
-        get_url = f"{cat_url}/tgdex__cat/_search"
+        get_url = f"{cat_url}/{cat_index}/_search"
         
         logger.info(f"Updating dataUploadStatus for databank ID: {databank_id}")
         
@@ -316,7 +319,7 @@ def update_cat_api(cat_url, cat_username, cat_password, databank_id, zip_size_mb
                 logger.info(f"Found document with _id: {_id}")
                 
                 # Now perform the POST request (update document)
-                post_url = f"{cat_url}/tgdex__cat/_update/{_id}"
+                post_url = f"{cat_url}/{cat_index}/_update/{_id}"
                 
                 # Define the update payload for POST request
                 update_data = {

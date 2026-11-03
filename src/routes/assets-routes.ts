@@ -12,6 +12,7 @@ import { successResponse } from '../core/utils/response';
 import { ApplicationError, AuthorizationError, ValidationError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
+import { DelegationScope } from '../core/types/delegation';
 import { v4 as uuidv4 } from 'uuid';
 import { fileUpload } from '../middleware/file-upload';
 
@@ -40,7 +41,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
    */
   assetsRoutes.post(
     '/',
-    authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN]),
+    authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN], [DelegationScope.OWN_ASSET_MANAGEMENT]),
     async (req, res, next) => {
       try {
         // Check if file was uploaded
@@ -104,7 +105,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
    */
   assetsRoutes.post(
     '/download',
-    authorize([UserRole.PROVIDER, UserRole.ADMIN]),
+    authorize([UserRole.PROVIDER, UserRole.ADMIN], [DelegationScope.DATA_ACCESS]),
     validateBody(z.object({
       key: z.string().describe('Asset key'),
       expiresIn: z.number().optional().describe('Expiration time in seconds')
@@ -120,7 +121,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
         // The key provided by the client doesn't include the 'assets/' prefix, so add it
         const fullKey = `assets/${key}`;
 
-        if (!res.locals.isAdmin) {
+        if (res.locals.isDelegated || !res.locals.isAdmin) {
           if (res.locals.userId !== key.split('/')[0]) {
             throw new AuthorizationError('You are not authorized to access this asset');
           }

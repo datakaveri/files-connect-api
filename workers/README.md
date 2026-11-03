@@ -28,7 +28,7 @@ TypeScript API → Redis Queue → Python Worker(s) → S3/MinIO/GCS
 ### Zip Worker (`zip-worker/`)
 
 Processes databank zip creation jobs:
-- Streams files from S3/MinIO
+- Streams source files from S3/MinIO/GCS into a locally staged ZIP archive
 - Creates compressed zip archives
 - Uploads zip files back to storage
 - Updates CAT API with completion status
@@ -43,18 +43,18 @@ Processes databank zip creation jobs:
 ### Report Worker (`report-worker/`)
 
 Processes data readiness assessment jobs:
-- Downloads files from S3/MinIO
+- Downloads files from S3/MinIO/GCS
 - Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio) datasets
 - Runs comprehensive data quality assessment framework
 - Generates detailed JSON and PDF reports
 - Uploads reports back to storage
-- Updates CAT API with readiness scores
+- Optionally updates the Catalogue's Elasticsearch index with readiness scores
 
 **Key Features:**
 - Supports both structured and unstructured data
 - Automatic data type detection
 - Comprehensive metrics (quality, variance, standardization, documentation, etc.)
-- LLM-powered column/role inference (OpenAI)
+- OpenAI-assisted unstructured metadata inference; structured column-role inference is currently disabled
 - Memory-efficient processing
 - Works with AWS S3, MinIO, or GCS (native `google-cloud-storage` client)
 - Graceful shutdown handling
@@ -66,18 +66,18 @@ Processes data readiness assessment jobs:
 
 ```bash
 # Start all services (MinIO, Redis, Worker)
-docker-compose up -d
+docker compose up -d
 
 # Scale workers
-docker-compose up -d --scale zip-worker=3
-docker-compose up -d --scale report-worker=4
+docker compose up -d --scale zip-worker=3
+docker compose up -d --scale report-worker=4
 
 # View worker logs
-docker-compose logs -f zip-worker
-docker-compose logs -f report-worker
+docker compose logs -f zip-worker
+docker compose logs -f report-worker
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ### Kubernetes (Production)
@@ -145,7 +145,7 @@ Only **one bucket** is required. Both workers use `BUCKET_NAME` — the same buc
 - `S3_ACCESS_KEY` / `S3_SECRET_KEY` - Storage access/secret key (S3/MinIO only — not needed for `STORAGE_PROVIDER=gcs`, see below)
 
 **For readiness worker only:**
-- `OPENAI_API_KEY` - OpenAI API key for column/role inference (required)
+- `OPENAI_API_KEY` - private key for unstructured metadata inference; structured inference is disabled in this branch
 
 ### Storage Configuration
 
@@ -281,12 +281,12 @@ MONITOR
 
 ```bash
 # View worker logs
-docker-compose logs -f zip-worker
-docker-compose logs -f report-worker
+docker compose logs -f zip-worker
+docker compose logs -f report-worker
 
 # View last 100 lines
-docker-compose logs --tail=100 zip-worker
-docker-compose logs --tail=100 report-worker
+docker compose logs --tail=100 zip-worker
+docker compose logs --tail=100 report-worker
 ```
 
 ### Kubernetes Logs
@@ -305,7 +305,7 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
 
 1. Check Redis connection:
    ```bash
-   docker-compose logs redis
+   docker compose logs redis
    kubectl logs -f deployment/redis
    ```
 
@@ -317,8 +317,8 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
 
 3. Check worker logs:
    ```bash
-   docker-compose logs zip-worker
-   docker-compose logs report-worker
+   docker compose logs zip-worker
+   docker compose logs report-worker
    ```
 
 ### MOVED / Redis Cluster Errors
@@ -358,8 +358,8 @@ If workers are running out of memory:
 **Horizontal Scaling:**
 ```bash
 # Docker Compose
-docker-compose up -d --scale zip-worker=5
-docker-compose up -d --scale report-worker=4
+docker compose up -d --scale zip-worker=5
+docker compose up -d --scale report-worker=4
 
 # Kubernetes
 kubectl scale deployment zip-worker --replicas=5
@@ -437,4 +437,3 @@ curl -X POST http://localhost:3000/v1/databanks/test-123/process \
 - [ ] Add distributed tracing
 - [ ] Implement job timeouts
 - [ ] Add job dependencies
-

@@ -10,6 +10,9 @@ import { isDecodedToken } from './type-guards';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { jwksResolver } from './jwks-resolver';
+import { z } from 'zod';
+import { resolveDelegation } from '../../services/delegation-resolver';
+import { AuthenticationError, ValidationError } from '../errors';
 
 // Create a logger for this module
 const logger = createLogger('AuthUtils');
@@ -36,6 +39,12 @@ export interface UserInfo {
   orgId?: string;
   /** Organization name from the token */
   orgName?: string;
+  /** Returned scopes are authoritative only for delegated requests. */
+  scopes?: string[];
+  isDelegated?: boolean;
+  /** Original authenticated actor, retained independently from the effective identity. */
+  delegateeId?: string;
+  delegateeRoles?: string[];
 }
 
 /**
@@ -48,7 +57,7 @@ export function extractToken(authHeader: string | undefined): string {
   logger.debug('Extracting token from authorization header');
   
   if (!authHeader || !authHeader.startsWith(`${AuthConstants.TOKEN.PREFIX} `)) {
-    logger.warn('Invalid authorization header', { authHeader });
+    logger.warn('Invalid authorization header');
     throw new Error('Authorization token required');
   }
   
@@ -272,9 +281,29 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     const token = extractToken(authHeader);
     const decodedToken = await decodeToken(token);
     const userId = decodedToken.sub ?? '';
+    if (!userId.trim()) {
+      throw new AuthenticationError('Token subject is required');
+    }
     
     // 4. Extract roles
     const { roles, isProvider, isConsumer, isAdmin } = extractRoles(decodedToken);
+
+    const did = req.header('DID');
+    if (did !== undefined) {
+      const delegator = z.string().uuid().safeParse(did.trim());
+      if (!delegator.success) {
+        throw new ValidationError('DID must contain one delegator UUID');
+      }
+      const identity = await resolveDelegation(delegator.data, userId);
+      const delegatedRoles = extractRoles({ realm_access: { roles: identity.roles } });
+      return {
+        ...identity,
+        ...delegatedRoles,
+        databankId,
+        isDelegated: true,
+        delegateeRoles: [...roles],
+      };
+    }
     
     return {
       userId,

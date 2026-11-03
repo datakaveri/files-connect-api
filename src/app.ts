@@ -135,7 +135,7 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cors({
   origin: env.CORS_ORIGIN,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'DID'],
   exposedHeaders: ['X-Request-ID', 'X-Execution-Time'],
   credentials: true,
   preflightContinue: false,

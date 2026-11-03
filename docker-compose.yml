@@ -1,15 +1,15 @@
+# LOCAL DEVELOPMENT ONLY: public demo credentials; never expose these services publicly.
 services:
     # MinIO Server for local development
     minio:
         image: minio/minio:latest
         container_name: files-connect-minio
         ports:
-            - "9000:9000"
-            - "9001:9001"
+            - "127.0.0.1:9000:9000"
+            - "127.0.0.1:9001:9001"
         environment:
             MINIO_ROOT_USER: minioadmin
             MINIO_ROOT_PASSWORD: minioadmin
-            MINIO_DEFAULT_BUCKETS: files-connect-bucket,files-connect-assets,data-readiness-staging
         volumes:
             - minio_data:/data
         command: server /data --console-address ":9001"
@@ -25,7 +25,7 @@ services:
         image: redis:7-alpine
         container_name: files-connect-redis
         ports:
-            - "6379:6379"
+            - "127.0.0.1:6379:6379"
         volumes:
             - redis_data:/data
         command: redis-server --appendonly yes
@@ -110,7 +110,7 @@ services:
             # GCS_CLIENT_EMAIL: your-service-account@your-project.iam.gserviceaccount.com
             # GCS_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
-            # OpenAI API configuration (required for column/role inference)
+            # OpenAI API configuration (unstructured metadata inference; structured inference is disabled)
             # Set OPENAI_API_KEY in your .env file (project root); Docker Compose passes it here.
             OPENAI_API_KEY: ${OPENAI_API_KEY}
 
@@ -159,7 +159,6 @@ services:
     #     KEYCLOAK_AUTH_URL: http://localhost:8080
     #     KEYCLOAK_CLIENT_ID: files-connect
     #     KEYCLOAK_PUBLIC_KEY: your-public-key-here
-    #     KEYCLOAK_REALM: master
 
     #     # Logging
     #     LOG_LEVEL: debug
@@ -189,13 +188,6 @@ services:
     #     RABBITMQ_PASSWORD: guest
     #     RABBITMQ_EXCHANGE: files-exchange
     #     RABBITMQ_ROUTING_KEY: files.routing.key
-
-    #     # Lambda URLs (optional)
-    #     ZIP_LAMBDA_URL: http://localhost:8083
-    #     REPORTS_LAMBDA_URL: http://localhost:8084
-    #     LAMBDA_ACCESS_KEY: your-lambda-key
-    #     LAMBDA_SECRET_KEY: your-lambda-secret
-    #     LAMBDA_REGION: us-east-1
 
     #     # File upload limits
     #     MAX_SIZE_IN_MULTIPART_UPLOAD_IN_GB: 5

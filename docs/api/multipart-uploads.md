@@ -102,6 +102,11 @@ Content-Type: application/json
 Camel-case and S3-style names (`PartNumber` and `ETag`) are both accepted. The API normalizes the
 fields and asks the storage provider to assemble the final object.
 
+Completion returns 200 only for an active upload ID, the matching key, and ETags returned by
+successfully uploaded parts. For S3 and MinIO, a missing, aborted, or already completed
+upload returns 404.
+Do not use placeholder ETags when testing the successful flow.
+
 ### 4. Cancel after failure
 
 If the upload cannot be completed, the client should clean up the session:

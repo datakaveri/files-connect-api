@@ -25,6 +25,8 @@ pipeline {
             changeset "src/**"
             changeset "package.json"
             changeset "pnpm-lock.yaml"
+            changeset "patches/**"
+            changeset "Jenkinsfile"
             changeset ".env.example"
             triggeredBy cause: 'UserIdCause'
           }
@@ -61,17 +63,26 @@ pipeline {
         stage('Trivy Scan and Report') {
           steps {
             script {
-              try {
-                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${mainImage.imageName()}"
-                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${reportImage.imageName()}"
-                sh "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${zipImage.imageName()}"
-
-                sh "trivy image --output trivy-main-report.txt ${mainImage.imageName()}"
-                sh "trivy image --output trivy-report-worker-report.txt ${reportImage.imageName()}"
-                sh "trivy image --output trivy-zip-worker-report.txt ${zipImage.imageName()}"
-              } catch (Exception e) {
-                echo "Trivy scan failed due to high or critical vulnerabilities."
-                throw e
+              def images = [
+                [image: mainImage.imageName(), report: 'trivy-main-report.txt'],
+                [image: reportImage.imageName(), report: 'trivy-report-worker-report.txt'],
+                [image: zipImage.imageName(), report: 'trivy-zip-worker-report.txt']
+              ]
+              def failedImages = []
+              images.each { target ->
+                def status = sh(
+                  script: "trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --output ${target.report} ${target.image}",
+                  returnStatus: true
+                )
+                if (fileExists(target.report)) {
+                  echo readFile(target.report)
+                }
+                if (status != 0) {
+                  failedImages.add(target.image)
+                }
+              }
+              if (failedImages) {
+                error "Trivy scan failed (vulnerabilities or scan errors) for: ${failedImages.join(', ')}"
               }
             }
           }

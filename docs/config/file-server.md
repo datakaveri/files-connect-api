@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | **Service** | file server (`files-connect-api`) |
-| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.2` |
-| **Config path** | `.env` (local, template at [.env.example](../../.env.example)); `infra/configmap.yaml` + `infra/secret.yaml` (Kubernetes) |
+| **Code repo / branch** | `datakaveri/files-connect-api` @ `stable/v2.3` |
+| **Config path** | Private `.env` (local, template at [.env.example](../../.env.example)); private copies of `infra/configmap.yaml` + `infra/secret.example.yaml` (Kubernetes). Populated `infra/secret.yaml` is ignored. |
 | **Config schema version** | No `version` field. Schema is the Zod object in [src/config/environment.ts](../../src/config/environment.ts) |
-| **Maintainer / point of contact** | _TODO_ |
-| **Last updated** | 2026-07-29 |
+| **Maintainer / point of contact** | Repository maintainers |
+| **Last updated** | 2026-09-16 |
 
 ## 1. Top-level structure
 
@@ -80,7 +80,7 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Type / format:** string, URL **with scheme**, no trailing slash.
 - **Required:** conditional — required for `s3`/`minio` unless the legacy `S3_ENDPOINT` is set.
 - **Purpose:** endpoint passed to the AWS SDK S3 client; also used as the STS endpoint when the provider is `minio`.
-- **Expected value:** full origin, e.g. `https://s3.ap-south-1.amazonaws.com`, `https://fs-prod.s3.cyfuture.cloud`, `http://minio:9000`. No bucket, no path.
+- **Expected value:** full origin, e.g. `https://s3.ap-south-1.amazonaws.com`, `https://storage.example.com`, `http://minio:9000`. No bucket, no path.
 - **Example value:** `https://s3.ap-south-1.amazonaws.com`
 - **Default if omitted:** falls back to `S3_ENDPOINT`, then `''`.
 - **How to obtain:** cloud provider's regional endpoint, or the in-cluster Service DNS name for MinIO.
@@ -161,7 +161,7 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Required:** **yes** — no default, for every provider.
 - **Purpose:** the single bucket holding databank uploads (`<databankId>/…`), zip output (`zips/<databankId>.zip`) and readiness reports (`reports/<databankId>/`).
 - **Expected value:** bucket name only — no `s3://`, no region, no path.
-- **Example value:** `s3-ap-south-1-tgdex-production`
+- **Example value:** `your-files-connect-bucket`
 - **Default if omitted:** none — Zod reports `BUCKET_NAME: Required` and the process exits 1.
 - **How to obtain:** created by DevOps per environment; the same bucket must be referenced by both workers.
 - **Failure mode:** wrong/nonexistent → `NoSuchBucket` (HTTP 404 from the store) surfaced as 500 on upload; workers log `Folder not found or empty: <databankId>` and mark the job failed.
@@ -249,14 +249,14 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Required:** **yes** — no default, even when `AUTH_ENABLED=false`.
 - **Purpose:** base URL of the Keycloak realm. At runtime it is used by the authenticated e2e test helper ([src/__tests__/utils/auth.ts](../../src/__tests__/utils/auth.ts)) to fetch tokens; request-path verification uses `ISSUER_CONFIG`/`KEYCLOAK_PUBLIC_KEY` instead. It is nevertheless a **startup-required** field.
 - **Expected value:** realm base URL including scheme, no trailing slash, e.g. `https://idp.<domain>/auth/realms/<realm>`.
-- **Example value:** `https://idp.tgdex.telangana.gov.in/auth/realms/tgdex`
+- **Example value:** `https://idp.example.com/realms/example`
 - **Default if omitted:** none — `KEYCLOAK_AUTH_URL: Invalid url` / `Required`, exit 1.
 - **How to obtain:** DevOps / the Keycloak administrator for the environment.
-- **Failure mode:** value without a scheme (`idp.example.gov.in`) fails URL validation → exit 1 at boot.
+- **Failure mode:** value without a scheme (`idp.example.com`) fails URL validation → exit 1 at boot.
 - **Notes / gotchas:** the value is used **two different ways** in this repo. The ConfigMap carries the
   *realm base* URL, but the test helper POSTs form data straight to it as if it were the **token
-  endpoint** ([src/__tests__/e2e/assets-routes.test.ts:26](../../src/__tests__/e2e/assets-routes.test.ts#L26)
-  overrides it with `…/protocol/openid-connect/token` for exactly that reason). Nothing on the request
+  endpoint**; configure the complete `…/protocol/openid-connect/token` URL in the private `.env.test`.
+  Nothing on the request
   path reads it, so the realm-base value in the ConfigMap is correct for deployment; just do not expect
   the same value to work for the authenticated e2e tests.
 
@@ -266,16 +266,17 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Required:** **yes**.
 - **Purpose:** the Keycloak client used when the test helper requests tokens; documents which client's tokens this deployment expects.
 - **Client documentation:**
-  - **No client is created by this repository.** The file server is a pure token *consumer*: it never
-    calls Keycloak's admin API, has no service account, no client secret, and no realm import. It
-    reuses the platform's existing front-end client (`angular-tgdex-client` for TG-DEX), which is
-    owned by the portal/DevOps team. Nothing here needs `realm-management` roles.
-  - Naming convention: `<app>-<project>-client`, e.g. `angular-tgdex-client`.
-  - Type: **public** client (browser SPA), standard flow + direct grant enabled (direct grant is what the e2e tests use). No confidential client, no client secret is configured anywhere in this service.
+  - **No client is created by this repository.** For user login, the file server reuses the
+    platform's existing front-end client (`files-connect-client` for TG-DEX), owned by the
+    portal/DevOps team. Delegation adds a separate service identity described below. The file
+    server does not call Keycloak's admin API or import a realm. Nothing here needs
+    `realm-management` roles.
+  - Naming convention: `<app>-<project>-client`, e.g. `files-connect-client`.
+  - Type: **public** client (browser SPA), standard flow + direct grant enabled (direct grant is what the e2e tests use). This user-login client is separate from `DELEGATION_CLIENT_ID`.
   - The audience presented in its tokens must appear in the matching `audience` array of `ISSUER_CONFIG` when audience checking is enabled.
   - **Required token claims:** `sub` (user id), `iss`, `exp`, and **`realm_access.roles`** containing at least one of `provider`, `consumer`, `cos_admin` ([src/core/types/auth.ts](../../src/core/types/auth.ts)). Per-endpoint role requirements are in [docs/api/endpoints.md](../api/endpoints.md). A token whose roles live only in `resource_access.<client>.roles` will authenticate but fail authorisation.
   - Fine-grained per-databank access is **not** a Keycloak concern — it is resolved at request time against ACL-APD (`ACL_APD_API_URL`) and the catalogue (`CAT_API_URL`).
-- **Example value:** `angular-tgdex-client`
+- **Example value:** `files-connect-client`
 - **Default if omitted:** none — exit 1.
 - **How to obtain:** Keycloak admin console → Clients. Coordinate with DevOps; the same client id is configured in the front-end.
 - **Failure mode:** wrong id → the e2e auth helper gets `invalid_client` from the token endpoint; runtime request verification is unaffected.
@@ -306,7 +307,7 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
   }
   ```
   Each issuer key must match the token's `iss` **exactly**, including scheme and trailing path.
-- **Example value:** see `.env.example`; the DX control-plane issuer `v2.dev.controlplane.iudx.io` has no scheme, the Keycloak issuer does — copy each from a real token rather than constructing it.
+- **Example value:** see the commented `.env.example` template. Copy each issuer key from the token's `iss` claim verbatim rather than constructing it; use only your trusted identity provider's JWKS endpoint.
 - **Default if omitted:** `null` → the legacy static path is used.
 - **How to obtain:** decode a token issued by each IDP that must be accepted, take its `iss`; take `jwksUrl` from that IDP's discovery document (`/.well-known/openid-configuration` → `jwks_uri`).
 - **Failure mode:** invalid JSON → startup throws and the process exits. Issuer not listed → 401 `Invalid token: …` for that IDP's users only (a partial outage that looks like a user problem). Unreachable `jwksUrl` → 401s once the cached key expires.
@@ -331,6 +332,46 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Default if omitted:** `true`
 - **Failure mode:** `false` → authenticated users bypass ACL checks and can reach other providers' databanks.
 
+### Delegation configuration
+
+Delegation is opt-in and applies to protected requests with a `DID` header. Its schema is
+in [src/config/delegation.ts](../../src/config/delegation.ts), composed into startup environment
+validation. See [the walkthrough](../delegation.md) for the scope mapping and audit behavior.
+
+| Variable | Required / default | Meaning |
+|---|---|---|
+| `DELEGATION_ENABLED` | Optional, `false` | Enable JWT + DID delegation. Requires both auth flags to remain true. Disabled delegation rejects DID on protected routes with 403. |
+| `DELEGATION_GRPC_ADDRESS` | Optional, `controlplane:9090` | Internal control-plane host:port, reachable from the file server. |
+| `DELEGATION_GRPC_TLS` | Required when enabled; `true` or `false` | Explicit gRPC transport choice. Java uses plaintext (`false`) inside its deployment network. `true` verifies the server using Node's trusted CA roots; use `NODE_EXTRA_CA_CERTS` for a private CA. mTLS is not implemented. |
+| `DELEGATION_GRPC_TIMEOUT_MS` | Optional, `5000` | Positive integer deadline for each delegation RPC. |
+| `DELEGATION_TOKEN_URL` | Required when enabled | Full HTTP(S) Keycloak token endpoint; usually `https://<idp>/realms/<realm>/protocol/openid-connect/token`. URL credentials and fragments are rejected. |
+| `DELEGATION_CLIENT_ID` | Required when enabled | A separate confidential Keycloak client with service accounts enabled. Examples use `svc-file-server`, matching the referenced control-plane allow-list. Its token must include audience `dx-controlplane` and scope `grpc:controlplane`, and its ID must be in `grpcAllowedServiceClients`. Obtain it from the platform/Keycloak administrator. |
+| `DELEGATION_CLIENT_SECRET` | Required when enabled; secret | Client credential, stored in a private env file or `files-connect-secret`. Never use the public front-end client or commit the secret. |
+| `DELEGATION_TOKEN_TIMEOUT_MS` | Optional, `5000` | Positive integer timeout for obtaining a service token. |
+
+Both timeout settings accept integer strings from 1 to 2147483647. Enabled delegation with
+missing settings, or disabled authentication/authorization, fails startup validation. An
+unreachable token endpoint or control plane returns 503 for delegated requests; no JWT-role
+fallback occurs. Rejected/expired delegation returns 403. Requests without DID do not create
+the gRPC client or fetch a service token.
+
+Confirm Catalogue and ACL accept the original bearer token together with DID before rollout.
+The service client must be provisioned externally; this repository supplies no realm import
+or service-account creation script. Scope decisions are checked for each delegated request;
+only the service token is cached (renewed 60 seconds before expiry).
+
+**Service-account setup:** in Keycloak, enable client authentication and service accounts
+for `svc-file-server`. Assign `grpc:controlplane` as a **Default** client scope and ensure
+it is included in the token's `scope` claim. Add an Audience mapper that includes client
+audience `dx-controlplane` in the access token. On the control plane, include the exact
+`DELEGATION_CLIENT_ID` in `grpcAllowedServiceClients`. Other client names are supported
+when provisioned and allow-listed consistently.
+
+The token request intentionally sends no `scope` parameter, following Java. An Optional
+scope alone will not be requested by this provider. These are external Keycloak/control-plane
+settings; there are no audience or service-scope environment overrides in the file server.
+See [the setup walkthrough](../delegation.md#service-account-setup) for verification steps.
+
 ### `LOG_LEVEL`
 
 - **Type / format:** enum — `debug` \| `info` \| `warn` \| `error`.
@@ -339,7 +380,7 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Expected value:** `info` in production; `debug` only while diagnosing.
 - **Default if omitted:** `info`
 - **Failure mode:** invalid value → Zod enum error → exit 1. `debug` in production logs request context on every call — high volume and potentially sensitive.
-- **Notes:** the production ConfigMap currently ships `debug`; recommend `info`.
+- **Notes:** the example ConfigMap uses `info`; use `debug` only for private, temporary diagnostics.
 
 ### `CORS_ORIGIN`
 
@@ -347,7 +388,7 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Required:** no.
 - **Purpose:** `origin` option of the `cors` middleware ([src/app.ts:136](../../src/app.ts#L136)).
 - **Expected value:** in production, an explicit list of scheme+host (+port) origins, no trailing slash, no paths.
-- **Example value:** `https://tgdex.telangana.gov.in,https://catalogue.tgdex.iudx.io`
+- **Example value:** `https://app.example.com,https://catalogue.example.com`
 - **Default if omitted:** `*`
 - **Failure mode:** origin missing from the list → the browser blocks the response with a CORS error while `curl` succeeds — the classic "works in Postman, fails in the app".
 - **Notes / gotchas:** the nginx ingress **also** sets CORS headers (`cors-allow-origin` in [infra/ingress.yaml](../../infra/ingress.yaml)). Both layers must allow an origin; duplicated `Access-Control-Allow-Origin` headers from app *and* ingress cause browsers to reject the response, which is why `CORS_ORIGIN: "*"` is currently used at the app layer with the real list at the ingress.
@@ -378,10 +419,10 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Required:** **yes**.
 - **Purpose:** Catalogue REST API base. Used to resolve item metadata for authorisation: `${CAT_API_URL}/item?id=<databankId>&…` ([src/middleware/auth.ts:40](../../src/middleware/auth.ts#L40)).
 - **Expected value:** base ending at the catalogue API root, no trailing slash, e.g. `…/iudx/v2/cat`.
-- **Example value:** `https://v2.dev.controlplane.iudx.io/iudx/v2/cat`
+- **Example value:** `https://catalogue.example.com/iudx/v2/cat`
 - **Default if omitted:** none — exit 1.
 - **How to obtain:** the catalogue deployment for that environment.
-- **Failure mode:** the item lookup 404s and the request is rejected with `Databank <id> not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.` — logged with the configured value, so check the log line before blaming the data.
+- **Failure mode:** a Catalogue item lookup that returns 404 is exposed as a databank-not-found (404) response. Verify `CAT_API_URL` if a known databank unexpectedly returns 404. Catalogue 5xx and connection failures remain service-unavailable (503) responses.
 - **Notes / gotchas:** the **report worker uses the same value** for dataset-name resolution. It is **not** the same thing as the zip worker's `CAT_URL`, which must point at Elasticsearch — see [zip-worker.md](./zip-worker.md).
 
 ### `RABBITMQ_HOST`
@@ -456,17 +497,27 @@ pod goes `CrashLoopBackOff` with the issues array in the first lines of the log.
 - **Which system the account lives in:** Redis `requirepass` / ACL user.
 - **Privileges required:** with Redis ACLs, the user needs `+brpop +lpush +hset +hgetall +expire +exists` on the `jobs:*` and `job:*` key patterns; the default `allkeys` user is what most deployments use.
 - **Failure mode:** required but missing → `NOAUTH Authentication required`; wrong → `WRONGPASS invalid username-password pair`.
-- **Notes:** must be given to **both workers** as well; currently commented out in the worker manifests.
+- **Notes:** must be given to **both workers** as well; their manifests read this key from `files-connect-secret` when present.
 
 ### `REDIS_CLUSTER_MODE` *(feature flag)*
 
 - **Type / format:** bool as string (`"true"` ⇒ true).
 - **Required:** no.
-- **Purpose:** selects an ioredis Cluster client instead of a standalone client.
+- **Purpose:** selects a Redis Cluster client instead of a standalone client unless Sentinel is enabled.
 - **Expected value:** `true` only against a real Redis Cluster; `false` for a single instance or Sentinel-fronted primary.
 - **Default if omitted:** `false`
 - **Failure mode:** `true` against a standalone server → `ERR This instance has cluster support disabled`; `false` against a cluster → `MOVED` errors on every keyed command.
 - **Notes:** the workers accept the same flag, plus a legacy alias `REDIS_CLUSTER` and a cluster-only knob `REDIS_CLUSTER_DYNAMIC_STARTUP_NODES` that the **file server does not read**.
+
+### Redis Sentinel settings
+
+Set `REDIS_SENTINEL_ENABLED=true` for Sentinel; it takes precedence over cluster mode.
+`REDIS_SENTINEL_MASTER_NAME` defaults to `mymaster`. Set `REDIS_SENTINEL_HOSTS` to a
+comma-separated list of `host:port` entries, or leave it empty to use `REDIS_HOST:26379`.
+`REDIS_PASSWORD` authenticates to data nodes; `REDIS_SENTINEL_PASSWORD` separately
+authenticates to Sentinel nodes. Keep both passwords in `files-connect-secret`.
+Configure the same values for both workers. See the
+[Sentinel deployment guide](../../infra/REDIS_SENTINEL_DEPLOYMENT.md).
 
 ### `ZIP_QUEUE_NAME`
 

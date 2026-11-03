@@ -33,7 +33,15 @@ The following roles are defined in the system:
 
 ### Access Control
 
-Each API endpoint specifies which roles are allowed to access it. Check the endpoint description for the "Access Control" section to see which roles can use that endpoint.`,
+Each API endpoint specifies which roles are allowed to access it. Check the endpoint description for the "Access Control" section to see which roles can use that endpoint.
+
+### Delegated requests
+
+When delegation is enabled, send the actor's Bearer token and a DID header containing the delegator's UUID.
+The server resolves delegation over gRPC and uses the returned scopes instead of JWT roles.
+Protected read/download operations require data-access; uploads, deletes and processing require own-asset-management.
+Management operations are limited to the delegator's own resources. Public endpoints remain public.
+Invalid DID returns 400; invalid JWT returns 401; denied delegation/scopes returns 403; delegation-service failures return 503.`,
     contact: {
       name: 'API Support',
       email: 'support@example.com',
@@ -47,18 +55,6 @@ Each API endpoint specifies which roles are allowed to access it. Check the endp
     {
       url: './v1',
       description: 'Current deployment',
-    },
-    {
-      url: 'https://v2.dev.file-s3.iudx.io/v1/',
-      description: 'Development environment',
-    },
-    {
-      url: 'https://staging.file.forestdx.iudx.io/v1/',
-      description: 'Staging environment',
-    },
-    {
-      url: 'https://files.forest-stack.digivan.forest.rajasthan.gov.in/v1/',
-      description: 'Production environment',
     },
   ],
   openapi: '3.0.0' as const,
@@ -701,6 +697,14 @@ registry.registerPath({
     },
     400: {
       description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Upload not found',
       content: {
         'application/json': {
           schema: ErrorResponseSchema,

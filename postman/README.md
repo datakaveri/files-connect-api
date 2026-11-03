@@ -7,16 +7,17 @@ This directory contains a Postman collection generated from the current route im
 
 - `files-connect-api.postman_collection.json` - all API requests, a Keycloak token helper, tests,
   and a one-part multipart-upload workflow.
-- `development.postman_environment.json` - development API URL from the OpenAPI configuration.
+- `development.postman_environment.json` - localhost example with empty identity and generated state.
 
-The environment file contains placeholders only. It does not copy secrets from the repository's
-`.env` file.
+The environment file contains only localhost/example values. It does not copy secrets from `.env`.
+Keep the committed template unchanged: save private exports as
+`postman/development.local.postman_environment.json` (ignored by Git and Docker).
 
 ## Import and configure
 
 1. In Postman, select **Import** and import the collection plus the development environment.
 2. Select the development environment in the environment picker.
-3. Set `databankId` to a databank available to your user.
+3. Set `baseUrl` to your own API (no trailing slash) and `databankId` to a databank available to you.
 4. Authenticate in either of these ways:
    - Paste a JWT into the secret `accessToken` environment variable; or
    - Set `keycloakTokenUrl`, `keycloakClientId`, `username`, and `password`, then send
@@ -79,12 +80,12 @@ Install Newman separately, then run non-file requests with an environment:
 
 ```bash
 newman run postman/files-connect-api.postman_collection.json \
-  -e postman/development.postman_environment.json \
-  --env-var accessToken="<jwt>" \
-  --env-var databankId="<databank-id>"
+  -e postman/development.local.postman_environment.json
 ```
 
-File uploads require local file paths and Newman file access. Add `--working-dir` as needed. Avoid
+Export your private environment locally first. Keep tokens in the private file, not command-line
+arguments that may enter shell history/process listings. File uploads require local file paths
+and Newman file access. Add `--working-dir` as needed. Avoid
 putting real tokens, passwords, local paths, asset keys, upload IDs, or ETags into committed files.
 
 ## API notes

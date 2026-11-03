@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
 import { asyncHandler } from '../middleware/async-handler';
 import { UserRole } from '../core/types/auth';
+import { DelegationScope } from '../core/types/delegation';
 import { createKmsService } from '../services/kms-service';
 import { buildResponse } from '../core/utils/route-utils';
 
@@ -23,7 +24,7 @@ const encryptionRoutes = Router();
 encryptionRoutes.get(
   '/public-key',
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   asyncHandler(async (_req: Request, res: Response) => {
     const publicKey = await kmsService.getEncryptionPublicKey();
     res.json(buildResponse(publicKey));

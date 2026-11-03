@@ -219,6 +219,15 @@ function extractAuditContext(req: Request, res: Response, action: AuditAction): 
       orgId,
       orgName,
       // New fields for updated schema
+      ...(res.locals.isDelegated && {
+        delegatorId: userId,
+        delegatorRole: userRole,
+        context: {
+          delegateeId: res.locals.delegateeId,
+          delegateeRoles: res.locals.delegateeRoles,
+          scopes: res.locals.scopes,
+        },
+      }),
       ipAddress,
       userAgent,
       // Log type defaults to ASSET for file operations
@@ -228,4 +237,4 @@ function extractAuditContext(req: Request, res: Response, action: AuditAction): 
     logger.error('Failed to extract audit context', error as Error);
     return null;
   }
-} 
+}

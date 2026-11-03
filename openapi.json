@@ -3,7 +3,7 @@
   "info": {
     "title": "Files Connect API",
     "version": "1.0.0",
-    "description": "API for file uploads, downloads, and processing.\n\n## Authentication & Authorization\n\nThis API uses JWT Bearer token authentication with role-based access control (RBAC).\n\n### User Roles\n\nThe following roles are defined in the system:\n\n- **provider**: Can upload files, create processing jobs, and manage databanks. Full read/write access to their own databanks.\n- **consumer**: Can view and download files from databanks they have access to. Read-only access.\n- **cos_admin**: Administrative role with elevated privileges across the system.\n\n### Access Control\n\nEach API endpoint specifies which roles are allowed to access it. Check the endpoint description for the \"Access Control\" section to see which roles can use that endpoint.",
+    "description": "API for file uploads, downloads, and processing.\n\n## Authentication & Authorization\n\nThis API uses JWT Bearer token authentication with role-based access control (RBAC).\n\n### User Roles\n\nThe following roles are defined in the system:\n\n- **provider**: Can upload files, create processing jobs, and manage databanks. Full read/write access to their own databanks.\n- **consumer**: Can view and download files from databanks they have access to. Read-only access.\n- **cos_admin**: Administrative role with elevated privileges across the system.\n\n### Access Control\n\nEach API endpoint specifies which roles are allowed to access it. Check the endpoint description for the \"Access Control\" section to see which roles can use that endpoint.\n\n### Delegated requests\n\nWhen delegation is enabled, send the actor's Bearer token and a DID header containing the delegator's UUID.\nThe server resolves delegation over gRPC and uses the returned scopes instead of JWT roles.\nProtected read/download operations require data-access; uploads, deletes and processing require own-asset-management.\nManagement operations are limited to the delegator's own resources. Public endpoints remain public.\nInvalid DID returns 400; invalid JWT returns 401; denied delegation/scopes returns 403; delegation-service failures return 503.",
     "contact": {
       "name": "API Support",
       "email": "support@example.com"
@@ -17,18 +17,6 @@
     {
       "url": "./v1",
       "description": "Current deployment"
-    },
-    {
-      "url": "https://v2.dev.file-s3.iudx.io/v1/",
-      "description": "Development environment"
-    },
-    {
-      "url": "https://staging.file.forestdx.iudx.io/v1/",
-      "description": "Staging environment"
-    },
-    {
-      "url": "https://files.forest-stack.digivan.forest.rajasthan.gov.in/v1/",
-      "description": "Production environment"
     }
   ],
   "security": [
@@ -1361,6 +1349,46 @@
           },
           "400": {
             "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Upload not found",
             "content": {
               "application/json": {
                 "schema": {
