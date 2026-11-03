@@ -113,7 +113,7 @@ sequenceDiagram
     participant API as Sandbox file server instance
 
     Client->>Gateway: Start connection to sandbox-files.example.com
-    Gateway-->>Client: Server certificate; request a client certificate
+    Gateway-->>Client: Server certificate and request for a client certificate
     Note over Client: Verify server CA, hostname, and certificate validity
     Client->>Gateway: Client certificate and proof of matching private key
     Note over Gateway: Verify client certificate and allowed subject
