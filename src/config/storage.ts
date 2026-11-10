@@ -28,7 +28,6 @@ export function createStorageConfig(): StorageConfig {
     accessKey: env.STORAGE_ACCESS_KEY || env.S3_ACCESS_KEY || '',
     secretKey: env.STORAGE_SECRET_KEY || env.S3_SECRET_KEY || '',
     bucketName: env.BUCKET_NAME,
-    assetsBucketName: env.ASSETS_BUCKET_NAME,
     forcePathStyle: env.STORAGE_FORCE_PATH_STYLE || (provider === StorageProvider.MINIO),
     useSSL: env.STORAGE_USE_SSL,
     port: env.STORAGE_PORT
@@ -39,6 +38,14 @@ export function createStorageConfig(): StorageConfig {
     // MinIO typically requires path-style URLs and may have different SSL defaults
     config.forcePathStyle = config.forcePathStyle !== false; // Default to true for MinIO
     config.useSSL = config.useSSL !== false; // Default to true for MinIO
+  }
+
+  if (provider === StorageProvider.GCS) {
+    // Native GCS client auth: service account key file, inline credentials, or ADC fallback
+    config.gcsProjectId = env.GCS_PROJECT_ID;
+    config.gcsKeyFilename = env.GCS_KEY_FILE;
+    config.gcsClientEmail = env.GCS_CLIENT_EMAIL;
+    config.gcsPrivateKey = env.GCS_PRIVATE_KEY;
   }
 
   return config;
@@ -54,7 +61,11 @@ export function createStorageConfig(): StorageConfig {
  * @throws Error if configuration is invalid
  */
 export function validateStorageConfig(config: StorageConfig): void {
-  const requiredFields = ['endpoint', 'accessKey', 'secretKey', 'bucketName'];
+  // GCS uses the native @google-cloud/storage client, which authenticates via a
+  // service account (key file or inline credentials) or Application Default
+  // Credentials rather than an endpoint/access-key/secret-key triplet.
+  const requiredFields =
+    config.provider === StorageProvider.GCS ? ['bucketName'] : ['endpoint', 'accessKey', 'secretKey', 'bucketName'];
 
   for (const field of requiredFields) {
     const value = (config as any)[field];

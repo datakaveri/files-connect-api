@@ -5,9 +5,28 @@ import { ParquetPreviewResult } from "../core/types/file";
 
 const S3_CONFIG: Record<string, string | boolean> = {};
 
-if (env.S3_REGION) S3_CONFIG.s3_region = env.S3_REGION;
-if (env.S3_ACCESS_KEY) S3_CONFIG.s3_access_key_id = env.S3_ACCESS_KEY;
-if (env.S3_SECRET_KEY) S3_CONFIG.s3_secret_access_key = env.S3_SECRET_KEY;
+// Prefer the newer STORAGE_* variables, falling back to legacy S3_* — matching
+// the resolution order used by createStorageConfig() in config/storage.ts.
+const s3Region = env.STORAGE_REGION || env.S3_REGION;
+const s3AccessKey = env.STORAGE_ACCESS_KEY || env.S3_ACCESS_KEY;
+const s3SecretKey = env.STORAGE_SECRET_KEY || env.S3_SECRET_KEY;
+const s3Endpoint = env.STORAGE_ENDPOINT || env.S3_ENDPOINT;
+
+if (s3Region) S3_CONFIG.s3_region = s3Region;
+if (s3AccessKey) S3_CONFIG.s3_access_key_id = s3AccessKey;
+if (s3SecretKey) S3_CONFIG.s3_secret_access_key = s3SecretKey;
+
+// When using an S3-compatible provider (e.g. MinIO/Cyfuture), DuckDB's httpfs
+// must be pointed at the custom endpoint, otherwise it defaults to AWS
+// (s3.amazonaws.com) and the signed request is rejected with HTTP 403.
+if (s3Endpoint) {
+  // DuckDB expects a bare host[:port], not a URL scheme.
+  const stripped = s3Endpoint.replace(/^https?:\/\//, "");
+  S3_CONFIG.s3_endpoint = stripped;
+  S3_CONFIG.s3_use_ssl = s3Endpoint.startsWith("https://") || env.STORAGE_USE_SSL;
+  // STORAGE_FORCE_PATH_STYLE=true -> path style (bucket in the path, not the host).
+  S3_CONFIG.s3_url_style = env.STORAGE_FORCE_PATH_STYLE ? "path" : "vhost";
+}
 
 export class DuckDBS3 {
   private s3_config: Record<string, string | boolean>;
@@ -30,7 +49,9 @@ export class DuckDBS3 {
       await conn.run(`LOAD httpfs`);
       // Register S3 settings in DuckDB
       for (const [key, value] of Object.entries(S3_CONFIG)) {
-        await conn.run(`SET ${key}='${value}'`);
+        // Booleans (e.g. s3_use_ssl) must be unquoted; strings must be quoted.
+        const rendered = typeof value === "boolean" ? value : `'${value}'`;
+        await conn.run(`SET ${key}=${rendered}`);
       }
     } catch (err) {
       console.log(err);

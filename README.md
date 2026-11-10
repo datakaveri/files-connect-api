@@ -4,9 +4,9 @@ A TypeScript/Express service for databank file uploads, downloads, previews, and
 processing. The API supports AWS S3, MinIO, and native Google Cloud Storage (GCS), with Python
 workers for ZIP archives and data-readiness reports.
 
-This README documents the latest stable release, `stable/v2.3`. Other branches may contain
+This README documents the latest stable release, `stable/v2.4`. Other branches may contain
 older code or configuration; the setup defaults and dependency inventory below apply to
-`stable/v2.3`. The documentation links point to that release's files.
+`stable/v2.4`. The documentation links point to that release's files.
 
 ## Features
 
@@ -15,12 +15,13 @@ older code or configuration; the setup defaults and dependency inventory below a
 - JWT verification through Keycloak-compatible static RS256 keys or multiple JWKS issuers,
   role-based authorization, and Catalogue/ACL-APD access checks.
 - Redis-backed asynchronous jobs: `zip`, `report`, or `all` (one job of each type).
+- Redis Sentinel support for highly available job queues in the API and both workers.
 - Time-limited AWS/MinIO STS credentials; GCS clients use presigned URLs instead.
 - Optional Cloud KMS public-key delivery for client-side envelope encryption.
 - OpenAPI documentation rendered with ReDoc.
 
 File-extension validation is an allow-list, not malware scanning. See the
-[endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md) for actual per-route access checks and limitations.
+[endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/api/endpoints.md) for actual per-route access checks and limitations.
 
 ## Architecture
 
@@ -31,11 +32,11 @@ Report writeback to Elasticsearch is optional.
 
 One `BUCKET_NAME` holds databank files (`{databankId}/`), assets (`assets/`), archives (`zips/`),
 and reports (`reports/`). The API and workers must use the same bucket, Redis database, and
-queue names. See the [configuration overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md) for the full wiring.
+queue names. See the [configuration overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/config/README.md) for the full wiring.
 
 ## Prerequisites
 
-- Node.js 24 (matching [the API container image](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/Dockerfile)).
+- Node.js 24 (matching [the API container image](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/infra/Dockerfile)).
 - pnpm 10.20.0 (the version declared in `package.json`); TypeScript is installed as a dependency.
 - Docker with the Compose plugin for local MinIO, Redis, and workers.
 - Python 3.11 if running workers outside Docker.
@@ -45,7 +46,7 @@ queue names. See the [configuration overview](https://github.com/datakaveri/file
 ## Local quick start
 
 ```bash
-git clone --branch stable/v2.3 https://github.com/datakaveri/files-connect-api.git
+git clone --branch stable/v2.4 https://github.com/datakaveri/files-connect-api.git
 cd files-connect-api
 pnpm install --frozen-lockfile
 cp .env.example .env
@@ -85,6 +86,11 @@ docker compose up -d report-worker
 docker compose logs -f report-worker
 ```
 
+For Redis Sentinel, set `REDIS_SENTINEL_ENABLED=true`, the master group name, and a
+comma-separated `REDIS_SENTINEL_HOSTS` list in the API and both workers. Sentinel takes
+precedence over cluster mode. See the [deployment guide](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/infra/REDIS_SENTINEL_DEPLOYMENT.md)
+and [local Sentinel Compose file](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docker-compose.sentinel.yml).
+
 In this branch, structured column-role inference is disabled; unstructured metadata inference
 still calls OpenAI and needs a private `OPENAI_API_KEY`. Confirm that your data-sharing policy
 permits metadata to leave your environment before enabling that path.
@@ -104,11 +110,11 @@ For private overrides, copy `docker-compose.override.example.yml` to the ignored
 
 Keep `STORAGE_*` (API) and `S3_*` (workers) aligned in local configuration. Kubernetes worker
 manifests remap these names. GCS multipart uploads stage temporary objects and compose them
-on completion; see [multipart uploads](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/multipart-uploads.md) for provider differences
+on completion; see [multipart uploads](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/api/multipart-uploads.md) for provider differences
 and current size-validation limits.
 
-Use [.env.example](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/.env.example) as a template and the
-[configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md) for required fields, privileges, and failure modes.
+Use [.env.example](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/.env.example) as a template and the
+[configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/config/README.md) for required fields, privileges, and failure modes.
 Never commit `.env` variants, private keys, service-account files, populated Kubernetes Secrets,
 or exported Postman credentials.
 
@@ -133,19 +139,19 @@ Worker tests can be run from `workers/report-worker` after installing its requir
 python -m pytest tests
 ```
 
-Only a [synthetic example dataset](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/workers/report-worker/data/example/README.md) is committed.
+Only a [synthetic example dataset](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/workers/report-worker/data/example/README.md) is committed.
 Additional local datasets and generated `outputReports/` content are ignored.
 
 ## Documentation
 
-- [Documentation index](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/README.md)
-- [API endpoints and access checks](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md)
-- [Multipart upload lifecycle](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/multipart-uploads.md)
-- [Configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/config/README.md)
-- [Container builds and Kubernetes setup](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/README.md)
-- [AWS STS setup](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/STS_SETUP.md)
-- [Worker overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/workers/README.md)
-- [Postman examples](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/postman/README.md)
+- [Documentation index](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/README.md)
+- [API endpoints and access checks](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/api/endpoints.md)
+- [Multipart upload lifecycle](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/api/multipart-uploads.md)
+- [Configuration reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/config/README.md)
+- [Container builds and Kubernetes setup](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/infra/README.md)
+- [AWS STS setup](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/infra/STS_SETUP.md)
+- [Worker overview](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/workers/README.md)
+- [Postman examples](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/postman/README.md)
 
 On a running API, browse `http://localhost:3000/apis`; the machine-readable specification is
 at `http://localhost:3000/openapi.json`. API routes are under `/v1`, including `/v1/health`.
@@ -153,19 +159,19 @@ at `http://localhost:3000/openapi.json`. API routes are under `/v1`, including `
 ## Deployment and security
 
 The Kubernetes manifests are **examples**, not ready-to-apply production configuration. Copy
-and customize them as described in [the infrastructure guide](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/infra/README.md). Set unique
+and customize them as described in [the infrastructure guide](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/infra/README.md). Set unique
 credentials, enable `AUTH_ENABLED=true` and `AUTHZ_ENABLED=true`, configure trusted issuers
 and token audiences, enforce TLS and an explicit CORS allow-list, and keep Redis/MinIO private.
 Do not disable token-expiry or certificate validation in deployed environments.
 
 Some routes, including file metadata and report PDF download, are public in the current
-implementation. Review [the endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/docs/api/endpoints.md) against your access policy
+implementation. Review [the endpoint reference](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/docs/api/endpoints.md) against your access policy
 before exposing the service. Do not post passwords, JWTs, presigned URLs, or private datasets in
 issues, logs, or screenshots; contact organization maintainers privately for sensitive findings.
 
 ## Contributing
 
-Base changes on `stable/v2.3` for this release line. Submit a pull request describing the change
+Base changes on `stable/v2.4` for this release line. Submit a pull request describing the change
 and its validation, keep configuration/API docs synchronized, and regenerate `openapi.json` when
 the API documentation changes. Use synthetic fixtures and never include live credentials in tests.
 
@@ -174,4 +180,4 @@ the API documentation changes. Use synthetic fixtures and never include live cre
 [View License](./LICENSE)
 
 The root license is GNU AGPL v3. OpenAPI metadata declares Apache 2.0.
-See [dependency licenses](https://github.com/datakaveri/files-connect-api/blob/stable/v2.3/dep-licenses) for the direct-dependency inventory and its scope.
+See [dependency licenses](https://github.com/datakaveri/files-connect-api/blob/stable/v2.4/dep-licenses) for the direct-dependency inventory and its scope.

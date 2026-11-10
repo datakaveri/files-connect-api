@@ -33,7 +33,15 @@ The following roles are defined in the system:
 
 ### Access Control
 
-Each API endpoint specifies which roles are allowed to access it. Check the endpoint description for the "Access Control" section to see which roles can use that endpoint.`,
+Each API endpoint specifies which roles are allowed to access it. Check the endpoint description for the "Access Control" section to see which roles can use that endpoint.
+
+### Delegated requests
+
+When delegation is enabled, send the actor's Bearer token and a DID header containing the delegator's UUID.
+The server resolves delegation over gRPC and uses the returned scopes instead of JWT roles.
+Protected read/download operations require data-access; uploads, deletes and processing require own-asset-management.
+Management operations are limited to the delegator's own resources. Public endpoints remain public.
+Invalid DID returns 400; invalid JWT returns 401; denied delegation/scopes returns 403; delegation-service failures return 503.`,
     contact: {
       name: 'API Support',
       email: 'support@example.com',
@@ -45,16 +53,8 @@ Each API endpoint specifies which roles are allowed to access it. Check the endp
   },
   servers: [
     {
-      url: 'https://v2.dev.file-s3.iudx.io/v1/',
-      description: 'Development environment',
-    },
-    {
-      url: 'https://staging.file.forestdx.iudx.io/v1/',
-      description: 'Staging environment',
-    },
-    {
-      url: 'https://files.forest-stack.digivan.forest.rajasthan.gov.in/v1/',
-      description: 'Production environment',
+      url: './v1',
+      description: 'Current deployment',
     },
   ],
   openapi: '3.0.0' as const,
@@ -187,7 +187,7 @@ const FileListingSchema = z.object({
 });
 
 const FilePreviewSchema = z.object({
-  content: z.string(),
+  content: z.any().describe('Preview data; shape depends on the file format'),
   format: z.string(),
   truncated: z.boolean().optional(),
   firstNLines: z.number().optional(),
@@ -274,6 +274,18 @@ const QueryAccessResponseSchema = z.object({
   expiresAt: z.string(),
 });
 
+const EncryptionPublicKeySchema = z.object({
+  publicKeyPem: z
+    .string()
+    .describe('PEM-encoded RSA public key used to wrap the per-file AES-256 data encryption key'),
+  kmsKeyVersion: z
+    .string()
+    .describe('Cloud KMS key-version resource name used to unwrap the data encryption key'),
+  algorithm: z
+    .string()
+    .describe('Key-wrapping algorithm; currently RSA-OAEP-3072-SHA256'),
+});
+
 // Register Health Check Route (No auth required)
 registry.registerPath({
   method: 'get',
@@ -293,6 +305,50 @@ registry.registerPath({
             service: z.string(),
             version: z.string(),
           }),
+        },
+      },
+    },
+  },
+});
+
+// Register Encryption Public Key Route
+registry.registerPath({
+  method: 'get',
+  path: '/encryption/public-key',
+  tags: ['Encryption'],
+  summary: 'Get the public key for client-side envelope encryption',
+  description:
+    'Returns the public half of the configured Cloud KMS asymmetric key. Clients use it to wrap a per-file AES-256 data encryption key before uploading encrypted data. The endpoint is available only when `ENCRYPTION_ENABLED=true`.\n\n**Access Control:**\n- Allowed Roles: `provider`',
+  responses: {
+    200: {
+      description: 'Encryption public key retrieved successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(EncryptionPublicKeySchema),
+        },
+      },
+    },
+    401: {
+      description: 'Unauthorized',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: 'Forbidden: provider role required',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    503: {
+      description: 'Encryption key is not configured',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
         },
       },
     },
@@ -394,6 +450,9 @@ registry.registerPath({
             }),
           ),
         },
+        'application/octet-stream': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
       },
     },
     404: {
@@ -413,6 +472,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Get metadata for a specific file in a databank',
   description: 'Returns metadata for a specific file in a databank.\n\n**Access Control:**\n- Allowed Roles: No authentication required (Public endpoint)',
+  security: [],
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -506,14 +566,10 @@ registry.registerPath({
         'application/json': {
           schema: z.object({
             key: z.string().describe('File key'),
-            maxLines: z
-              .number()
-              .optional()
-              .describe('Maximum number of lines to return'),
             fileType: z
-              .string()
+              .enum(['csv', 'json', 'xml', 'tsv', 'xlsx', 'parquet'])
               .optional()
-              .describe('File type for preview'),
+              .describe('File type for preview; inferred from the key when omitted'),
           }),
         },
       },
@@ -554,7 +610,7 @@ registry.registerPath({
   tags: ['Databanks'],
   summary: 'Initiate a multipart upload to a databank',
   description:
-    'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Only allows CSV, JSON, TXT, Parquet, XLSX, and ZIP file types. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`',
+    'Initiates a multipart upload to a databank and returns presigned URLs for uploading parts. Supports approved databank formats, including CSV, JSON, TXT, Parquet, XLSX, NAV, OBS, BIN, and MRK. Executable files are not permitted.\n\n**Access Control:**\n- Allowed Roles: `provider`',
   request: {
     params: z.object({
       databankId: z.string().describe('Databank ID'),
@@ -617,9 +673,13 @@ registry.registerPath({
             key: z.string(),
             parts: z.array(
               z.object({
-                partNumber: z.number(),
-                etag: z.string(),
+                PartNumber: z.number().int().positive().optional(),
+                partNumber: z.number().int().positive().optional(),
+                ETag: z.string().optional(),
+                eTag: z.string().optional(),
               }),
+            ).min(1).describe(
+              'Uploaded parts. Each item must provide PartNumber or partNumber and ETag or eTag.',
             ),
           }),
         },
@@ -637,6 +697,14 @@ registry.registerPath({
     },
     400: {
       description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Upload not found',
       content: {
         'application/json': {
           schema: ErrorResponseSchema,
@@ -887,7 +955,7 @@ registry.registerPath({
   description:
     'Returns a presigned URL for downloading the data readiness report PDF for a databank.\n\n' +
     '**Report Location:**\n' +
-    '- Reports are stored at `{databankId}/data_readiness_report.pdf` in the reports bucket configured via `DATAREADINESS_BUCKET`\n' +
+    '- Reports are stored at `reports/{databankId}/data_readiness_report.pdf` in `BUCKET_NAME`\n' +
     '- Reports are generated by the report worker after processing a report job\n' +
     '- The report contains comprehensive data quality assessment including metrics for quality, variance, standardization, documentation, etc.\n\n' +
     '**Access Control:**\n' +
@@ -930,11 +998,14 @@ registry.registerPath({
     '- `zip`: Creates a compressed zip archive of the databank files (zip job only)\n' +
     '- `report`: Runs data readiness assessment on the databank, generating JSON and PDF reports (report job only)\n' +
     '- `all`: Runs both zip and report jobs; returns separate job IDs for each so you can poll status for each\n\n' +
+    '**Zip Job Options:**\n' +
+    '- `options.include`: Optional list of databank-relative file names/paths to include in the generated zip\n' +
+    '- Omit `options.include` to zip all files in the databank\n\n' +
     '**Report Job Details:**\n' +
     '- Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio, Excel, DICOM) datasets\n' +
     '- Runs comprehensive data quality assessment framework\n' +
     '- Generates detailed JSON reports and a visual PDF summary\n' +
-    '- Uploads PDF report to `{databankId}/data_readiness_report.pdf` in the reports bucket configured via `DATAREADINESS_BUCKET`\n' +
+    '- Uploads PDF report to `reports/{databankId}/data_readiness_report.pdf` in `BUCKET_NAME`\n' +
     '- Uses Redis job queue for asynchronous processing\n' +
     '- Job status can be queried via the job status endpoint\n\n' +
     '**Access Control:**\n' +
@@ -950,8 +1021,10 @@ registry.registerPath({
             type: z
               .enum(['zip', 'report', 'all'])
               .describe('Type of processing job: zip (zip only), report (report only), or all (both zip and report)'),
-            prefix: z.string().optional().describe('Optional prefix for processing specific files (not used for report jobs)'),
-            options: z.object({}).passthrough().optional().describe('Optional processing options'),
+            options: z.object({
+              include: z.array(z.string()).optional()
+                .describe('Optional databank-relative file names/paths to include in the generated zip. Omit to zip all files.'),
+            }).passthrough().optional().describe('Optional processing options'),
           }),
         },
       },
@@ -1110,5 +1183,3 @@ export const openApiDocument = generator.generateDocument({
   servers: openApiInfo.servers,
   security: [{ bearerAuth: [] }],
 });
-
-

@@ -93,12 +93,12 @@ def lambda_handler(event, context):
                 folder_keys = folder_key
 
             # Get bucket name from environment variable
-            bucket_name = os.environ.get('S3_BUCKET_NAME')
+            bucket_name = os.environ.get('BUCKET_NAME')
             if not bucket_name:
-                logger.error("Missing required environment variable: S3_BUCKET_NAME")
+                logger.error("Missing required environment variable: BUCKET_NAME")
                 return {
                     'statusCode': 500,
-                    'body': json.dumps({'error': 'Server configuration error: Missing S3_BUCKET_NAME'})
+                    'body': json.dumps({'error': 'Server configuration error: Missing BUCKET_NAME'})
                 }
             
             logger.info(f"Using bucket: {bucket_name}")
@@ -179,18 +179,16 @@ def lambda_handler(event, context):
                         print(root, _, files)
                         for f in files:
                             if f.endswith(('.json', '.pdf')):
-                                load_dotenv()
-                                reports_bucket_name = os.getenv('DATAREADINESS_BUCKET')
+                                reports_bucket_name = os.getenv('BUCKET_NAME')
                                 logger.info("Reports bucket name: %s", reports_bucket_name)
                                 if not reports_bucket_name:
-                                    logger.error("Missing required environment variable: DATAREADINESS_BUCKET")
+                                    logger.error("Missing required environment variable: BUCKET_NAME")
                                     return {
                                         'statusCode': 500,
-                                        'body': json.dumps({'error': 'Server configuration error: Missing DATAREADINESS_BUCKET'})
+                                        'body': json.dumps({'error': 'Server configuration error: Missing BUCKET_NAME'})
                                     }
-                                logger.info(f"Uploading report: {f} to bucket: {reports_bucket_name}")
-                                report_key = f"{os.path.basename(fk)}/{f}"
-                                logger.info(f"Report key: {report_key}")
+                                report_key = f"reports/{os.path.basename(fk)}/{f}"
+                                logger.info(f"Uploading report: {f} to bucket: {reports_bucket_name}, key: {report_key}")
                                 s3_client.upload_file(os.path.join(root, f), reports_bucket_name, report_key)   
                                 logger.info(f"Uploaded report to S3: {report_key}")
             end_time = time.time()

@@ -1,0 +1,92 @@
+name: Sync config version
+
+on:
+  push:
+    branches:
+      - dev
+      - 'stable/**'
+    paths:
+      - .env.example
+
+permissions:
+  contents: write
+
+env:
+  INSTALLER_REPO: datakaveri/iudx-installer
+  INSTALLER_BRANCH: master
+  INSTALLER_CONFIG_DIR: K8s-deployment/Charts/api-layer/v2/file-connect-api/example-secrets/secrets
+
+jobs:
+  sync-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout files-connect-api
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Bump version (integer counter)
+        id: bump
+        run: |
+          set -euo pipefail
+          CONFIG_FILE=.env.example
+          CURRENT=$(grep -oP '^# CONFIG_VERSION=\K[0-9]+' "$CONFIG_FILE")
+          NEW=$((CURRENT + 1))
+          sed -i "s/^# CONFIG_VERSION=.*/# CONFIG_VERSION=${NEW}/" "$CONFIG_FILE"
+          echo "Bumped version: $CURRENT -> $NEW"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push version bump
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .env.example
+          git commit -m "chore: bump config version ${{ steps.bump.outputs.current }} -> ${{ steps.bump.outputs.new }}"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Determine target filename in iudx-installer
+        id: filename
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "dev" ]; then
+            FILENAME=".fs.env"
+          else
+            SAFE_BRANCH=$(echo "$BRANCH" | tr '/' '-')
+            FILENAME=".fs-${SAFE_BRANCH}.env"
+          fi
+          echo "Target filename: $FILENAME"
+          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout iudx-installer
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.INSTALLER_REPO }}
+          ref: ${{ env.INSTALLER_BRANCH }}
+          token: ${{ secrets.INSTALLER_REPO_PAT }}
+          path: iudx-installer
+
+      - name: Copy updated config into iudx-installer
+        run: |
+          set -euo pipefail
+          mkdir -p "iudx-installer/$INSTALLER_CONFIG_DIR"
+          cp .env.example "iudx-installer/$INSTALLER_CONFIG_DIR/${{ steps.filename.outputs.filename }}"
+
+      - name: Commit and push to iudx-installer
+        working-directory: iudx-installer
+        env:
+          DEV_COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f "$INSTALLER_CONFIG_DIR/${{ steps.filename.outputs.filename }}"
+          if git diff --cached --quiet; then
+            echo "No changes to sync in iudx-installer"
+            exit 0
+          fi
+          DEV_SUBJECT=$(printf '%s' "$DEV_COMMIT_MSG" | head -n1)
+          git commit -m "chore: sync ${{ steps.filename.outputs.filename }} to v${{ steps.bump.outputs.new }}: ${DEV_SUBJECT} (files-connect-api@${{ github.sha }})"
+          git push origin HEAD:${{ env.INSTALLER_BRANCH }}

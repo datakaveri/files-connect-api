@@ -9,6 +9,10 @@ import { AuthConstants } from '../../config/constants';
 import { isDecodedToken } from './type-guards';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { jwksResolver } from './jwks-resolver';
+import { z } from 'zod';
+import { resolveDelegation } from '../../services/delegation-resolver';
+import { AuthenticationError, ValidationError } from '../errors';
 
 // Create a logger for this module
 const logger = createLogger('AuthUtils');
@@ -35,6 +39,12 @@ export interface UserInfo {
   orgId?: string;
   /** Organization name from the token */
   orgName?: string;
+  /** Returned scopes are authoritative only for delegated requests. */
+  scopes?: string[];
+  isDelegated?: boolean;
+  /** Original authenticated actor, retained independently from the effective identity. */
+  delegateeId?: string;
+  delegateeRoles?: string[];
 }
 
 /**
@@ -47,7 +57,7 @@ export function extractToken(authHeader: string | undefined): string {
   logger.debug('Extracting token from authorization header');
   
   if (!authHeader || !authHeader.startsWith(`${AuthConstants.TOKEN.PREFIX} `)) {
-    logger.warn('Invalid authorization header', { authHeader });
+    logger.warn('Invalid authorization header');
     throw new Error('Authorization token required');
   }
   
@@ -68,25 +78,50 @@ export function extractToken(authHeader: string | undefined): string {
  */
 export async function decodeToken(token: string): Promise<DecodedToken> {
   try {
-    // Verify the token with Keycloak's public key/secret
-    // Use proper verification for production environment
-    let decoded: jwt.JwtPayload | string | null;
+    let decoded: jwt.JwtPayload | string | null = null;
     
-    if (!env.KEYCLOAK_PUBLIC_KEY) {
-      throw new Error('KEYCLOAK_PUBLIC_KEY is not configured');
+    // Check if dynamic IDP is configured
+    if (env.ISSUER_CONFIG) {
+      // Decode unverified token to extract kid and iss
+      const unverifiedDecoded = jwt.decode(token, { complete: true });
+      if (!unverifiedDecoded || typeof unverifiedDecoded !== 'object') {
+        throw new Error('Invalid token structure');
+      }
+      
+      const header = unverifiedDecoded.header;
+      const payload = unverifiedDecoded.payload as any;
+      const iss = payload.iss;
+      const kid = header.kid;
+      
+      if (!iss || !kid) {
+        throw new Error('Token is missing iss or kid');
+      }
+      
+      const config = env.ISSUER_CONFIG as Record<string, any>;
+      const pemPublicKey = await jwksResolver.resolve(iss, kid, config);
+      
+      decoded = jwt.verify(token, pemPublicKey, {
+        algorithms: ['RS256', 'ES256'],
+        issuer: iss
+      });
+      logger.debug('Token verified successfully using dynamic multi-IDP JWKS');
+    } else {
+      // Legacy static Keycloak logic
+      if (!env.KEYCLOAK_PUBLIC_KEY) {
+        throw new Error('KEYCLOAK_PUBLIC_KEY or ISSUER_CONFIG must be configured');
+      }
+      
+      // Format the public key properly (add BEGIN/END lines if needed)
+      const formattedPublicKey = env.KEYCLOAK_PUBLIC_KEY.includes('BEGIN PUBLIC KEY') ?
+        env.KEYCLOAK_PUBLIC_KEY : 
+        `-----BEGIN PUBLIC KEY-----\n${env.KEYCLOAK_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
+      
+      // Verify token with Keycloak's public key
+      decoded = jwt.verify(token, formattedPublicKey, { 
+        algorithms: ['RS256'] // Use appropriate algorithm as configured in Keycloak
+      });
+      logger.debug('Token verified successfully using static configuration');
     }
-    
-    // Format the public key properly (add BEGIN/END lines if needed)
-    const formattedPublicKey = env.KEYCLOAK_PUBLIC_KEY.includes('BEGIN PUBLIC KEY') ?
-      env.KEYCLOAK_PUBLIC_KEY : 
-      `-----BEGIN PUBLIC KEY-----\n${env.KEYCLOAK_PUBLIC_KEY}\n-----END PUBLIC KEY-----`;
-    
-    // Verify token with Keycloak's public key
-    decoded = jwt.verify(token, formattedPublicKey, { 
-      algorithms: ['RS256'] // Use appropriate algorithm as configured in Keycloak
-    });
-    
-    logger.debug('Token verified successfully');
     
     if (!decoded || typeof decoded !== 'object') {
       throw new Error('Invalid token format');
@@ -221,32 +256,54 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     // 1. Get authorization token from header
     const authHeader = req.header('Authorization');
     
-    // 2. Get databank ID from path parameters or determine if it's an asset route
+    // 2. Get databank ID from path parameters or determine if it's a route
+    // with no databank scope (assets, platform-level encryption key)
     const originalUrl = req.originalUrl || '';
     const isAssetRoute = originalUrl.includes('/assets');
-    
-    // For asset routes, we don't need a databank ID
+    const isDatabanklessRoute = isAssetRoute || originalUrl.includes('/encryption');
+
+    // For databank-less routes, we don't need a databank ID
     let databankId = req.params?.databankId?.toString() || '';
-    
-    // Only require databankId for non-asset routes
-    if (!databankId && !isAssetRoute) {
+
+    // Only require databankId for databank-scoped routes
+    if (!databankId && !isDatabanklessRoute) {
       const error = new Error('Databank ID is required in the URL path');
       (error as any).statusCode = 400;
       throw error;
     }
-    
-    // Use a placeholder value for asset routes
-    if (isAssetRoute && !databankId) {
-      databankId = 'assets';
+
+    // Use a placeholder value for databank-less routes
+    if (isDatabanklessRoute && !databankId) {
+      databankId = isAssetRoute ? 'assets' : 'platform';
     }
     
     // 3. Extract and decode token
     const token = extractToken(authHeader);
     const decodedToken = await decodeToken(token);
     const userId = decodedToken.sub ?? '';
+    if (!userId.trim()) {
+      throw new AuthenticationError('Token subject is required');
+    }
     
     // 4. Extract roles
     const { roles, isProvider, isConsumer, isAdmin } = extractRoles(decodedToken);
+
+    const did = req.header('DID');
+    if (did !== undefined) {
+      const delegator = z.string().uuid().safeParse(did.trim());
+      if (!delegator.success) {
+        throw new ValidationError('DID must contain one delegator UUID');
+      }
+      const identity = await resolveDelegation(delegator.data, userId);
+      const delegatedRoles = extractRoles({ realm_access: { roles: identity.roles } });
+      return {
+        ...identity,
+        ...delegatedRoles,
+        databankId,
+        isDelegated: true,
+        delegateeRoles: [...roles],
+      };
+    }
     
     return {
       userId,

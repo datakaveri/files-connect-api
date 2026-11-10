@@ -1,0 +1,381 @@
+{
+  "info": {
+    "_postman_id": "db14fdd4-f5bf-4d49-a572-742dc65dde35",
+    "name": "Files Connect API",
+    "description": "Requests generated from the current Files Connect API TypeScript routes, Zod validators, and OpenAPI registration. Select an environment and see postman/README.md before running destructive or upload requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const baseUrl = pm.environment.get('baseUrl');",
+          "if (baseUrl && baseUrl.endsWith('/')) {",
+          "  pm.environment.set('baseUrl', baseUrl.replace(/\\/+$/, ''));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Optional Keycloak Direct Access Grant helper. You may paste a JWT directly into accessToken instead.",
+      "item": [
+        {
+          "name": "Obtain access token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token request succeeded', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.access_token, 'access_token').to.be.a('string').and.not.empty;",
+                  "  pm.environment.set('accessToken', response.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "client_id", "value": "{{keycloakClientId}}", "type": "text" },
+                { "key": "username", "value": "{{username}}", "type": "text" },
+                { "key": "password", "value": "{{password}}", "type": "text" }
+              ]
+            },
+            "url": "{{keycloakTokenUrl}}",
+            "description": "Requests a JWT using a Keycloak password grant and stores it as accessToken. Direct Access Grants must be enabled."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health and documentation",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                "pm.test('Service is healthy', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+              ] }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/health",
+            "description": "Public liveness/readiness endpoint."
+          }
+        },
+        {
+          "name": "OpenAPI document",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/openapi.json",
+            "description": "Current generated OpenAPI document (served outside /v1)."
+          }
+        },
+        {
+          "name": "ReDoc UI",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/apis",
+            "description": "Browsable ReDoc UI (served outside /v1)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Databank files",
+      "item": [
+        {
+          "name": "List files",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"prefix\": \"\",\n  \"maxKeys\": 1000,\n  \"delimiter\": \"/\",\n  \"recursive\": false\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/files",
+            "description": "Lists files and directories. Roles: provider or consumer. Set recursive=true to return nested files without directory grouping."
+          }
+        },
+        {
+          "name": "Get presigned file download URL",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{fileKey}}\",\n  \"presigned\": true\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/files/download",
+            "description": "Returns a five-minute presigned URL. Roles: provider or consumer with databank access. Set presigned=false to stream binary content directly."
+          }
+        },
+        {
+          "name": "Get file metadata",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{fileKey}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/files/metadata",
+            "description": "Public endpoint returning size, lastModified, contentType, and ETag."
+          }
+        },
+        {
+          "name": "Preview file",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{fileKey}}\",\n  \"fileType\": \"{{fileType}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/files/preview",
+            "description": "Returns a preview. Roles: provider or consumer. fileType may be omitted for inference; accepted values are csv, json, xml, tsv, xlsx, parquet."
+          }
+        },
+        {
+          "name": "Delete file",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{fileKey}}\",\n  \"recursive\": false\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/files/delete",
+            "description": "DESTRUCTIVE. Deletes the supplied object. Roles: provider or consumer; databank owner only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Databank uploads",
+      "description": "One-part multipart workflow plus cancellation. Run requests 1-3 in order.",
+      "item": [
+        {
+          "name": "1. Initiate one-part upload",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test('Upload was initiated', () => pm.response.to.have.status(200));",
+                "if (pm.response.code === 200) {",
+                "  const data = pm.response.json().data;",
+                "  pm.expect(data.uploadId).to.be.a('string').and.not.empty;",
+                "  pm.expect(data.parts).to.be.an('array').and.not.empty;",
+                "  pm.environment.set('uploadId', data.uploadId);",
+                "  pm.environment.set('uploadPartOneUrl', data.parts[0].presignedUrl);",
+                "}"
+              ] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{uploadKey}}\",\n  \"numParts\": 1,\n  \"contentType\": \"{{uploadContentType}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/uploads",
+            "description": "Initiates a one-part upload and saves uploadId and the presigned part URL. Role: provider; databank owner only."
+          }
+        },
+        {
+          "name": "2. Upload part 1 to presigned URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test('Part upload succeeded', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]));",
+                "const etag = pm.response.headers.get('ETag') || pm.response.headers.get('etag');",
+                "pm.test('ETag header is present', () => pm.expect(etag).to.be.a('string').and.not.empty);",
+                "if (etag) pm.environment.set('uploadPartOneETag', etag.replace(/^\\\"|\\\"$/g, ''));"
+              ] }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "{{uploadContentType}}" }],
+            "body": { "mode": "file", "file": { "src": "{{uploadPartFilePath}}" } },
+            "url": "{{uploadPartOneUrl}}",
+            "description": "Uploads the binary file directly to storage and stores its ETag. Do not send the API Bearer token to this presigned URL."
+          }
+        },
+        {
+          "name": "3. Complete multipart upload",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{uploadKey}}\",\n  \"parts\": [\n    {\n      \"partNumber\": 1,\n      \"eTag\": \"{{uploadPartOneETag}}\"\n    }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/uploads/{{uploadId}}",
+            "description": "Finalizes the multipart upload. Role: provider; databank owner only."
+          }
+        },
+        {
+          "name": "Cancel multipart upload",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{uploadKey}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/uploads/{{uploadId}}/cancel",
+            "description": "DESTRUCTIVE. Aborts an in-progress multipart upload. Role: provider; databank owner only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Processing jobs",
+      "item": [
+        {
+          "name": "Create ZIP processing job",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test('Job was accepted', () => pm.response.to.have.status(202));",
+                "if (pm.response.code === 202) {",
+                "  const data = pm.response.json().data;",
+                "  pm.environment.set('jobId', data.jobId || (data.jobIds && data.jobIds.zip));",
+                "}"
+              ] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"zip\",\n  \"prefix\": \"\",\n  \"options\": {\n    \"include\": [\"{{fileKey}}\"]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/process",
+            "description": "Creates a ZIP job and stores jobId. Role: provider. Remove options.include to process all files. type can also be report or all."
+          }
+        },
+        {
+          "name": "Get processing job status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/process/{{jobId}}",
+            "description": "Polls a processing job. Role: provider. For type=all, poll the ZIP and report job IDs independently."
+          }
+        },
+        {
+          "name": "Update processing job status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{jobStatus}}\",\n  \"progress\": {{jobProgress}},\n  \"result\": {}\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/process/{{jobId}}/status",
+            "description": "Updates worker job state. Role: provider. progress must be 0-100; error and result are optional."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Databank access and generated downloads",
+      "item": [
+        {
+          "name": "Get temporary query access",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/query-access",
+            "description": "Returns scoped STS credentials. Roles: provider or consumer with databank access. Returns 400 with GCS storage."
+          }
+        },
+        {
+          "name": "Get databank ZIP download URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/download",
+            "description": "Returns a five-minute presigned URL for zips/{databankId}.zip. Roles: provider or consumer with databank access."
+          }
+        },
+        {
+          "name": "Get readiness report PDF download URL",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/databanks/{{databankId}}/report/download",
+            "description": "Public in the current route implementation. Returns a five-minute presigned URL for reports/{databankId}/data_readiness_report.pdf."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assets",
+      "item": [
+        {
+          "name": "Upload asset",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test('Asset was created', () => pm.response.to.have.status(201));",
+                "if (pm.response.code === 201) {",
+                "  const data = pm.response.json().data;",
+                "  if (data && data.key) pm.environment.set('assetKey', data.key);",
+                "}"
+              ] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "{{assetFilePath}}" }
+              ]
+            },
+            "url": "{{baseUrl}}/v1/assets",
+            "description": "Uploads a PDF/image up to 5 MiB and saves its returned key. Roles: provider, consumer, or cos_admin. Postman sets multipart Content-Type automatically."
+          }
+        },
+        {
+          "name": "Get asset download URL",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"key\": \"{{assetKey}}\",\n  \"expiresIn\": 300\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/assets/download",
+            "description": "Returns a presigned asset URL. provider can access only keys beginning with its own user ID; cos_admin can access all keys."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Encryption",
+      "item": [
+        {
+          "name": "Get encryption public key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/encryption/public-key",
+            "description": "Returns the RSA wrapping key. Role: provider. This path is mounted only when ENCRYPTION_ENABLED=true; otherwise it returns 404."
+          }
+        }
+      ]
+    }
+  ]
+}

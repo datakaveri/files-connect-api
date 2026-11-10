@@ -23,11 +23,18 @@ logger = logging.getLogger(__name__)
 
 def get_s3_client():
     """
-    Create and configure S3/MinIO client based on environment variables
+    Create and configure a storage client based on environment variables.
+    Returns a native GCS client (wrapped in a boto3-compatible facade) for
+    STORAGE_PROVIDER=gcs, or a boto3 S3/MinIO client otherwise.
     """
     storage_provider = os.environ.get('STORAGE_PROVIDER', 's3').lower()
 
-    # Get credentials
+    if storage_provider == 'gcs':
+        from gcs_client import create_gcs_client
+        logger.info("Configuring native GCS client (google-cloud-storage)")
+        return create_gcs_client()
+
+    # Get credentials (S3/MinIO only - GCS uses GCS_* service-account credentials above)
     access_key = os.environ.get('S3_ACCESS_KEY')
     secret_key = os.environ.get('S3_SECRET_KEY')
 
@@ -158,22 +165,22 @@ def download_files_from_s3(s3_client, bucket_name, folder_key, temp_dir):
         raise
 
 
-def upload_reports_to_s3(s3_client, temp_dir, folder_key, reports_bucket_name):
+def upload_reports_to_s3(s3_client, temp_dir, folder_key, bucket_name):
     """
-    Upload generated PDF report to S3 at {databank_id}/data_readiness_report.pdf
+    Upload generated PDF report to S3 at reports/{databank_id}/data_readiness_report.pdf
     """
-    logger.info(f"Uploading PDF report to S3: {reports_bucket_name}")
-    
+    logger.info(f"Uploading PDF report to S3: {bucket_name}")
+
     # Get databank ID (folder_key is the databank ID)
     databank_id = os.path.basename(folder_key.rstrip('/'))
-    
+
     # Look for outputReports directory in temp_dir
     output_reports_dir = os.path.join(temp_dir, 'outputReports')
     if not os.path.exists(output_reports_dir):
         # Also check if reports are directly in temp_dir
         output_reports_dir = temp_dir
         logger.info(f"outputReports directory not found, checking temp_dir directly")
-    
+
     # Find the PDF file (should be named data_readiness_report.pdf)
     pdf_path = None
     for root, dirs, files in os.walk(output_reports_dir):
@@ -183,17 +190,17 @@ def upload_reports_to_s3(s3_client, temp_dir, folder_key, reports_bucket_name):
                 break
         if pdf_path:
             break
-    
+
     if not pdf_path:
         logger.warning(f"PDF report not found in {output_reports_dir}")
         return 0
-    
-    # Construct S3 key: {databank_id}/data_readiness_report.pdf
-    s3_key = f"{databank_id}/data_readiness_report.pdf"
-    
-    logger.info(f"Uploading PDF report: {pdf_path} -> {reports_bucket_name}/{s3_key}")
+
+    # Construct S3 key: reports/{databank_id}/data_readiness_report.pdf
+    s3_key = f"reports/{databank_id}/data_readiness_report.pdf"
+
+    logger.info(f"Uploading PDF report: {pdf_path} -> {bucket_name}/{s3_key}")
     try:
-        s3_client.upload_file(pdf_path, reports_bucket_name, s3_key)
+        s3_client.upload_file(pdf_path, bucket_name, s3_key)
         logger.info(f"Successfully uploaded: {s3_key}")
         return 1
     except Exception as e:
@@ -231,18 +238,14 @@ def process_readiness_job(databank_id):
     logger.info(f"Processing readiness job for databank: {databank_id}")
     
     try:
-        # Get bucket names from environment variables (reports go to DATAREADINESS_BUCKET only)
-        bucket_name = os.environ.get('S3_BUCKET_NAME')
-        reports_bucket_name = os.environ.get('DATAREADINESS_BUCKET')
-        
+        bucket_name = os.environ.get('BUCKET_NAME')
+
         if not bucket_name:
-            raise ValueError("S3_BUCKET_NAME environment variable is required")
-        if not reports_bucket_name:
-            raise ValueError("DATAREADINESS_BUCKET environment variable is required for report uploads")
-        
+            raise ValueError("BUCKET_NAME environment variable is required")
+
         folder_key = databank_id
         logger.info(f"Using bucket: {bucket_name}, folder: {folder_key}")
-        logger.info(f"Reports bucket: {reports_bucket_name}")
+        logger.info(f"Reports will be written to: {bucket_name}/reports/{folder_key}/")
         
         # Create S3 client
         s3_client = get_s3_client()
@@ -309,8 +312,7 @@ def process_readiness_job(databank_id):
             framework_start = time.time()
             
             # Set environment variables for the framework modules
-            os.environ['S3_BUCKET_NAME'] = bucket_name
-            os.environ['DATAREADINESS_BUCKET'] = reports_bucket_name
+            os.environ['BUCKET_NAME'] = bucket_name
             
             # Set WORKER_TEMP_DIR so get_output_dir can use it
             # This ensures reports are created in temp_dir/outputReports
@@ -351,7 +353,7 @@ def process_readiness_job(databank_id):
             # Upload reports to S3
             logger.info("Uploading reports to S3")
             upload_start = time.time()
-            uploaded_count = upload_reports_to_s3(s3_client, temp_dir, folder_key, reports_bucket_name)
+            uploaded_count = upload_reports_to_s3(s3_client, temp_dir, folder_key, bucket_name)
             upload_duration = time.time() - upload_start
             logger.info(f"Uploaded {uploaded_count} reports in {upload_duration:.2f} seconds")
             

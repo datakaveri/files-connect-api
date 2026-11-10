@@ -9,9 +9,10 @@ import { createLogger } from '../core/utils/logger';
 import { validateBody } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
 import { successResponse } from '../core/utils/response';
-import { AuthorizationError, NotFoundError, ValidationError } from '../core/errors';
+import { ApplicationError, AuthorizationError, ValidationError } from '../core/errors';
 import { S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
+import { DelegationScope } from '../core/types/delegation';
 import { v4 as uuidv4 } from 'uuid';
 import { fileUpload } from '../middleware/file-upload';
 
@@ -40,7 +41,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
    */
   assetsRoutes.post(
     '/',
-    authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN]),
+    authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN], [DelegationScope.OWN_ASSET_MANAGEMENT]),
     async (req, res, next) => {
       try {
         // Check if file was uploaded
@@ -104,7 +105,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
    */
   assetsRoutes.post(
     '/download',
-    authorize([UserRole.PROVIDER, UserRole.ADMIN]),
+    authorize([UserRole.PROVIDER, UserRole.ADMIN], [DelegationScope.DATA_ACCESS]),
     validateBody(z.object({
       key: z.string().describe('Asset key'),
       expiresIn: z.number().optional().describe('Expiration time in seconds')
@@ -120,18 +121,22 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
         // The key provided by the client doesn't include the 'assets/' prefix, so add it
         const fullKey = `assets/${key}`;
 
-        if (!res.locals.isAdmin) {
+        if (res.locals.isDelegated || !res.locals.isAdmin) {
           if (res.locals.userId !== key.split('/')[0]) {
             throw new AuthorizationError('You are not authorized to access this asset');
           }
         }
 
         // Check if the asset exists first
-        try {
-          await s3Service.getAssetDetails(fullKey);
-        } catch (error) {
-          logger.error('Asset not found', error as Error, { fullPath: fullKey });
-          throw new NotFoundError('Asset', key);
+        const assetDetails = await s3Service.getAssetDetails(fullKey);
+        if (!assetDetails) {
+          logger.error('Asset not found', undefined, { fullPath: fullKey });
+          throw new ApplicationError(
+            `Asset '${key}' not found. Please check the key name once`,
+            404,
+            'RESOURCE_NOT_FOUND',
+            { resource: 'Asset', id: key }
+          );
         }
 
         // Generate a presigned URL for the asset

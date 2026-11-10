@@ -23,9 +23,8 @@ describe("Assets Routes", () => {
       // Set test environment variables
       process.env.NODE_ENV = "test";
       process.env.PORT = "0"; // Use random port
-      process.env.KEYCLOAK_AUTH_URL =
-        "https://idp.tgdex.telangana.gov.in/auth/realms/tgdex/protocol/openid-connect/token";
-      process.env.KEYCLOAK_CLIENT_ID = "angular-tgdex-client";
+      // Identity settings and test credentials come from the private .env.test;
+      // never override them with a shared organization's identity provider.
 
       console.log("Environment variables set for testing");
 

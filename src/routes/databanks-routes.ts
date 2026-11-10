@@ -33,14 +33,17 @@ import {
   databankAccess,
   checkItemAccessWithDatabankAccess,
   checkItemAccess, // Import new middleware
-  checkIsOwner
+  checkIsOwner,
+  checkDelegatedOwner
 } from "../middleware/auth";
 import { validateBody, VALIDATED_BODY } from "../middleware/validation";
 import { asyncHandler } from "../middleware/async-handler";
 import { UserRole } from "../core/types/auth";
+import { DelegationScope } from "../core/types/delegation";
 import { FileType } from "../core/types/file";
 import { buildResponse } from "../core/utils/route-utils";
 import {
+  ApplicationError,
   NotFoundError,
   ValidationError
 } from "../core/errors/application-errors";
@@ -85,7 +88,7 @@ export const databanksRoutes = Router();
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccess, // Use new middleware here
   validateBody(listObjectsSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -137,7 +140,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/download`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccessWithDatabankAccess, // Use new middleware 
   validateBody(getObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -157,6 +160,19 @@ databanksRoutes.post(
       if (!key) {
         throw new ValidationError('Key is required');
       }
+
+      // Check if the file exists before generating presigned URL
+      const fileDetails = await s3Service.getObjectDetails(key, databankId);
+      if (!fileDetails) {
+        logger.error('File not found', undefined, { key, databankId });
+        throw new ApplicationError(
+          `File '${key}' not found. Please check the key name once`,
+          404,
+          'RESOURCE_NOT_FOUND',
+          { resource: 'File', id: key }
+        );
+      }
+
       const presignedUrl = await s3Service.createPresignedUrl(key, databankId);
       
       const response = buildResponse({
@@ -279,7 +295,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/delete`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(deleteObjectSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -331,7 +347,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_FILES}/preview`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccess, // Use new middleware here
   validateBody(filePreviewSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -412,7 +428,7 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(initiateUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -479,7 +495,7 @@ databanksRoutes.post(
 databanksRoutes.put(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(completeUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -536,6 +552,19 @@ databanksRoutes.put(
   })
 );
 
+databanksRoutes.put(
+  `/:databankId/${ApiPaths.DATABANK_UPLOADS}`,
+  authenticate,
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.status(400).json({
+      error: {
+        message: 'Upload ID is required. Use PUT /databanks/:databankId/uploads/:uploadId',
+        status: 400
+      }
+    });
+  })
+);
+
 /**
  * POST /databanks/:databankId/uploads/:uploadId/cancel
  * Cancel a multipart upload
@@ -543,7 +572,7 @@ databanksRoutes.put(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_UPLOADS}/:uploadId/cancel`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
   checkIsOwner,
   validateBody(abortMultipartUploadSchema),
   asyncHandler(async (req: Request, res: Response) => {
@@ -592,7 +621,8 @@ databanksRoutes.post(
 databanksRoutes.post(
   `/:databankId/${ApiPaths.DATABANK_PROCESS}`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
+  checkDelegatedOwner,
   validateBody(createProcessingJobSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -660,7 +690,8 @@ databanksRoutes.post(
 databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_PROCESS}/:jobId`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
+  checkDelegatedOwner,
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
     const jobId = req.params.jobId;
@@ -717,7 +748,8 @@ databanksRoutes.get(
 databanksRoutes.put(
   `/:databankId/${ApiPaths.DATABANK_PROCESS}/:jobId/status`,
   authenticate,
-  authorize([UserRole.PROVIDER]),
+  authorize([UserRole.PROVIDER], [DelegationScope.OWN_ASSET_MANAGEMENT]),
+  checkDelegatedOwner,
   validateBody(updateProcessingJobStatusSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -788,7 +820,7 @@ databanksRoutes.put(
 databanksRoutes.get(
   `/:databankId/query-access`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccessWithDatabankAccess, // Check if user has access to the databank
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -859,7 +891,7 @@ databanksRoutes.get(
 databanksRoutes.get(
   `/:databankId/${ApiPaths.DATABANK_DOWNLOAD}`,
   authenticate,
-  authorize([UserRole.PROVIDER, UserRole.CONSUMER]),
+  authorize([UserRole.PROVIDER, UserRole.CONSUMER], [DelegationScope.DATA_ACCESS]),
   checkItemAccessWithDatabankAccess, // Use new middleware here
   asyncHandler(async (req: Request, res: Response) => {
     const databankId = req.params.databankId;
@@ -949,11 +981,11 @@ databanksRoutes.get(
     
     logger.info(`Report PDF download request received for databankId: ${databankId}`);
     
-    // Construct the report PDF location in the reports bucket.
+    // Construct the report PDF location in the main bucket.
     // Reports are uploaded by the readiness worker to:
-    //   {DATAREADINESS_BUCKET}/{databankId}/data_readiness_report.pdf
-    const reportsBucket = env.DATAREADINESS_BUCKET || env.BUCKET_NAME;
-    const pdfKey = `${databankId}/data_readiness_report.pdf`;
+    //   {BUCKET_NAME}/reports/{databankId}/data_readiness_report.pdf
+    const reportsBucket = env.BUCKET_NAME;
+    const pdfKey = `reports/${databankId}/data_readiness_report.pdf`;
     
     // Check if the PDF file exists and generate presigned URL
     try {

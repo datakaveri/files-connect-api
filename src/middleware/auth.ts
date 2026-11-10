@@ -4,14 +4,15 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { createAuthService } from '../services/auth-service';
-import { AuthenticationError, AuthorizationError } from '../core/errors';
+import { ApplicationError, AuthenticationError, AuthorizationError } from '../core/errors';
 import { createLogger } from '../core/utils/logger';
 import { UserRole } from '../core/types/auth';
 import axios from 'axios';
 import { env } from '../config/environment';
 import {
   checkDatabankAccess,
-  extractUserInfo
+  extractUserInfo,
+  UserInfo
 } from '../core/utils/auth-utils';
 import { ServiceUnavailableError, ValidationError, NotFoundError } from '../core/errors/application-errors';
 
@@ -24,6 +25,126 @@ const authService = createAuthService();
 // Auth feature toggles from environment
 const isAuthEnabled = env.AUTH_ENABLED;
 const isAuthzEnabled = env.AUTHZ_ENABLED;
+const ACL_SUCCESS_TYPES = new Set([
+  'urn:dx:apdServerPanel:success',
+  'dx:aclApd:success',
+]);
+const FILE_ACCESS_TYPE = 'file';
+const ACL_LEGACY_SUCCESS_DETAIL_PATTERN = /^user has access to the given (asset|item|databank)!?$/i;
+
+function buildCatalogueItemUrl(databankId: string): string {
+  const queryParams = new URLSearchParams({
+    id: databankId,
+    auditEnabled: 'false',
+  });
+
+  return `${env.CAT_API_URL}/item?${queryParams.toString()}`;
+}
+
+function forwardAuthHeaders(req: Request, res: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+  if (res.locals.isDelegated) headers.DID = res.locals.userId;
+  return headers;
+}
+
+function storeUserInfo(res: Response, userInfo: UserInfo): void {
+  const role = userInfo.isProvider ? UserRole.PROVIDER
+    : userInfo.isAdmin ? UserRole.ADMIN
+    : userInfo.isDelegated ? (userInfo.roles[0] ?? 'delegated') : UserRole.CONSUMER;
+  Object.assign(res.locals, {
+    userId: userInfo.userId,
+    userRole: role,
+    databankId: userInfo.databankId,
+    userRoles: userInfo.roles,
+    isProvider: userInfo.isProvider,
+    isConsumer: userInfo.isConsumer,
+    isAdmin: userInfo.isAdmin,
+    orgId: userInfo.orgId,
+    orgName: userInfo.orgName,
+    scopes: userInfo.scopes ?? [],
+    isDelegated: userInfo.isDelegated === true,
+    delegateeId: userInfo.delegateeId,
+    delegateeRoles: userInfo.delegateeRoles,
+    user: { id: userInfo.userId, role, scopes: userInfo.scopes ?? [] },
+  });
+}
+
+function getStringProperty(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const property = (value as Record<string, unknown>)[key];
+  return typeof property === 'string' ? property : undefined;
+}
+
+function isAclAccessGranted(responseData: unknown): boolean {
+  const responseType = getStringProperty(responseData, 'type');
+  if (responseType && ACL_SUCCESS_TYPES.has(responseType)) {
+    return true;
+  }
+
+  const detail = getStringProperty(responseData, 'detail');
+  if (detail && ACL_LEGACY_SUCCESS_DETAIL_PATTERN.test(detail.trim())) {
+    return true;
+  }
+
+  const result = responseData && typeof responseData === 'object'
+    ? (responseData as { result?: unknown }).result
+    : undefined;
+
+  if (result && typeof result === 'object') {
+    const hasAccess = (result as { hasAccess?: unknown }).hasAccess;
+    return hasAccess === true;
+  }
+
+  return false;
+}
+
+function hasOwnConstraints(policy: unknown): boolean {
+  if (!policy || typeof policy !== 'object' || !('constraints' in policy)) {
+    return false;
+  }
+
+  const constraints = (policy as { constraints?: unknown }).constraints;
+  return !!constraints && typeof constraints === 'object' && Object.keys(constraints).length > 0;
+}
+
+function hasFileAccessConstraint(policy: unknown): boolean {
+  if (!hasOwnConstraints(policy)) {
+    return false;
+  }
+
+  const constraints = (policy as { constraints: { access?: unknown } }).constraints;
+  if (!Array.isArray(constraints.access)) {
+    return false;
+  }
+
+  return constraints.access.some((accessConstraint) => {
+    if (!accessConstraint || typeof accessConstraint !== 'object') {
+      return false;
+    }
+
+    const accessType = (accessConstraint as { accessType?: unknown }).accessType;
+    return typeof accessType === 'string' && accessType.toLowerCase() === FILE_ACCESS_TYPE;
+  });
+}
+
+function hasFileAccessFromHasAccessResponse(responseData: unknown): boolean {
+  const policies = (responseData as { result?: { policies?: unknown } })?.result?.policies;
+
+  if (!Array.isArray(policies)) {
+    return true;
+  }
+
+  const constrainedPolicies = policies.filter(hasOwnConstraints);
+  if (constrainedPolicies.length === 0) {
+    return true;
+  }
+
+  return constrainedPolicies.some(hasFileAccessConstraint);
+}
 
 /**
  * Authentication middleware
@@ -38,6 +159,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     // If authentication is disabled via environment, skip this middleware
     if (!isAuthEnabled) {
+      if (req.header('DID') !== undefined) {
+        return next(new AuthorizationError('Delegation requires authentication'));
+      }
       logger.debug('Authentication disabled via AUTH_ENABLED env flag; skipping authenticate middleware');
       return next();
     }
@@ -45,23 +169,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Use extractUserInfo to get user information from the request
     const userInfo = await extractUserInfo(req, res);
 
-    // Set user role based on provider status
-    const userRole = userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER;
-
-    // Store user information in response locals for access in route handlers
-    res.locals.userId = userInfo.userId;
-    res.locals.userRole = userRole;
-    res.locals.databankId = userInfo.databankId;
-    res.locals.userRoles = userInfo.roles;
-    res.locals.isProvider = userInfo.isProvider;
-    res.locals.isConsumer = userInfo.isConsumer;
-    res.locals.isAdmin = userInfo.isAdmin;
-    res.locals.orgId = userInfo.orgId;
-    res.locals.orgName = userInfo.orgName;
-    res.locals.user = {
-      id: userInfo.userId,
-      role: userRole
-    };
+    storeUserInfo(res, userInfo);
 
     // Log successful authentication
     logger.info(`Authentication successful: userId=${userInfo.userId}, databankId=${userInfo.databankId}, roles=${userInfo.roles.join(',')}, isProvider=${userInfo.isProvider}, isConsumer=${userInfo.isConsumer}, isAdmin=${userInfo.isAdmin}`);
@@ -69,8 +177,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Continue to next middleware or route handler
     next();
   } catch (err) {
-    // If error is already an AuthenticationError, pass it to error handler
-    if (err instanceof AuthenticationError) {
+    // Preserve authentication, delegation denial, validation and dependency error statuses.
+    if (err instanceof ApplicationError) {
       return next(err);
     }
 
@@ -90,51 +198,43 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
  * Creates middleware that checks if user has required roles
  * 
  * @param allowedRoles - Roles that are allowed to access the route
+ * @param delegatedScopes - Any one of these exact scopes is required for a delegated request.
+ * An omitted scope mapping denies delegated requests.
  * @returns Middleware function that checks user roles
  */
-export function authorize(allowedRoles: UserRole[]) {
+export function authorize(allowedRoles: UserRole[], delegatedScopes: readonly string[] = []) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       // If authorization is disabled via environment, skip this middleware
       if (!isAuthEnabled || !isAuthzEnabled) {
+        if (res.locals.isDelegated || req.header('DID') !== undefined) {
+          return next(new AuthorizationError('Delegation requires authentication and authorization'));
+        }
         logger.debug('Authorization disabled via AUTH_ENABLED/AUTHZ_ENABLED env flags; skipping authorize middleware');
         return next();
       }
 
       // Check if user is already authenticated
-      const userId = res.locals.userId;
-      const isProvider = res.locals.isProvider;
-      const isConsumer = res.locals.isConsumer;
-      const isAdmin = res.locals.isAdmin;
 
-      // Determine if this is an asset route by checking the originalUrl
-      // This is more reliable than req.path which might be '/' in some middleware contexts
+      // Determine if this is a route with no databank scope (assets, encryption)
+      // by checking the originalUrl. This is more reliable than req.path which
+      // might be '/' in some middleware contexts
       const originalUrl = req.originalUrl || '';
       const isAssetRoute = originalUrl.includes('/assets');
+      const isDatabanklessRoute = isAssetRoute || originalUrl.includes('/encryption');
 
       // If not authenticated, try to authenticate
-      if (!userId) {
+      if (!res.locals.userId) {
         try {
           // Extract user information from request
           const userInfo = await extractUserInfo(req, res);
 
-          // Store user information in response locals
-          res.locals.userId = userInfo.userId;
-          res.locals.userRoles = userInfo.roles;
-          res.locals.isProvider = userInfo.isProvider;
-          res.locals.isConsumer = userInfo.isConsumer;
-          res.locals.isAdmin = userInfo.isAdmin;
-          res.locals.orgId = userInfo.orgId;
-          res.locals.orgName = userInfo.orgName;
-          res.locals.user = {
-            id: userInfo.userId,
-            role: userInfo.isProvider ? UserRole.PROVIDER : UserRole.CONSUMER
-          };
+          storeUserInfo(res, userInfo);
 
-          // For asset routes, we don't need a databank ID
-          if (isAssetRoute) {
-            res.locals.databankId = 'assets'; // Use a placeholder value
-            logger.debug('Asset route detected, skipping databank ID validation', { path: originalUrl });
+          // For databank-less routes (assets, encryption), we don't need a databank ID
+          if (isDatabanklessRoute) {
+            res.locals.databankId = isAssetRoute ? 'assets' : 'platform'; // Use a placeholder value
+            logger.debug('Databank-less route detected, skipping databank ID validation', { path: originalUrl });
           } else {
             // For non-asset routes, get the databank ID from params or query
             const databankId = req.params.databankId || req.query.databankId?.toString();
@@ -147,9 +247,23 @@ export function authorize(allowedRoles: UserRole[]) {
             res.locals.databankId = databankId;
           }
         } catch (authErr) {
+          if (authErr instanceof ApplicationError) return next(authErr);
           return next(new AuthenticationError('Authentication required'));
         }
       }
+
+      // Delegated scopes never inherit permissions from either user's roles.
+      if (res.locals.isDelegated) {
+        const scopes: string[] = res.locals.scopes ?? [];
+        if (!delegatedScopes.some((scope) => scopes.includes(scope))) {
+          return next(new AuthorizationError('Required delegated scope not found'));
+        }
+        res.locals.roleForAccess = res.locals.userRole;
+        return next();
+      }
+
+      // Read after fallback authentication, which may have just populated these fields.
+      const { userId, isProvider, isConsumer, isAdmin } = res.locals;
 
       // Check if user has any of the allowed roles
       let hasAllowedRole = false;
@@ -161,7 +275,7 @@ export function authorize(allowedRoles: UserRole[]) {
       } else if (allowedRoles.includes(UserRole.CONSUMER) && isConsumer) {
         hasAllowedRole = true;
         roleForAccess = UserRole.CONSUMER;
-      } else if (allowedRoles.includes(UserRole.ADMIN)) {
+      } else if (allowedRoles.includes(UserRole.ADMIN) && isAdmin) {
         hasAllowedRole = true;
         roleForAccess = UserRole.ADMIN;
       }
@@ -174,10 +288,11 @@ export function authorize(allowedRoles: UserRole[]) {
       const currentDatabankId = res.locals.databankId;
 
       // Check if user has access to the databank
-      // Skip databank access check for asset routes
-      // We already determined if this is an asset route above, but check again here
+      // Skip databank access check for databank-less routes (assets, encryption)
+      // We already determined this above, but check again here
       // in case the route path has changed during middleware execution
-      const skipDatabankCheck = (req.originalUrl || '').includes('/assets');
+      const skipDatabankCheck = (req.originalUrl || '').includes('/assets')
+        || (req.originalUrl || '').includes('/encryption');
 
       if (!skipDatabankCheck) {
         const accessResult = await checkDatabankAccess(
@@ -202,6 +317,7 @@ export function authorize(allowedRoles: UserRole[]) {
       // Continue to next middleware or route handler
       next();
     } catch (err) {
+      if (err instanceof ApplicationError) return next(err);
       // Log error and pass to error handler
       logger.warn('Authorization failed', {
         path: req.path,
@@ -294,7 +410,7 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       const response = await axios.post(
         aclApiUrl,
         { itemId: requestedDatabankId },
-        { headers: { Authorization: authHeader } }
+        { headers: forwardAuthHeaders(req, res) }
       );
 
       // Validate that the response is JSON — if ACL_APD_API_URL is misconfigured,
@@ -310,7 +426,20 @@ export async function databankAccess(req: Request, res: Response, next: NextFunc
       logger.debug('ACL API response', { responseData });
 
       // Check response type to determine access
-      if (responseData.type === 'urn:dx:apdServerPanel:success') {
+      if (isAclAccessGranted(responseData)) {
+        if (!hasFileAccessFromHasAccessResponse(responseData)) {
+          logger.warn('Databank access denied by ACL API constraints', {
+            userId: res.locals.userId,
+            databankId: requestedDatabankId,
+            responseType: responseData.type,
+          });
+
+          return next(new AuthorizationError('File access is not permitted for this databank', {
+            reason: 'FILE_ACCESS_CONSTRAINT_MISSING',
+            databankId: requestedDatabankId,
+          }));
+        }
+
         // User has access, continue to next middleware
         logger.info('Databank access granted via ACL API', {
           userId: res.locals.userId,
@@ -395,12 +524,12 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
     //   return next();
     // }
 
-    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    const catalogApiUrl = buildCatalogueItemUrl(databankId);
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
 
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
-    const headers = authHeader ? { Authorization: authHeader } : {};
+    const headers = forwardAuthHeaders(req, res);
     logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
 
     const response = await axios.get(catalogApiUrl, { headers });
@@ -414,6 +543,10 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
         detail: `Catalogue API returned unexpected content type: ${contentType}. Expected application/json.`,
         databankId,
       }));
+    }
+
+    if (response.status === 404) {
+      return next(new NotFoundError('Databank', databankId));
     }
 
     if (response.status !== 200) {
@@ -433,11 +566,11 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
         return next();
       } else if (accessPolicy === 'PRIVATE') {
-        return next();
+        return res.locals.isDelegated ? databankAccess(req, res, next) : next();
       } else {
         logger.info(`[checkItemAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
         // Not public, delegate to existing databankAccess middleware
-        return next();
+        return res.locals.isDelegated ? databankAccess(req, res, next) : next();
       }
     } else {
       logger.warn(`[checkItemAccess] Unexpected response structure or no results from Catalogue API for databankId: ${databankId}`, { responseData: catalogData });
@@ -454,13 +587,10 @@ export async function checkItemAccess(req: Request, res: Response, next: NextFun
         const status = error.response.status;
         const statusText = error.response.statusText;
 
-        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
+        // A missing Catalogue item is a missing databank, not a service outage.
         if (status === 404) {
-          logger.error(`[checkItemAccess] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
-          return next(new ServiceUnavailableError('Catalogue API', {
-            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
-            databankId,
-          }));
+          logger.warn(`Catalogue API returned 404 for databankId: ${databankId}`);
+          return next(new NotFoundError('Databank', databankId));
         }
 
         // Handle other 4xx errors - client errors
@@ -517,12 +647,12 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
   }
 
   try {
-    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    const catalogApiUrl = buildCatalogueItemUrl(databankId);
     logger.info(`[checkItemAccess] Calling Catalogue API: ${catalogApiUrl}`);
 
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
-    const headers = authHeader ? { Authorization: authHeader } : {};
+    const headers = forwardAuthHeaders(req, res);
     logger.debug(`[checkItemAccess] Forwarding authorization token to Catalogue API`);
 
     const response = await axios.get(catalogApiUrl, { headers });
@@ -536,6 +666,10 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
         detail: `Catalogue API returned unexpected content type: ${contentType}. Expected application/json.`,
         databankId,
       }));
+    }
+
+    if (response.status === 404) {
+      return next(new NotFoundError('Databank', databankId));
     }
 
     if (response.status !== 200) {
@@ -553,8 +687,6 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
       logger.info(`[checkItemAccess] Databank ${databankId} has accessPolicy: ${accessPolicy}`);
       if (accessPolicy === 'OPEN') {
         logger.info(`[checkItemAccess] Databank ${databankId} is public. Granting access.`);
-        return next();
-      } else if (accessPolicy === 'PRIVATE') {
         return next();
       } else {
         logger.info(`[checkItemAccess] Databank ${databankId} is not public. Proceeding to owner/ACL check.`);
@@ -576,13 +708,10 @@ export async function checkItemAccessWithDatabankAccess(req: Request, res: Respo
         const status = error.response.status;
         const statusText = error.response.statusText;
 
-        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
+        // A missing Catalogue item is a missing databank, not a service outage.
         if (status === 404) {
-          logger.error(`[checkItemAccessWithDatabankAccess] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
-          return next(new ServiceUnavailableError('Catalogue API', {
-            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
-            databankId,
-          }));
+          logger.warn(`Catalogue API returned 404 for databankId: ${databankId}`);
+          return next(new NotFoundError('Databank', databankId));
         }
 
         // Handle other 4xx errors - client errors
@@ -642,6 +771,10 @@ export function flexibleAuthMiddleware(allowedRoles: UserRole[]) {
  * @param res Express response object, with `userId` in `res.locals`.
  * @param next Express next function.
  */
+export function checkDelegatedOwner(req: Request, res: Response, next: NextFunction) {
+  return res.locals.isDelegated ? checkIsOwner(req, res, next) : next();
+}
+
 export async function checkIsOwner(req: Request, res: Response, next: NextFunction) {
   const { databankId } = req.params;
   const userId = res.locals.userId;
@@ -665,12 +798,12 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
   }
 
   try {
-    const catalogApiUrl = `${env.CAT_API_URL}/item?id=${databankId}`;
+    const catalogApiUrl = buildCatalogueItemUrl(databankId);
     logger.info(`[checkIsOwner] Calling Catalogue API: ${catalogApiUrl}`);
 
     // Forward the authorization token from the original request
     const authHeader = req.headers.authorization;
-    const headers = authHeader ? { Authorization: authHeader } : {};
+    const headers = forwardAuthHeaders(req, res);
     logger.debug(`[checkIsOwner] Forwarding authorization token to Catalogue API`);
 
     const response = await axios.get(catalogApiUrl, { headers });
@@ -684,6 +817,10 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
         detail: `Catalogue API returned unexpected content type: ${contentType}. Expected application/json.`,
         databankId,
       }));
+    }
+
+    if (response.status === 404) {
+      return next(new NotFoundError('Databank', databankId));
     }
 
     if (response.status !== 200) {
@@ -743,13 +880,10 @@ export async function checkIsOwner(req: Request, res: Response, next: NextFuncti
         const status = error.response.status;
         const statusText = error.response.statusText;
 
-        // Handle 404 - item not found in catalogue (may indicate misconfigured CAT_API_URL)
+        // A missing Catalogue item is a missing databank, not a service outage.
         if (status === 404) {
-          logger.error(`[checkIsOwner] Catalogue API returned 404 for databankId: ${databankId}. This may indicate a misconfigured CAT_API_URL (currently: ${env.CAT_API_URL}). Verify the catalogue server URL and ensure the databank is registered.`);
-          return next(new ServiceUnavailableError('Catalogue API', {
-            detail: `Databank ${databankId} not found in Catalogue API. Please verify the catalogue configuration (CAT_API_URL) is correct.`,
-            databankId,
-          }));
+          logger.warn(`Catalogue API returned 404 for databankId: ${databankId}`);
+          return next(new NotFoundError('Databank', databankId));
         }
 
         // Handle other 4xx errors - client errors

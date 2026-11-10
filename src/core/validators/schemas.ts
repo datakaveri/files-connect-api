@@ -95,6 +95,13 @@ export const initiateUploadSchema = z.object({
   contentType: z.string().optional(),
 });
 
+const processingJobOptionsSchema = z.object({
+  /** Databank-relative file names/paths to include in zip output */
+  include: z.array(z.string().trim().min(1, 'Include file names cannot be empty'))
+    .min(1, 'Include must contain at least one file name')
+    .optional(),
+}).catchall(z.any());
+
 /**
  * Schema for processing job creation request
  */
@@ -106,7 +113,7 @@ export const createProcessingJobSchema = z.object({
   prefix: z.string().optional(),
   
   /** Optional processing options */
-  options: z.record(z.any()).optional(),
+  options: processingJobOptionsSchema.optional(),
 });
 
 /**

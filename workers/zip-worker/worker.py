@@ -10,6 +10,7 @@ import json
 import time
 import redis
 from redis.cluster import RedisCluster
+from redis.sentinel import Sentinel
 from zip_processor import process_zip_job
 
 # Configure logging
@@ -32,14 +33,57 @@ def signal_handler(signum, frame):
 
 def get_redis_client():
     """
-    Create and return a Redis client (standalone or cluster).
-    Use REDIS_CLUSTER=true when connecting to a Redis Cluster (e.g. in Kubernetes).
+    Create and return a Redis client (standalone, cluster or sentinel).
+    Set REDIS_SENTINEL_ENABLED=true for Redis Sentinel (HA), or REDIS_CLUSTER=true for
+    a Redis Cluster (e.g. in Kubernetes). Sentinel takes precedence over cluster.
     """
     redis_host = os.environ.get('REDIS_HOST', 'localhost')
     redis_port = int(os.environ.get('REDIS_PORT', '6379'))
     redis_password = os.environ.get('REDIS_PASSWORD')
     redis_db = int(os.environ.get('REDIS_DB', '0'))
-    use_cluster = os.environ.get('REDIS_CLUSTER', '').lower() in ('1', 'true', 'yes')
+    use_sentinel = os.environ.get('REDIS_SENTINEL_ENABLED', '').lower() in ('1', 'true', 'yes')
+    use_cluster = (
+        os.environ.get('REDIS_CLUSTER')
+        or os.environ.get('REDIS_CLUSTER_MODE', '')
+    ).lower() in ('1', 'true', 'yes')
+
+    if use_sentinel:
+        # Sentinel (HA) mode takes precedence over cluster/standalone.
+        master_name = os.environ.get('REDIS_SENTINEL_MASTER_NAME', 'mymaster')
+        sentinel_hosts_raw = os.environ.get(
+            'REDIS_SENTINEL_HOSTS', f'{redis_host}:26379'
+        )
+        sentinel_nodes = []
+        for entry in sentinel_hosts_raw.split(','):
+            entry = entry.strip()
+            if not entry:
+                continue
+            host, _, port = entry.rpartition(':')
+            sentinel_nodes.append((host or entry, int(port) if port else 26379))
+        logger.info(f"Connecting to Redis Sentinel {sentinel_nodes} master={master_name}")
+        sentinel_password = os.environ.get('REDIS_SENTINEL_PASSWORD')
+        sentinel_kwargs = {'password': sentinel_password} if sentinel_password else None
+        try:
+            sentinel = Sentinel(
+                sentinel_nodes,
+                socket_timeout=5,
+                sentinel_kwargs=sentinel_kwargs,
+            )
+            client = sentinel.master_for(
+                master_name,
+                db=redis_db,
+                password=redis_password,
+                decode_responses=True,
+                socket_timeout=5,
+                socket_keepalive=True,
+                health_check_interval=30,
+            )
+            client.ping()
+            logger.info("Successfully connected to Redis Sentinel master")
+            return client
+        except Exception as e:
+            logger.exception(f"Failed to connect to Redis Sentinel: {str(e)}")
+            raise
 
     if use_cluster:
         logger.info(f"Connecting to Redis Cluster: {redis_host}:{redis_port}")
@@ -49,6 +93,10 @@ def get_redis_client():
             'decode_responses': True,
             'socket_connect_timeout': 5,
             'socket_keepalive': True,
+            'dynamic_startup_nodes': os.environ.get(
+                'REDIS_CLUSTER_DYNAMIC_STARTUP_NODES',
+                'false',
+            ).lower() in ('1', 'true', 'yes'),
         }
         if redis_password:
             cluster_config['password'] = redis_password
@@ -58,7 +106,7 @@ def get_redis_client():
             logger.info("Successfully connected to Redis Cluster")
             return client
         except Exception as e:
-            logger.error(f"Failed to connect to Redis Cluster: {str(e)}")
+            logger.exception(f"Failed to connect to Redis Cluster: {str(e)}")
             raise
     else:
         logger.info(f"Connecting to Redis: {redis_host}:{redis_port}/{redis_db}")
@@ -130,6 +178,7 @@ def process_job(redis_client, job_data):
         job_id = job_info.get('jobId')
         databank_id = job_info.get('databankId')
         job_type = job_info.get('type')
+        options = job_info.get('options') or {}
         
         logger.info(f"Processing job {job_id} for databank {databank_id}")
         
@@ -137,7 +186,7 @@ def process_job(redis_client, job_data):
         update_job_status(redis_client, job_id, 'processing', progress=0)
         
         # Process the zip job
-        result = process_zip_job(databank_id)
+        result = process_zip_job(databank_id, options)
         
         # Update final status
         if result.get('success'):
@@ -190,9 +239,14 @@ def worker_loop():
     logger.info("Starting zip worker...")
     
     # Validate required environment variables
-    required_vars = ['S3_BUCKET_NAME', 'S3_ACCESS_KEY', 'S3_SECRET_KEY']
+    # S3_ACCESS_KEY/S3_SECRET_KEY are only required for S3/MinIO; GCS authenticates via
+    # GCS_KEY_FILE, GCS_CLIENT_EMAIL/GCS_PRIVATE_KEY, or Application Default Credentials.
+    storage_provider = os.environ.get('STORAGE_PROVIDER', 's3').lower()
+    required_vars = ['BUCKET_NAME']
+    if storage_provider != 'gcs':
+        required_vars += ['S3_ACCESS_KEY', 'S3_SECRET_KEY']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
-    
+
     if missing_vars:
         logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
         sys.exit(1)
@@ -205,7 +259,7 @@ def worker_loop():
         sys.exit(1)
     
     # Queue name
-    queue_name = 'jobs:zip'
+    queue_name = os.environ.get('ZIP_QUEUE_NAME', 'jobs:zip')
     logger.info(f"Listening on queue: {queue_name}")
     
     # Main loop

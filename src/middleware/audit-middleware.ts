@@ -218,7 +218,18 @@ function extractAuditContext(req: Request, res: Response, action: AuditAction): 
       authToken,
       orgId,
       orgName,
-      // New fields for updated schema
+      // Actor classification: DELEGATE when the logged-in user acts for userId (the DID)
+      actorType: res.locals.isDelegated ? 'DELEGATE' : 'SELF',
+      ...(res.locals.isDelegated && {
+        delegateId: res.locals.delegateeId,
+        delegatorId: userId,
+        delegatorRole: userRole,
+        context: {
+          delegateeId: res.locals.delegateeId,
+          delegateeRoles: res.locals.delegateeRoles,
+          scopes: res.locals.scopes,
+        },
+      }),
       ipAddress,
       userAgent,
       // Log type defaults to ASSET for file operations
@@ -228,4 +239,4 @@ function extractAuditContext(req: Request, res: Response, action: AuditAction): 
     logger.error('Failed to extract audit context', error as Error);
     return null;
   }
-} 
+}

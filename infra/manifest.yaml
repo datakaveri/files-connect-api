@@ -1,3 +1,4 @@
+# EXAMPLE ONLY: customize an ignored infra/manifest.local.yaml copy before applying.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,10 +17,10 @@ spec:
         app: files-connect-api
     spec:
       imagePullSecrets:
-      - name: tgdex-registry-cred
+      - name: registry-credentials  # create in this namespace, or omit for public images
       containers:
       - name: files-connect-api
-        image: ghcr.io/datakaveri/tgdex-file-connect-api:tgdex-1.0.0
+        image: your-registry/files-connect-api:your-version  # pin your release tag or digest
         ports:
         - containerPort: 3000
         livenessProbe:
