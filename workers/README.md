@@ -2,12 +2,17 @@
 
 This directory contains worker applications that process asynchronous jobs from the Redis job queue.
 
+Configuration reference: [docs/config/zip-worker.md](../docs/config/zip-worker.md) and
+[docs/config/report-worker.md](../docs/config/report-worker.md) — every environment variable, the
+privileges each credential needs, and what an operator sees when a value is wrong. Values that must
+match the file server are listed in [docs/config/README.md](../docs/config/README.md).
+
 ## Architecture
 
 The system uses a Redis-based job queue architecture:
 
 ```
-TypeScript API → Redis Queue → Python Worker(s) → S3/MinIO
+TypeScript API → Redis Queue → Python Worker(s) → S3/MinIO/GCS
                       ↓
                  Job Status (Redis)
 ```
@@ -23,14 +28,14 @@ TypeScript API → Redis Queue → Python Worker(s) → S3/MinIO
 ### Zip Worker (`zip-worker/`)
 
 Processes databank zip creation jobs:
-- Streams files from S3/MinIO
+- Streams source files from S3/MinIO/GCS into a locally staged ZIP archive
 - Creates compressed zip archives
 - Uploads zip files back to storage
 - Updates CAT API with completion status
 
 **Key Features:**
 - Memory-efficient streaming (handles large datasets)
-- Works with both AWS S3 and MinIO
+- Works with AWS S3, MinIO, or GCS (native `google-cloud-storage` client)
 - Maintains folder structure in zip files
 - Graceful shutdown handling
 - Automatic retry on connection failures
@@ -38,20 +43,20 @@ Processes databank zip creation jobs:
 ### Report Worker (`report-worker/`)
 
 Processes data readiness assessment jobs:
-- Downloads files from S3/MinIO
+- Downloads files from S3/MinIO/GCS
 - Automatically detects structured (CSV, Parquet, JSON) or unstructured (PDF, Images, Audio) datasets
 - Runs comprehensive data quality assessment framework
 - Generates detailed JSON and PDF reports
 - Uploads reports back to storage
-- Updates CAT API with readiness scores
+- Optionally updates the Catalogue's Elasticsearch index with readiness scores
 
 **Key Features:**
 - Supports both structured and unstructured data
 - Automatic data type detection
 - Comprehensive metrics (quality, variance, standardization, documentation, etc.)
-- LLM-powered column/role inference (OpenAI)
+- OpenAI-assisted unstructured metadata inference; structured column-role inference is currently disabled
 - Memory-efficient processing
-- Works with both AWS S3 and MinIO
+- Works with AWS S3, MinIO, or GCS (native `google-cloud-storage` client)
 - Graceful shutdown handling
 - Automatic retry on connection failures
 
@@ -61,18 +66,18 @@ Processes data readiness assessment jobs:
 
 ```bash
 # Start all services (MinIO, Redis, Worker)
-docker-compose up -d
+docker compose up -d
 
 # Scale workers
-docker-compose up -d --scale zip-worker=3
-docker-compose up -d --scale report-worker=2
+docker compose up -d --scale zip-worker=3
+docker compose up -d --scale report-worker=4
 
 # View worker logs
-docker-compose logs -f zip-worker
-docker-compose logs -f report-worker
+docker compose logs -f zip-worker
+docker compose logs -f report-worker
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ### Kubernetes (Production)
@@ -136,12 +141,11 @@ Only **one bucket** is required. Both workers use `BUCKET_NAME` — the same buc
 **For all workers:**
 - `REDIS_HOST` - Redis server hostname
 - `REDIS_PORT` - Redis server port (default: 6379)
-- `BUCKET_NAME` - S3/MinIO bucket (same bucket the API uses)
-- `S3_ACCESS_KEY` - Storage access key
-- `S3_SECRET_KEY` - Storage secret key
+- `BUCKET_NAME` - Storage bucket (same bucket the API uses)
+- `S3_ACCESS_KEY` / `S3_SECRET_KEY` - Storage access/secret key (S3/MinIO only — not needed for `STORAGE_PROVIDER=gcs`, see below)
 
 **For readiness worker only:**
-- `OPENAI_API_KEY` - OpenAI API key for column/role inference (required)
+- `OPENAI_API_KEY` - private key for unstructured metadata inference; structured inference is disabled in this branch
 
 ### Storage Configuration
 
@@ -149,6 +153,8 @@ For **MinIO**:
 ```bash
 STORAGE_PROVIDER=minio
 S3_ENDPOINT=http://minio:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 USE_SSL=false
 ```
 
@@ -157,8 +163,22 @@ For **AWS S3**:
 STORAGE_PROVIDER=s3
 S3_REGION=us-east-1
 S3_ENDPOINT=  # Optional, uses AWS default
+S3_ACCESS_KEY=your-access-key
+S3_SECRET_KEY=your-secret-key
 USE_SSL=true
 ```
+
+For **GCS** (native `google-cloud-storage` client — see `gcs_client.py` in each worker):
+```bash
+STORAGE_PROVIDER=gcs
+GCS_PROJECT_ID=your-gcp-project-id
+GCS_KEY_FILE=/path/to/service-account.json
+# ...or inline credentials instead of a key file:
+# GCS_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+# GCS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+# ...or omit all of the above to use Application Default Credentials
+```
+`S3_ACCESS_KEY`/`S3_SECRET_KEY` are not required in this mode — the workers use the same `GCS_*` service-account credentials as the TypeScript API instead of `boto3`.
 
 ### Optional
 
@@ -170,7 +190,7 @@ USE_SSL=true
 - `CAT_PASSWORD` - CAT API password
 
 **For readiness worker:**
-- `READINESS_QUEUE_NAME` - Custom queue name (default: `jobs:readiness`)
+- `REPORT_QUEUE_NAME` - Custom report queue name (default: `jobs:report`; `READINESS_QUEUE_NAME` is still accepted as a legacy alias)
 - `ELASTIC_ID` - Elasticsearch ID for CAT API updates
 - `ELASTIC_PASS` - Elasticsearch password for CAT API updates
 
@@ -178,14 +198,13 @@ USE_SSL=true
 
 ### Process endpoint job types
 The API `POST /v1/databanks/:databankId/process` accepts a body `type`:
-- **`zip`** – One job is created and pushed to `jobs:zip` (zip worker processes it).
-- **`report`** – One job is created and pushed to `jobs:report` (report worker processes it).
-- **`all`** – Two jobs are created: one pushed to `jobs:zip`, one to `jobs:report`. The response returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status.
+- **`zip`** – One job is created and pushed to `ZIP_QUEUE_NAME` (default: `jobs:zip`).
+- **`report`** – One job is created and pushed to `REPORT_QUEUE_NAME` (default: `jobs:report`).
+- **`all`** – Two jobs are created: one pushed to each configured queue. The response returns `jobIds.zip` and `jobIds.report`; poll each job ID separately for status.
 
 ### Queue Names
-- `jobs:zip` - Zip creation jobs
-- `jobs:readiness` - Data readiness assessment jobs
-- `jobs:report` - Report generation jobs (deprecated, use `jobs:readiness`)
+- `ZIP_QUEUE_NAME` - Zip creation jobs (default: `jobs:zip`)
+- `REPORT_QUEUE_NAME` - Report generation and data readiness assessment jobs (default: `jobs:report`)
 
 ### Job Data Format
 Each queue entry has the following shape (workers never see `type: "all"`; the API creates separate zip and report jobs):
@@ -199,6 +218,23 @@ Each queue entry has the following shape (workers never see `type: "all"`; the A
 }
 ```
 Use `"type": "report"` for report jobs.
+
+For zip jobs, `options.include` can limit the archive to selected databank-relative file names/paths. When omitted, the zip worker includes all files in the databank.
+
+```json
+{
+  "jobId": "uuid-v4",
+  "type": "zip",
+  "databankId": "databank-123",
+  "options": {
+    "include": [
+      "kvk.json",
+      "folder/file.csv"
+    ]
+  },
+  "createdAt": "2025-01-01T00:00:00.000Z"
+}
+```
 
 ### Job Status Format (Redis Hash `job:{jobId}`)
 ```
@@ -229,7 +265,7 @@ redis-cli -h localhost -p 6379
 
 # Check queue length
 LLEN jobs:zip
-LLEN jobs:readiness
+LLEN jobs:report
 
 # View job status
 HGETALL job:your-job-id-here
@@ -245,12 +281,12 @@ MONITOR
 
 ```bash
 # View worker logs
-docker-compose logs -f zip-worker
-docker-compose logs -f report-worker
+docker compose logs -f zip-worker
+docker compose logs -f report-worker
 
 # View last 100 lines
-docker-compose logs --tail=100 zip-worker
-docker-compose logs --tail=100 report-worker
+docker compose logs --tail=100 zip-worker
+docker compose logs --tail=100 report-worker
 ```
 
 ### Kubernetes Logs
@@ -269,20 +305,20 @@ kubectl logs -f zip-worker-xxxxx-yyyyy
 
 1. Check Redis connection:
    ```bash
-   docker-compose logs redis
+   docker compose logs redis
    kubectl logs -f deployment/redis
    ```
 
 2. Verify queue has jobs:
    ```bash
    redis-cli LLEN jobs:zip
-   redis-cli LLEN jobs:readiness
+   redis-cli LLEN jobs:report
    ```
 
 3. Check worker logs:
    ```bash
-   docker-compose logs zip-worker
-   docker-compose logs report-worker
+   docker compose logs zip-worker
+   docker compose logs report-worker
    ```
 
 ### MOVED / Redis Cluster Errors
@@ -322,12 +358,12 @@ If workers are running out of memory:
 **Horizontal Scaling:**
 ```bash
 # Docker Compose
-docker-compose up -d --scale zip-worker=5
-docker-compose up -d --scale report-worker=3
+docker compose up -d --scale zip-worker=5
+docker compose up -d --scale report-worker=4
 
 # Kubernetes
 kubectl scale deployment zip-worker --replicas=5
-kubectl scale deployment report-worker --replicas=3
+kubectl scale deployment report-worker --replicas=4
 ```
 
 **Vertical Scaling (Kubernetes):**
@@ -401,4 +437,3 @@ curl -X POST http://localhost:3000/v1/databanks/test-123/process \
 - [ ] Add distributed tracing
 - [ ] Implement job timeouts
 - [ ] Add job dependencies
-

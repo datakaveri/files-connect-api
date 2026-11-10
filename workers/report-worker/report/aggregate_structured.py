@@ -37,7 +37,7 @@ def generate_raw_report(df, data_file_path, imputed_columns=None):
     report.update(log_and_call(check_row_duplicates, df))
     report.update(log_and_call(check_coverage_region, df, imputed_columns))
     report.update(log_and_call(check_numeric_variance, df))
-    report.update(log_and_call(check_categorical_variation, df, imputed_columns))
+    #report.update(log_and_call(check_categorical_variation, df, imputed_columns))
     report.update(log_and_call(check_file_format, data_file_path))
     report.update(log_and_call(check_date_and_timestamp_format, df, imputed_columns))
     report.update(log_and_call(check_date_or_timestamp_fields, df, imputed_columns))
@@ -82,37 +82,51 @@ def generate_final_report(readiness_metrics_json_path):
             "numeric_variance": 5,
             "file_format_check": 10,
         }
-        
+        # ADD this instead — at the top of get_notes(), before the return:
+        num_cols        = int(readiness_metrics_raw['number_of_columns'])
+        missing_cols    = int(readiness_metrics_raw['column_missing_count'])
+        num_rows        = int(readiness_metrics_raw['number_of_rows'])
+        missing_rows    = int(readiness_metrics_raw['row_missing_count'])
+        dupe_count      = int(readiness_metrics_raw['exact_row_duplicates_count'])
+        dupe_pct        = readiness_metrics_raw['exact_row_duplicates_percentage']
+        row_missing_pct = readiness_metrics_raw['row_missing_percentage']
+        num_numeric     = int(readiness_metrics_raw['number_of_numeric_columns'])
+        low_var_list    = readiness_metrics_raw['low_variance_numeric_columns']
+        low_var_count   = 0 if low_var_list in ('None', None) else int(len(low_var_list))
         return {
-            "column_missing": 
-            f"All {int(readiness_metrics_raw['number_of_columns'])} columns have at least 70% of their data filled" if readiness_metrics_raw["detailed_scores"]["column_missing"] == max_scores["column_missing"] 
-            else 
-            f"{readiness_metrics_raw['number_of_columns'] - readiness_metrics_raw['column_missing_count']} out of {readiness_metrics_raw['number_of_columns']} columns have at least 70% of their data filled",
+                "column_missing":
+                f"All {num_cols} columns have at least 70% of their data filled"
+                if readiness_metrics_raw["detailed_scores"]["column_missing"] == max_scores["column_missing"]
+                else
+                f"{num_cols - missing_cols} out of {num_cols} columns have at least 70% of their data filled",
 
-            "row_missing": 
-            f"All {int(readiness_metrics_raw['number_of_rows'])} rows have at least 50% of fields populated." if readiness_metrics_raw["detailed_scores"]["row_missing"] == max_scores["row_missing"] 
-            else 
-            f"{readiness_metrics_raw['number_of_rows'] - readiness_metrics_raw['row_missing_count']} out of {readiness_metrics_raw['number_of_rows']} rows ({round(100 - readiness_metrics_raw['row_missing_percentage'], 1)}%) have at least 50% of fields populated.",
+                "row_missing":
+                f"All {num_rows} rows have at least 50% of fields populated."
+                if readiness_metrics_raw["detailed_scores"]["row_missing"] == max_scores["row_missing"]
+                else
+                f"{num_rows - missing_rows} out of {num_rows} rows ({round(100 - row_missing_pct, 1)}%) have at least 50% of fields populated.",
 
-            "exact_row_duplicates": 
-            f"100% of rows are unique with no duplicates detected." if readiness_metrics_raw["detailed_scores"]["exact_row_duplicates"] == max_scores["exact_row_duplicates"] 
-            else 
-            f"{round(100 - readiness_metrics_raw['exact_row_duplicates_percentage'], 1)}% of rows are unique, with {readiness_metrics_raw['exact_row_duplicates_count']} duplicate rows identified.",
+                "exact_row_duplicates":
+                "100% of rows are unique with no duplicates detected."
+                if readiness_metrics_raw["detailed_scores"]["exact_row_duplicates"] == max_scores["exact_row_duplicates"]
+                else
+                f"{round(100 - dupe_pct, 1)}% of rows are unique, with {dupe_count} duplicate rows identified.",
 
-            "numeric_variance": 
-            "No numeric columns found." if readiness_metrics_raw["number_of_numeric_columns"] == 0 
-            else (
-                f"All {readiness_metrics_raw['number_of_numeric_columns']} numeric column(s) show sufficient statistical variation." 
-                if readiness_metrics_raw["detailed_scores"]["numeric_variance"] == max_scores["numeric_variance"] 
-                else 
-                f"{readiness_metrics_raw['number_of_numeric_columns'] - len(readiness_metrics_raw['low_variance_numeric_columns'])} out of {readiness_metrics_raw['number_of_numeric_columns']} numeric columns show sufficient statistical variation."
-            ),
+                "numeric_variance":
+                "No numeric columns found." if num_numeric == 0
+                else (
+                    f"All {num_numeric} numeric column(s) show sufficient statistical variation."
+                    if readiness_metrics_raw["detailed_scores"]["numeric_variance"] == max_scores["numeric_variance"]
+                    else
+                    f"{num_numeric - low_var_count} out of {num_numeric} numeric columns show sufficient statistical variation."
+                ),
 
-            "file_format_check": 
-            "File format meets all requirements." if readiness_metrics_raw["detailed_scores"]["file_format_check"] == max_scores["file_format_check"] 
-            else 
-            "File format provides opportunity for conversion to the required format.",
-        }
+                "file_format_check":
+                "File format meets all requirements."
+                if readiness_metrics_raw["detailed_scores"]["file_format_check"] == max_scores["file_format_check"]
+                else
+                "File format provides opportunity for conversion to the required format.",
+            }        
 
     notes = get_notes()
 

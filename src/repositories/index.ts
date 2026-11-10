@@ -6,15 +6,17 @@
 import { StorageRepositoryInterface, StorageConfig, StorageProvider } from '../core/types/storage';
 import { AWSS3Repository, createAWSS3Repository } from './aws-s3-repository';
 import { MinIORepository } from './minio-repository';
+import { GCSRepository, createGCSRepository } from './gcs-repository';
 
 export * from './aws-s3-repository';
 export * from './minio-repository';
+export * from './gcs-repository';
 
 /**
  * Creates a storage repository based on the provided configuration
  *
  * This factory function instantiates the appropriate repository implementation
- * (AWS S3 or MinIO) based on the storage provider specified in the configuration.
+ * (AWS S3, MinIO, or GCS) based on the storage provider specified in the configuration.
  *
  * @param config - Storage configuration
  * @returns StorageRepositoryInterface implementation
@@ -24,6 +26,8 @@ export function createStorageRepository(config: StorageConfig): StorageRepositor
   switch (config.provider) {
     case StorageProvider.S3:
       return createAWSS3Repository(config);
+    case StorageProvider.GCS:
+      return createGCSRepository(config);
     case StorageProvider.MINIO:
       return new MinIORepository(config);
     default:

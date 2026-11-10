@@ -1,6 +1,8 @@
 from fpdf import FPDF
 import json
 import datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 class PDFReport(FPDF):
     @staticmethod
@@ -36,12 +38,16 @@ class PDFReport(FPDF):
         self.sample_size = sample_size
         self.true_name = self.sanitize_text(true_name)
         if self.average_report:
-            self.dataset_name = f"{self.true_name} - Average Report"
+            self.dataset_name = f"{self.true_name}"
         elif self.sample:
             self.dataset_name = f"{self.true_name} (Sampled - {self.sample_size} rows)"
         else:
             self.dataset_name = self.true_name
-        self.percent_score = total_percentage
+        #self.percent_score = total_percentage
+        try:
+            self.percent_score = float(total_percentage)
+        except (TypeError, ValueError):
+            self.percent_score = 0.0
         self.logo_path = logo_path
         self.set_auto_page_break(auto=True, margin=15)
         self.add_page()
@@ -62,7 +68,13 @@ class PDFReport(FPDF):
 
         self.set_font("Helvetica", '', 10)
         self.set_xy(9, 35)
-        self.cell(0, 10, f"Report Generated On: {datetime.datetime.now().strftime('%d-%b-%Y')}", ln=True, align='L')
+        self.cell(
+            0,
+            10,
+            f"Report Generated On: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d-%b-%Y %I:%M %p IST')}",
+            ln=True,
+            align='L'
+        )
 
         # self.set_font("Helvetica", 'B', 12)
         # self.set_xy(160, 30)

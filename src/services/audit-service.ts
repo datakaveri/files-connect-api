@@ -15,6 +15,9 @@ const logger = createLogger("AuditService");
 // Enum for audit log types matching database schema
 export type AuditLogType = "ASSET" | "USER_ACTION" | "COMPUTE";
 
+// Who performed the action: the user themself, a delegate acting for them, or an app
+export type ActorType = "SELF" | "DELEGATE" | "APP";
+
 // Enum for HTTP methods
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
 
@@ -36,6 +39,11 @@ export interface AuditMessage {
   // Delegation (optional)
   delegator_id?: string;
   delegator_role?: string;
+  // Logged-in user who acted on behalf of user_id (delegated requests only)
+  delegate_id?: string;
+
+  // Actor classification (mandatory)
+  actor_type: ActorType;
 
   // API metadata (mandatory)
   api: string;
@@ -94,6 +102,11 @@ export interface AuditContext {
   // Delegation (optional)
   delegatorId?: string;
   delegatorRole?: string;
+  // Logged-in user acting on behalf of userId (delegated requests only)
+  delegateId?: string;
+
+  // Actor classification - defaults to SELF
+  actorType?: ActorType;
 
   // Technical metadata
   ipAddress?: string;
@@ -151,6 +164,15 @@ export interface AuditServiceInterface {
 export class AuditService implements AuditServiceInterface {
   constructor(private rabbitmqService: RabbitMQServiceInterface) { }
 
+  private buildCatalogueItemUrl(databankId: string): string {
+    const queryParams = new URLSearchParams({
+      id: databankId,
+      auditEnabled: "false",
+    });
+
+    return `${env.CAT_API_URL}/item?${queryParams.toString()}`;
+  }
+
   async publishAuditMessage(context: AuditContext): Promise<void> {
     try {
       // Extract organization info and issuer from JWT token if available
@@ -166,9 +188,9 @@ export class AuditService implements AuditServiceInterface {
       if (context.authToken) {
         const decodedTokenInfo = this.decodeJWTToken(context.authToken);
         tokenInfo = {
-          orgId: context.orgId || decodedTokenInfo.orgId,
-          orgName: context.orgName || decodedTokenInfo.orgName,
-          orgType: context.orgType || decodedTokenInfo.orgType,
+          orgId: context.orgId || (context.delegatorId ? undefined : decodedTokenInfo.orgId),
+          orgName: context.orgName || (context.delegatorId ? undefined : decodedTokenInfo.orgName),
+          orgType: context.orgType || (context.delegatorId ? undefined : decodedTokenInfo.orgType),
           issuer: decodedTokenInfo.issuer || "",
           delegatorId: context.delegatorId || decodedTokenInfo.delegatorId,
           delegatorRole: context.delegatorRole || decodedTokenInfo.delegatorRole,
@@ -176,7 +198,7 @@ export class AuditService implements AuditServiceInterface {
       }
 
       // Fetch asset information from catalogue API
-      const assetInfo = await this.fetchAssetInfo(context.databankId, context.authToken);
+      const assetInfo = await this.fetchAssetInfo(context.databankId, context.authToken, context.delegatorId);
 
       // Determine log type - default to ASSET for file operations
       const logType: AuditLogType = context.logType || "ASSET";
@@ -199,6 +221,10 @@ export class AuditService implements AuditServiceInterface {
         // Delegation (optional - include if present)
         ...(tokenInfo.delegatorId && { delegator_id: tokenInfo.delegatorId }),
         ...(tokenInfo.delegatorRole && { delegator_role: tokenInfo.delegatorRole }),
+        ...(context.delegateId && { delegate_id: context.delegateId }),
+
+        // Actor classification (mandatory)
+        actor_type: context.actorType || "SELF",
 
         // API metadata (mandatory)
         api: context.api,
@@ -328,7 +354,7 @@ export class AuditService implements AuditServiceInterface {
     }
   }
 
-  private async fetchAssetInfo(databankId: string, authToken?: string): Promise<AssetInfo> {
+  private async fetchAssetInfo(databankId: string, authToken?: string, delegatorId?: string): Promise<AssetInfo> {
     try {
       logger.debug("Fetching asset info from catalogue API", { databankId });
 
@@ -343,8 +369,9 @@ export class AuditService implements AuditServiceInterface {
         headers.Authorization = authToken;
         logger.debug("Forwarding authorization token to catalogue API");
       }
+      if (delegatorId) headers.DID = delegatorId;
 
-      const response = await axios.get<CatalogueApiResponse>(`${env.CAT_API_URL}/item?id=${databankId}`, {
+      const response = await axios.get<CatalogueApiResponse>(this.buildCatalogueItemUrl(databankId), {
         timeout: 5000, // 5 second timeout
         headers,
       });

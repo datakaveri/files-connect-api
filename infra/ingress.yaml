@@ -1,3 +1,4 @@
+# EXAMPLE ONLY: customize an ignored infra/ingress.local.yaml copy before applying.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,7 +9,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "5m"
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:8080,http://localhost:5173,http://localhost:5174,http://localhost:4200,http://localhost:4007,https://catalogue.tgdex.iudx.io,https://staging.catalogue.tgdex.iudx.io,https://tgdex.telangana.gov.in"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://app.example.com"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Request-ID"
     nginx.ingress.kubernetes.io/cors-expose-headers: "X-Request-ID, X-Execution-Time"
@@ -22,7 +23,7 @@ metadata:
     nginx.ingress.kubernetes.io/limit-rps: "500"
 spec:
   rules:
-  - host: files.tgdex.telangana.gov.in
+  - host: files.example.com
     http:
       paths:
       - path: /
@@ -34,5 +35,5 @@ spec:
               number: 80
   tls:
   - hosts:
-    - files.tgdex.telangana.gov.in
+    - files.example.com
     secretName: filesconnect-api-tls

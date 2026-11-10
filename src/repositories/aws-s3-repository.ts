@@ -85,7 +85,7 @@ export class AWSS3Repository implements StorageRepositoryInterface {
       credentials: {
         accessKeyId: config.accessKey,
         secretAccessKey: config.secretKey
-      }
+      },
     };
 
     // Add endpoint if provided

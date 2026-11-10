@@ -8,6 +8,7 @@
  * @module repositories/minio-repository
  */
 import * as Minio from "minio";
+import { createHash } from "crypto";
 import { Readable } from "stream";
 import { StorageRepositoryInterface, StorageConfig, MultipartUploadResult } from "../core/types/storage";
 import { createLogger } from "../core/utils/logger";
@@ -43,7 +44,7 @@ export class MinIORepository implements StorageRepositoryInterface {
     this.bucketName = config.bucketName;
 
     // Parse endpoint to extract hostname and port
-    // Handle cases: "minio.iudx.io", "http://minio.iudx.io", "https://minio.iudx.io:443"
+    // Handle cases: "storage.example.com", "http://storage.example.com", "https://storage.example.com:443"
     let endpointUrl: URL;
     if (config.endpoint.startsWith("http://") || config.endpoint.startsWith("https://")) {
       endpointUrl = new URL(config.endpoint);
@@ -54,6 +55,7 @@ export class MinIORepository implements StorageRepositoryInterface {
     }
 
     const hostname = endpointUrl.hostname;
+    const useSSL = endpointUrl.protocol === "https:" || (endpointUrl.protocol !== "http:" && config.useSSL !== false);
 
     // Determine port: explicit config > URL port > default based on SSL
     let port: number;
@@ -63,14 +65,14 @@ export class MinIORepository implements StorageRepositoryInterface {
       port = parseInt(endpointUrl.port, 10);
     } else {
       // Default ports: 443 for HTTPS, 80 for HTTP
-      port = config.useSSL !== false ? 443 : 80;
+      port = useSSL ? 443 : 80;
     }
 
     // Initialize MinIO client
     this.minioClient = new Minio.Client({
       endPoint: hostname,
       port: port,
-      useSSL: config.useSSL !== false, // Default to true
+      useSSL,
       accessKey: config.accessKey,
       secretKey: config.secretKey,
       region: config.region || "us-east-1",
@@ -81,7 +83,7 @@ export class MinIORepository implements StorageRepositoryInterface {
       hostname: hostname,
       port: port,
       bucketName: this.bucketName,
-      useSSL: config.useSSL !== false,
+      useSSL,
     });
   }
 
@@ -400,7 +402,6 @@ export class MinIORepository implements StorageRepositoryInterface {
    * Generates a simple ETag for MinIO objects (simplified implementation)
    */
   private generateETag(buffer: Buffer): string {
-    const crypto = require("crypto");
-    return crypto.createHash("md5").update(buffer).digest("hex");
+    return createHash("md5").update(buffer).digest("hex");
   }
 }

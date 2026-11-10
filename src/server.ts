@@ -6,6 +6,7 @@ import app from './app';
 import { createLogger } from './core/utils/logger';
 import { env } from './config/environment';
 import { connectRedis, disconnectRedis } from './core/utils/redis-client';
+import { closeDelegationClient } from './services/delegation-resolver';
 
 // Create a logger for this module
 const logger = createLogger('Server');
@@ -55,6 +56,7 @@ process.on('SIGTERM', async () => {
   }
   
   server.close(() => {
+    closeDelegationClient();
     logger.info('Server closed');
     process.exit(0);
   });

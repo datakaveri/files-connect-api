@@ -8,7 +8,8 @@
 
 export enum StorageProvider {
   S3 = 's3',
-  MINIO = 'minio'
+  MINIO = 'minio',
+  GCS = 'gcs'
 }
 
 export interface StorageConfig {
@@ -21,6 +22,13 @@ export interface StorageConfig {
   forcePathStyle?: boolean; // Required for MinIO
   useSSL?: boolean; // SSL configuration
   port?: number; // Port for MinIO
+
+  // GCS-specific auth (native @google-cloud/storage client).
+  // If none of these are set, the client falls back to Application Default Credentials.
+  gcsProjectId?: string;
+  gcsKeyFilename?: string; // Path to a service account JSON key file
+  gcsClientEmail?: string; // Inline service account credentials (alternative to a key file)
+  gcsPrivateKey?: string;
 }
 
 export interface StorageObject {

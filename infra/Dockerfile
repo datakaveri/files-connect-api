@@ -8,6 +8,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 RUN pnpm install --frozen-lockfile
 
@@ -21,18 +22,12 @@ FROM node:24-bookworm-slim
 
 WORKDIR /app
 
-# Patch base OS packages and install curl for downloading the agent.
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends curl ca-certificates && \
-    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx && \
-    rm -rf /var/lib/apt/lists/*
-
-# ---- Download Elastic APM Java Agent ----
-RUN curl -sSL -o /app/elastic-apm-agent.jar \
-    https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent/1.45.0/elastic-apm-agent-1.45.0.jar
-
 ENV NODE_ENV=production
+
+# The runtime only needs Node. Removing the bundled package managers keeps
+# npm's build/install-only dependency tree out of the production image.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/node_modules ./node_modules
@@ -41,4 +36,4 @@ COPY --from=builder /app/redoc.html ./
 
 EXPOSE 3000
 
-CMD ["node", "./build/server.js"]
+CMD ["node", "-r", "elastic-apm-node/start.js", "./build/server.js"]

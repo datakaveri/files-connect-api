@@ -5,6 +5,7 @@ declare module 'papaparse' {
   export interface ParseConfig {
     header?: boolean;
     skipEmptyLines?: boolean;
+    delimiter?: string;
     complete?: (results: ParseResult) => void;
     error?: (error: Error) => void;
   }
@@ -24,4 +25,11 @@ declare module 'papaparse' {
   
   export function parse(input: string, config?: ParseConfig): ParseResult;
   export const NODE_STREAM_INPUT: number;
+
+  const Papa: {
+    parse: typeof parse;
+    NODE_STREAM_INPUT: typeof NODE_STREAM_INPUT;
+  };
+
+  export default Papa;
 }
