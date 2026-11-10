@@ -218,8 +218,10 @@ function extractAuditContext(req: Request, res: Response, action: AuditAction): 
       authToken,
       orgId,
       orgName,
-      // New fields for updated schema
+      // Actor classification: DELEGATE when the logged-in user acts for userId (the DID)
+      actorType: res.locals.isDelegated ? 'DELEGATE' : 'SELF',
       ...(res.locals.isDelegated && {
+        delegateId: res.locals.delegateeId,
         delegatorId: userId,
         delegatorRole: userRole,
         context: {
