@@ -152,7 +152,7 @@ Catalogue and ACL calls keep the original verified bearer token and add the reso
 delegator ID as `DID`. Never replace that token with the file server's service token.
 The deployed downstream services must support this combination before enabling delegation.
 
-Audit records keep the effective delegator in `user_id` and `delegator_id`, and the original
+Audit records keep the effective delegator in `user_id` and the original
 actor in `delegate_id` (and `context.delegateeId`). Every record carries `actor_type`: `SELF`
 for a user acting on their own account, `DELEGATE` for a delegated request (`APP` is reserved
 and not emitted by the file server yet). The actor's original roles are in `context.delegateeRoles`.
