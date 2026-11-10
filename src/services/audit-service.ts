@@ -36,9 +36,7 @@ export interface AuditMessage {
   org_name?: string;
   org_type?: string;
 
-  // Delegation (optional)
-  delegator_id?: string;
-  delegator_role?: string;
+  // Delegation (optional): user_id is the owner (DID); delegate_id is the logged-in user.
   // Logged-in user who acted on behalf of user_id (delegated requests only)
   delegate_id?: string;
 
@@ -99,9 +97,9 @@ export interface AuditContext {
   orgName?: string;
   orgType?: string;
 
-  // Delegation (optional)
+  // Delegation (optional): owner the request acts for. Used internally to send the DID
+  // header to the catalogue and to skip the actor's token org details; never published.
   delegatorId?: string;
-  delegatorRole?: string;
   // Logged-in user acting on behalf of userId (delegated requests only)
   delegateId?: string;
 
@@ -181,8 +179,6 @@ export class AuditService implements AuditServiceInterface {
         orgName: context.orgName,
         orgType: context.orgType,
         issuer: "",
-        delegatorId: context.delegatorId,
-        delegatorRole: context.delegatorRole,
       };
 
       if (context.authToken) {
@@ -192,8 +188,6 @@ export class AuditService implements AuditServiceInterface {
           orgName: context.orgName || (context.delegatorId ? undefined : decodedTokenInfo.orgName),
           orgType: context.orgType || (context.delegatorId ? undefined : decodedTokenInfo.orgType),
           issuer: decodedTokenInfo.issuer || "",
-          delegatorId: context.delegatorId || decodedTokenInfo.delegatorId,
-          delegatorRole: context.delegatorRole || decodedTokenInfo.delegatorRole,
         };
       }
 
@@ -219,8 +213,6 @@ export class AuditService implements AuditServiceInterface {
         ...(tokenInfo.orgType && { org_type: tokenInfo.orgType }),
 
         // Delegation (optional - include if present)
-        ...(tokenInfo.delegatorId && { delegator_id: tokenInfo.delegatorId }),
-        ...(tokenInfo.delegatorRole && { delegator_role: tokenInfo.delegatorRole }),
         ...(context.delegateId && { delegate_id: context.delegateId }),
 
         // Actor classification (mandatory)
@@ -308,8 +300,6 @@ export class AuditService implements AuditServiceInterface {
     orgName?: string;
     orgType?: string;
     issuer?: string;
-    delegatorId?: string;
-    delegatorRole?: string;
   } {
     try {
       // Remove 'Bearer ' prefix if present
@@ -343,10 +333,6 @@ export class AuditService implements AuditServiceInterface {
 
         // Issuer (mandatory in new schema)
         issuer: decodedPayload.iss,
-
-        // Delegation info (optional) - check for act (actor) claim for delegation
-        delegatorId: decodedPayload.act?.sub,
-        delegatorRole: decodedPayload.act?.role || decodedPayload.delegator_role,
       };
     } catch (error) {
       logger.error('Failed to decode JWT token', error as Error);

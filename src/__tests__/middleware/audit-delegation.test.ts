@@ -25,7 +25,7 @@ describe('delegation audit context', () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
 
     expect(publishAuditMessage).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'owner', orgId: 'owner-org', delegatorId: 'owner', delegatorRole: 'provider',
+      userId: 'owner', orgId: 'owner-org', delegatorId: 'owner',
       delegateId: 'actor', actorType: 'DELEGATE',
       context: { delegateeId: 'actor', delegateeRoles: ['consumer'], scopes: ['own-asset-management'] },
     }));
@@ -38,7 +38,7 @@ describe('delegation audit context', () => {
     const payload = Buffer.from(JSON.stringify({ iss: 'https://idp.example.test', organisation_id: 'actor-org', organisation_name: 'Actor org' })).toString('base64url');
     const context: AuditContext = {
       databankId: 'bank', api: '/v1/databanks/bank/files/delete', method: 'POST', action: 'File Delete',
-      userId: 'owner', role: 'provider', delegatorId: 'owner', delegatorRole: 'provider',
+      userId: 'owner', role: 'provider', delegatorId: 'owner',
       delegateId: 'actor', actorType: 'DELEGATE',
       authToken: `Bearer header.${payload}.signature`, context: { delegateeId: 'actor' },
     };
@@ -47,9 +47,12 @@ describe('delegation audit context', () => {
 
     const message = publishAuditMessage.mock.calls[0]![0];
     expect(message).toMatchObject({
-      user_id: 'owner', delegator_id: 'owner', delegate_id: 'actor', actor_type: 'DELEGATE',
+      user_id: 'owner', delegate_id: 'actor', actor_type: 'DELEGATE',
       context: { delegateeId: 'actor' },
     });
+    // The audit table has no delegator columns; sending them makes the consumer reject the row.
+    expect(message).not.toHaveProperty('delegator_id');
+    expect(message).not.toHaveProperty('delegator_role');
     expect(message).not.toHaveProperty('org_id');
     expect(message).not.toHaveProperty('org_name');
     expect(mockedAxios.get).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
@@ -80,5 +83,20 @@ describe('delegation audit context', () => {
     const message = servicePublish.mock.calls[0]![0];
     expect(message).toMatchObject({ user_id: 'owner', actor_type: 'SELF' });
     expect(message).not.toHaveProperty('delegate_id');
+  });
+
+  it('never publishes delegator fields, even when the token carries an act claim', async () => {
+    mockedAxios.get.mockResolvedValueOnce({ status: 200, headers: { 'content-type': 'application/json' }, data: { result: [] } });
+    const payload = Buffer.from(JSON.stringify({ iss: 'https://idp.example.test', act: { sub: 'someone', role: 'admin' }, delegator_role: 'admin' })).toString('base64url');
+    const publishAuditMessage = jest.fn().mockResolvedValue(undefined);
+    await new AuditService({ publishAuditMessage, close: jest.fn() }).publishAuditMessage({
+      databankId: 'bank', api: '/v1/databanks/bank/files/download', method: 'POST', action: 'Download',
+      userId: 'owner', role: 'provider', authToken: `Bearer header.${payload}.signature`,
+    });
+
+    const message = publishAuditMessage.mock.calls[0]![0];
+    expect(message).toMatchObject({ user_id: 'owner', actor_type: 'SELF' });
+    expect(message).not.toHaveProperty('delegator_id');
+    expect(message).not.toHaveProperty('delegator_role');
   });
 });

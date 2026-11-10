@@ -223,7 +223,6 @@ function extractAuditContext(req: Request, res: Response, action: AuditAction): 
       ...(res.locals.isDelegated && {
         delegateId: res.locals.delegateeId,
         delegatorId: userId,
-        delegatorRole: userRole,
         context: {
           delegateeId: res.locals.delegateeId,
           delegateeRoles: res.locals.delegateeRoles,
