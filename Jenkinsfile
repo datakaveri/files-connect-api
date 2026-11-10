@@ -31,7 +31,7 @@ pipeline {
             triggeredBy cause: 'UserIdCause'
           }
           expression {
-            return env.BRANCH_NAME == 'stable/v2.3' || env.BRANCH_NAME.startsWith('PR-')
+            return env.BRANCH_NAME == 'stable/v2.4' || env.BRANCH_NAME.startsWith('PR-')
           }
         }
       }
@@ -130,7 +130,7 @@ pipeline {
         stage('Push Images') {
           when {
             expression {
-              return env.BRANCH_NAME == 'stable/v2.3'
+              return env.BRANCH_NAME == 'stable/v2.4'
             }
           }
           steps {
@@ -143,9 +143,9 @@ pipeline {
                 tagSuffix += '-M'
               }
               docker.withRegistry(registryUri, registryCredential) {
-                mainImage.push("v2.3.RC1-${env.GIT_HASH}${tagSuffix}")
-                reportImage.push("v2.3.RC1-${env.GIT_HASH}${tagSuffix}")
-                zipImage.push("v2.3.RC1-${env.GIT_HASH}${tagSuffix}")
+                mainImage.push("v2.4.RC1-${env.GIT_HASH}${tagSuffix}")
+                reportImage.push("v2.4.RC1-${env.GIT_HASH}${tagSuffix}")
+                zipImage.push("v2.4.RC1-${env.GIT_HASH}${tagSuffix}")
               }
             }
           }
@@ -159,7 +159,7 @@ pipeline {
   post{
     failure{
       script{
-        if (env.BRANCH_NAME == 'stable/v2.3')
+        if (env.BRANCH_NAME == 'stable/v2.4')
         emailext recipientProviders: [buildUser(), developers()],
         to: '$AAA_RECIPIENTS, $DEFAULT_RECIPIENTS',
         subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!',

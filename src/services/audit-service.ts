@@ -15,6 +15,9 @@ const logger = createLogger("AuditService");
 // Enum for audit log types matching database schema
 export type AuditLogType = "ASSET" | "USER_ACTION" | "COMPUTE";
 
+// Who performed the action: the user themself, a delegate acting for them, or an app
+export type ActorType = "SELF" | "DELEGATE" | "APP";
+
 // Enum for HTTP methods
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
 
@@ -36,6 +39,11 @@ export interface AuditMessage {
   // Delegation (optional)
   delegator_id?: string;
   delegator_role?: string;
+  // Logged-in user who acted on behalf of user_id (delegated requests only)
+  delegate_id?: string;
+
+  // Actor classification (mandatory)
+  actor_type: ActorType;
 
   // API metadata (mandatory)
   api: string;
@@ -94,6 +102,11 @@ export interface AuditContext {
   // Delegation (optional)
   delegatorId?: string;
   delegatorRole?: string;
+  // Logged-in user acting on behalf of userId (delegated requests only)
+  delegateId?: string;
+
+  // Actor classification - defaults to SELF
+  actorType?: ActorType;
 
   // Technical metadata
   ipAddress?: string;
@@ -208,6 +221,10 @@ export class AuditService implements AuditServiceInterface {
         // Delegation (optional - include if present)
         ...(tokenInfo.delegatorId && { delegator_id: tokenInfo.delegatorId }),
         ...(tokenInfo.delegatorRole && { delegator_role: tokenInfo.delegatorRole }),
+        ...(context.delegateId && { delegate_id: context.delegateId }),
+
+        // Actor classification (mandatory)
+        actor_type: context.actorType || "SELF",
 
         // API metadata (mandatory)
         api: context.api,

@@ -153,10 +153,12 @@ delegator ID as `DID`. Never replace that token with the file server's service t
 The deployed downstream services must support this combination before enabling delegation.
 
 Audit records keep the effective delegator in `user_id` and `delegator_id`, and the original
-actor in `context.delegateeId`, with their original roles in `context.delegateeRoles`.
+actor in `delegate_id` (and `context.delegateeId`). Every record carries `actor_type`: `SELF`
+for a user acting on their own account, `DELEGATE` for a delegated request (`APP` is reserved
+and not emitted by the file server yet). The actor's original roles are in `context.delegateeRoles`.
 The exact effective scopes are also in `context.scopes`. Missing delegator organization
 details are not filled from the actor's token. The existing extensible audit context is
-used, so no database schema change is introduced.
+used for the remaining details; the audit consumer stores `delegate_id` and `actor_type` as columns.
 
 The CORS allow-list includes `DID`, so browser clients can send it. A single gRPC connection
 and token provider are created lazily and reused; the connection closes during server shutdown.
