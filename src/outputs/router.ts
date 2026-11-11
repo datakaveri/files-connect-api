@@ -35,6 +35,7 @@ export function outputRouter(service:OutputService,uploadKey:string,publishToken
     });
   }
   router.get('/internal/review/:outputId/files/:fileId/preview',async(req,res)=>{try{if(!sameToken(bearer(req),sandboxToken))throw new OutputError(403,'sandbox_forbidden');res.json({success:true,data:await service.previewReview(req.params.outputId,req.params.fileId)});}catch(e){fail(res,e);}});
+  router.get('/internal/review/:outputId/files/:fileId/download',async(req,res)=>{try{if(!sameToken(bearer(req),sandboxToken))throw new OutputError(403,'sandbox_forbidden');res.json({success:true,data:await service.downloadReview(req.params.outputId,req.params.fileId)});}catch(e){fail(res,e);}});
   router.get('/internal/workspaces/:ownerId/files',async(req,res)=>{try{if(!sameToken(bearer(req),sandboxToken))throw new OutputError(403,'sandbox_forbidden');res.json({success:true,data:{files:await service.listWorkspace(req.params.ownerId)}});}catch(e){fail(res,e);}});
   router.get('/internal/workspaces/:ownerId/files/:fileId/preview',async(req,res)=>{try{if(!sameToken(bearer(req),sandboxToken))throw new OutputError(403,'sandbox_forbidden');res.json({success:true,data:await service.previewWorkspace(req.params.ownerId,req.params.fileId)});}catch(e){fail(res,e);}});
   router.get('/internal/workspaces/:ownerId/files/:fileId/download',async(req,res)=>{try{if(!sameToken(bearer(req),sandboxToken))throw new OutputError(403,'sandbox_forbidden');res.json({success:true,data:await service.downloadWorkspace(req.params.ownerId,req.params.fileId)});}catch(e){fail(res,e);}});

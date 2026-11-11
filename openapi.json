@@ -2801,6 +2801,994 @@
           }
         }
       }
+    },
+    "/outputs/internal/review/{outputId}/files/{fileId}/preview": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "summary": "Preview a file of an output pending review",
+        "description": "Returns the first rows of a CSV file from a completed output that is awaiting approval.\n\n**Access Control:**\n- Sandbox service token only",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Output ID"
+            },
+            "required": true,
+            "description": "Output ID",
+            "name": "outputId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Stable file ID (SHA-256 of the object key)"
+            },
+            "required": true,
+            "description": "Stable file ID (SHA-256 of the object key)",
+            "name": "fileId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "nullable": true,
+                          "description": "Preview data; shape depends on the file format"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "firstNLines": {
+                          "type": "number"
+                        },
+                        "totalLines": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "format"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the sandbox service token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Output or file not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Output not completed, or stored object does not match its manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outputs/internal/review/{outputId}/files/{fileId}/download": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "summary": "Download a file of an output pending review",
+        "description": "Verifies the review object against its manifest (size and SHA-256) and returns a short-lived download URL, so a reviewer can inspect the full file before approving.\n\n**Access Control:**\n- Sandbox service token only",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Output ID"
+            },
+            "required": true,
+            "description": "Output ID",
+            "name": "outputId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Stable file ID (SHA-256 of the object key)"
+            },
+            "required": true,
+            "description": "Stable file ID (SHA-256 of the object key)",
+            "name": "fileId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "description": "Short-lived presigned URL"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "description": "URL expiry (ISO 8601)"
+                        }
+                      },
+                      "required": [
+                        "url",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the sandbox service token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Output or file not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Output not completed, or stored object does not match its manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outputs/internal/workspaces/{ownerId}/files": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "summary": "List a user's approved output files",
+        "description": "Lists files published to the owner workspace by approved outputs.\n\n**Access Control:**\n- Sandbox service token only",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Owner user ID"
+            },
+            "required": true,
+            "description": "Owner user ID",
+            "name": "ownerId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "fileId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "size": {
+                                "type": "number"
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "contentType": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "fileId",
+                              "name",
+                              "size",
+                              "lastModified"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "files"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the sandbox service token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Owner not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Output not completed, or stored object does not match its manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outputs/internal/workspaces/{ownerId}/files/{fileId}/preview": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "summary": "Preview an approved output file",
+        "description": "Returns the first rows of a CSV file in the owner's workspace.\n\n**Access Control:**\n- Sandbox service token only",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Owner user ID"
+            },
+            "required": true,
+            "description": "Owner user ID",
+            "name": "ownerId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Stable file ID (SHA-256 of the object key)"
+            },
+            "required": true,
+            "description": "Stable file ID (SHA-256 of the object key)",
+            "name": "fileId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "nullable": true,
+                          "description": "Preview data; shape depends on the file format"
+                        },
+                        "format": {
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        },
+                        "firstNLines": {
+                          "type": "number"
+                        },
+                        "totalLines": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "format"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the sandbox service token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found in this workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Output not completed, or stored object does not match its manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outputs/internal/workspaces/{ownerId}/files/{fileId}/download": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "summary": "Download an approved output file",
+        "description": "Returns a short-lived download URL for a file in the owner's workspace.\n\n**Access Control:**\n- Sandbox service token only",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Owner user ID"
+            },
+            "required": true,
+            "description": "Owner user ID",
+            "name": "ownerId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Stable file ID (SHA-256 of the object key)"
+            },
+            "required": true,
+            "description": "Stable file ID (SHA-256 of the object key)",
+            "name": "fileId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "description": "Short-lived presigned URL"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "description": "URL expiry (ISO 8601)"
+                        }
+                      },
+                      "required": [
+                        "url",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the sandbox service token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found in this workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Output not completed, or stored object does not match its manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

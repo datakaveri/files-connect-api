@@ -68,6 +68,21 @@ test('internal review preview requires the sandbox service token and a completed
  expect(preview.body.data.content).toMatchObject({headers:['name','value'],totalRows:1,data:[{name:'a',value:'1'}]});
  expect((await request(x.app).get(path.replace(x.file.fileId,'a'.repeat(64))).set('Authorization','Bearer '+sandbox)).status).toBe(404);
 });
+test('internal review download requires the sandbox service token and a verified, completed manifest file',async()=>{
+ const x=setup(),path='/v1/outputs/internal/review/run-1/files/'+x.file.fileId+'/download';
+ expect((await request(x.app).get(path)).status).toBe(401);
+ expect((await request(x.app).get(path).set('Authorization','Bearer '+shared)).status).toBe(403);
+ await x.post('uploads');
+ x.store.objects.set('review/'+x.file.objectKey,{bytes:x.bytes,etag:'v1',contentType:'text/csv'});
+ expect((await request(x.app).get(path).set('Authorization','Bearer '+sandbox)).status).toBe(409);
+ await x.post('complete');
+ const download=await request(x.app).get(path).set('Authorization','Bearer '+sandbox);
+ expect(download.status).toBe(200);
+ expect(download.body.data.url).toBe('https://storage.example/review/'+x.file.objectKey);
+ expect((await request(x.app).get(path.replace(x.file.fileId,'a'.repeat(64))).set('Authorization','Bearer '+sandbox)).status).toBe(404);
+ x.store.objects.set('review/'+x.file.objectKey,{bytes:Buffer.from('tampered'),etag:'v2',contentType:'text/csv'});
+ expect((await request(x.app).get(path).set('Authorization','Bearer '+sandbox)).status).not.toBe(200);
+});
 test('internal workspace access exposes only files committed by a publication manifest',async()=>{
  const x=setup();
  await x.post('uploads');

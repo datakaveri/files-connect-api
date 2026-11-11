@@ -1175,6 +1175,98 @@ registry.registerPath({
   },
 });
 
+// Sandbox-facing output routes. Callers authenticate with the sandbox service
+// token (OUTPUT_SANDBOX_SERVICE_TOKEN), not a user JWT.
+const OutputErrorResponseSchema = z.object({
+  error: z.object({ code: z.string(), message: z.string() }),
+});
+const OutputDownloadSchema = z.object({
+  url: z.string().describe('Short-lived presigned URL'),
+  expiresAt: z.string().describe('URL expiry (ISO 8601)'),
+});
+const OutputWorkspaceFileSchema = z.object({
+  fileId: z.string(),
+  name: z.string(),
+  size: z.number(),
+  lastModified: z.string(),
+  contentType: z.string().optional(),
+});
+const outputFileIdParam = z.string().regex(/^[a-f0-9]{64}$/).describe('Stable file ID (SHA-256 of the object key)');
+const outputErrorResponses = (notFound: string) => ({
+  401: { description: 'Bearer token missing', content: { 'application/json': { schema: OutputErrorResponseSchema } } },
+  403: { description: 'Not the sandbox service token', content: { 'application/json': { schema: OutputErrorResponseSchema } } },
+  404: { description: notFound, content: { 'application/json': { schema: OutputErrorResponseSchema } } },
+  409: { description: 'Output not completed, or stored object does not match its manifest', content: { 'application/json': { schema: OutputErrorResponseSchema } } },
+});
+const sandboxTokenNote = '\n\n**Access Control:**\n- Sandbox service token only';
+
+registry.registerPath({
+  method: 'get',
+  path: '/outputs/internal/review/{outputId}/files/{fileId}/preview',
+  tags: ['Outputs'],
+  summary: 'Preview a file of an output pending review',
+  description: 'Returns the first rows of a CSV file from a completed output that is awaiting approval.' + sandboxTokenNote,
+  request: { params: z.object({ outputId: z.string().describe('Output ID'), fileId: outputFileIdParam }) },
+  responses: {
+    200: { description: 'Preview', content: { 'application/json': { schema: SuccessResponseSchema(FilePreviewSchema) } } },
+    ...outputErrorResponses('Output or file not found'),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/outputs/internal/review/{outputId}/files/{fileId}/download',
+  tags: ['Outputs'],
+  summary: 'Download a file of an output pending review',
+  description:
+    'Verifies the review object against its manifest (size and SHA-256) and returns a short-lived download URL, ' +
+    'so a reviewer can inspect the full file before approving.' + sandboxTokenNote,
+  request: { params: z.object({ outputId: z.string().describe('Output ID'), fileId: outputFileIdParam }) },
+  responses: {
+    200: { description: 'Download URL', content: { 'application/json': { schema: SuccessResponseSchema(OutputDownloadSchema) } } },
+    ...outputErrorResponses('Output or file not found'),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/outputs/internal/workspaces/{ownerId}/files',
+  tags: ['Outputs'],
+  summary: "List a user's approved output files",
+  description: 'Lists files published to the owner workspace by approved outputs.' + sandboxTokenNote,
+  request: { params: z.object({ ownerId: z.string().describe('Owner user ID') }) },
+  responses: {
+    200: { description: 'Files', content: { 'application/json': { schema: SuccessResponseSchema(z.object({ files: z.array(OutputWorkspaceFileSchema) })) } } },
+    ...outputErrorResponses('Owner not found'),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/outputs/internal/workspaces/{ownerId}/files/{fileId}/preview',
+  tags: ['Outputs'],
+  summary: 'Preview an approved output file',
+  description: "Returns the first rows of a CSV file in the owner's workspace." + sandboxTokenNote,
+  request: { params: z.object({ ownerId: z.string().describe('Owner user ID'), fileId: outputFileIdParam }) },
+  responses: {
+    200: { description: 'Preview', content: { 'application/json': { schema: SuccessResponseSchema(FilePreviewSchema) } } },
+    ...outputErrorResponses('File not found in this workspace'),
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/outputs/internal/workspaces/{ownerId}/files/{fileId}/download',
+  tags: ['Outputs'],
+  summary: 'Download an approved output file',
+  description: "Returns a short-lived download URL for a file in the owner's workspace." + sandboxTokenNote,
+  request: { params: z.object({ ownerId: z.string().describe('Owner user ID'), fileId: outputFileIdParam }) },
+  responses: {
+    200: { description: 'Download URL', content: { 'application/json': { schema: SuccessResponseSchema(OutputDownloadSchema) } } },
+    ...outputErrorResponses('File not found in this workspace'),
+  },
+});
+
 const generator = new OpenApiGeneratorV3(registry.definitions);
 
 export const openApiDocument = generator.generateDocument({

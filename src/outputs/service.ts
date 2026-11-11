@@ -140,6 +140,14 @@ export class OutputService {
     if(!file)throw new OutputError(404,'file_not_found');
     return this.previewBlob(await this.verify(this.physical(this.config.reviewDatabankId,file.objectKey),file));
   }
+  async downloadReview(id:string,fileId:string){
+    const record=await this.completed(segment.parse(id)),wanted=z.string().regex(/^[a-f0-9]{64}$/).parse(fileId);
+    const file=record.manifest.files.find(item=>item.fileId===wanted);
+    if(!file)throw new OutputError(404,'file_not_found');
+    const key=this.physical(this.config.reviewDatabankId,file.objectKey);
+    await this.verify(key,file);
+    return this.store.download(key);
+  }
   private async workspaceFiles(ownerId:string):Promise<Array<AccessFile&{key:string,file:File}>>{
     const owner=segment.parse(ownerId),logicalRoot=this.config.workspaceBase+'/users/'+owner+'/outputs/',physicalRoot=this.physical(this.config.workspaceDatabankId,logicalRoot);
     const objects=await this.store.list(physicalRoot,Math.min(1000,this.config.maxFiles*2));
