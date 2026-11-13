@@ -86,6 +86,12 @@ export class AWSS3Repository implements StorageRepositoryInterface {
         accessKeyId: config.accessKey,
         secretAccessKey: config.secretKey
       },
+      // Since @aws-sdk/client-s3 3.729 the SDK adds CRC32 checksums by default.
+      // For presigned part URLs that checksum is computed over an empty body,
+      // which S3-compatible stores (e.g. Cyfuture) reject at CompleteMultipartUpload.
+      // Only send/validate checksums when the operation actually requires them.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     };
 
     // Add endpoint if provided
