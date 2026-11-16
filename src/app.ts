@@ -128,7 +128,7 @@ app.use(
   }),
 ); // Security headers
 app.use(compression()); // Compress responses
-app.use(express.json()); // Parse JSON bodies
+app.use(express.json({ limit: process.env.OUTPUTS_ENABLED === 'true' ? '2mb' : '100kb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // CORS configuration

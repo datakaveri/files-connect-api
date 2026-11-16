@@ -4,6 +4,7 @@
  * Restructured to follow REST practices with all operations under databanks resource
  */
 import { Router } from 'express';
+import { configuredOutputRouter } from '../outputs/config';
 import { databanksRoutes } from './databanks-routes';
 import { assetsRoutes, initAssetRoutes } from './assets-routes';
 import { encryptionRoutes } from './encryption-routes';
@@ -34,6 +35,10 @@ router.use(ApiPaths.ASSETS, assetRoutesWithHandlers);
 // path does not exist (404) and no KMS access is ever attempted.
 if (env.ENCRYPTION_ENABLED) {
   router.use(ApiPaths.ENCRYPTION, encryptionRoutes);
+}
+
+if (process.env.OUTPUTS_ENABLED === 'true') {
+  router.use('/outputs', configuredOutputRouter());
 }
 
 // Export the router
