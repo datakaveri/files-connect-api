@@ -823,7 +823,7 @@ registry.registerPath({
   path: '/assets/download',
   tags: ['Assets'],
   summary: 'Get a presigned URL for an asset',
-  description: 'Returns a presigned URL for downloading an asset.\n\n**Access Control:**\n- Allowed Roles: `provider`, `cos_admin`',
+  description: 'Returns a presigned URL for downloading an asset.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`, `cos_admin`',
   request: {
     body: {
       content: {

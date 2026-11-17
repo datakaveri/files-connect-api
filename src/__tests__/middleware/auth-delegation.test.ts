@@ -207,6 +207,20 @@ describe('delegated authentication and scope enforcement', () => {
     expect(assetStorage.getAssetDetails).toHaveBeenCalledWith(`assets/${owner}/file.png`);
   });
 
+  it('allows a consumer to download their own asset', async () => {
+    const response = await request(app).post('/assets/download').auth(token(['consumer']), { type: 'bearer' })
+      .send({ key: `${actor}/file.png` });
+    expect(response.status).toBe(200);
+    expect(assetStorage.getAssetDetails).toHaveBeenCalledWith(`assets/${actor}/file.png`);
+  });
+
+  it("prevents a consumer from downloading another user's asset", async () => {
+    const response = await request(app).post('/assets/download').auth(token(['consumer']), { type: 'bearer' })
+      .send({ key: `${owner}/file.png` });
+    expect(response.status).toBe(403);
+    expect(assetStorage.getAssetDetails).not.toHaveBeenCalled();
+  });
+
   it('uses the delegator namespace for asset uploads', async () => {
     mockedResolve.mockResolvedValueOnce({ userId: owner, delegateeId: actor, roles: [], scopes: ['own-asset-management'] });
     const response = await request(app).post('/assets').auth(token(), { type: 'bearer' }).set('DID', owner)

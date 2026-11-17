@@ -105,7 +105,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
    */
   assetsRoutes.post(
     '/download',
-    authorize([UserRole.PROVIDER, UserRole.ADMIN], [DelegationScope.DATA_ACCESS]),
+    authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN], [DelegationScope.DATA_ACCESS]),
     validateBody(z.object({
       key: z.string().describe('Asset key'),
       expiresIn: z.number().optional().describe('Expiration time in seconds')
