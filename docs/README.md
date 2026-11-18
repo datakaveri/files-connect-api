@@ -10,6 +10,7 @@
 | [config/zip-worker.md](./config/zip-worker.md) | Every environment variable of the zip worker |
 | [config/report-worker.md](./config/report-worker.md) | Every environment variable of the report (data-readiness) worker |
 | [config/deployments.md](./config/deployments.md) | Kubernetes/Compose manifests, how config reaches each container, scaling |
+| [design/dataset-versioning.md](./design/dataset-versioning.md) | **Plan:** dataset versions via layered folders and per-version manifests |
 
 ## Elsewhere in the repo
 
