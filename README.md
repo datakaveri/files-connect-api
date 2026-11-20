@@ -29,7 +29,7 @@ ACL-APD services, and publishes audit events to RabbitMQ. It enqueues long-runni
 the ZIP and report workers consume those queues and write outputs to the same storage bucket.
 Report writeback to Elasticsearch is optional.
 
-One `BUCKET_NAME` holds databank files (`{databankId}/`), assets (`assets/`), archives (`zips/`),
+One `BUCKET_NAME` holds databank files (`{databankId}/`), private assets (`assets/`), public assets (`public_assets/`, readable without a token), archives (`zips/`),
 and reports (`reports/`). The API and workers must use the same bucket, Redis database, and
 queue names. See the [configuration overview](docs/config/README.md) for the full wiring.
 

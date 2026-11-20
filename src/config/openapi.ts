@@ -866,6 +866,89 @@ registry.registerPath({
   },
 });
 
+// Register Public Asset Routes
+registry.registerPath({
+  method: 'post',
+  path: '/public_assets',
+  tags: ['Public Assets'],
+  summary: 'Upload a public asset (multipart/form-data)',
+  description:
+    'Uploads a PDF or image to `public_assets/{userId}/` and returns its key. **Anyone with the key can read the file without a token** via `GET /public_assets/{userId}/{filename}`; use `POST /assets` for files that must stay private. Same file types and 10MB limit as `POST /assets`.\n\n**Access Control:**\n- Allowed Roles: `provider`, `consumer`, `cos_admin`',
+  request: {
+    body: {
+      content: {
+        'multipart/form-data': {
+          schema: z.object({
+            file: z.any().describe('File to upload'),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Public asset uploaded successfully',
+      content: {
+        'application/json': {
+          schema: SuccessResponseSchema(
+            z.object({
+              key: z.string().describe('Key of the uploaded asset, in the form `{userId}/{filename}`'),
+              originalname: z.string().describe('Original filename'),
+              size: z.number().describe('File size in bytes'),
+              contentType: z.string().describe('Content type of the file'),
+            }),
+          ),
+        },
+      },
+    },
+    400: {
+      description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/public_assets/{userId}/{filename}',
+  tags: ['Public Assets'],
+  summary: 'Read a public asset (no authentication)',
+  description:
+    'Streams a file stored under `public_assets/{userId}/{filename}`. No `Authorization` header is required. Only the `public_assets/` prefix is reachable; path segments containing `/`, `\\`, `..` or control characters are rejected. Suitable for use directly as an `<img src>`.\n\n**Access Control:**\n- Public (no token)',
+  security: [],
+  request: {
+    params: z.object({
+      userId: z.string().describe('Owner segment of the key returned by `POST /public_assets`'),
+      filename: z.string().describe('Filename segment of the key returned by `POST /public_assets`'),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'The file contents, with its stored Content-Type',
+    },
+    400: {
+      description: 'Invalid public asset key',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Public asset not found',
+      content: {
+        'application/json': {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
 // Register Query Access Route (temporary S3 credentials)
 registry.registerPath({
   method: 'get',
