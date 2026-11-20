@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { Readable } from 'stream';
@@ -28,6 +29,8 @@ const storage = {
 };
 
 const app = express();
+// Mirror app.ts: a credentialed CORS policy for a configured origin is applied globally
+app.use(cors({ origin: 'https://ui.example.test', credentials: true }));
 app.use(express.json());
 app.use('/assets', initAssetRoutes(storage as unknown as StorageServiceInterface));
 app.use('/public_assets', initPublicAssetRoutes(storage as unknown as StorageServiceInterface));
@@ -50,11 +53,13 @@ describe('public asset routes', () => {
 
   describe('GET /public_assets/:userId/:filename', () => {
     it('serves a public asset without an Authorization header', async () => {
-      const response = await request(app).get(`/public_assets/${owner}/logo.png`);
+      const response = await request(app).get(`/public_assets/${owner}/logo.png`).set('Origin', 'https://bodh.tanuh.ai');
 
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toBe('image/png');
       expect(response.headers['cross-origin-resource-policy']).toBe('cross-origin');
+      expect(response.headers['access-control-allow-origin']).toBe('*');
+      expect(response.headers['access-control-allow-credentials']).toBeUndefined();
       expect(response.headers['x-content-type-options']).toBe('nosniff');
       expect(response.headers['content-security-policy']).toContain('sandbox');
       expect(response.body.toString()).toBe('test-image');

@@ -122,6 +122,11 @@ export function initPublicAssetRoutes(s3Service: StorageServiceInterface) {
       res.setHeader('Last-Modified', details.lastModified.toUTCString());
       // Allow other origins (the CBR and TANUH UIs) to embed the file; helmet defaults to same-origin.
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      // UIs served with COEP require-corp load images with crossorigin="anonymous", which is a CORS
+      // request. The file is public and the response carries no credentials, so any origin may read
+      // it, independent of the deployment's CORS_ORIGIN list.
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.removeHeader('Access-Control-Allow-Credentials');
       // SVG and PDF can carry scripts: never let the browser run them in this API's origin.
       res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
       res.setHeader('X-Content-Type-Options', 'nosniff');
