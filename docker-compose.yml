@@ -122,6 +122,12 @@ services:
             # ELASTIC_CAT_INDEX: tgdex__cat  # optional, defaults to tgdex__cat
             # ELASTIC_ID: your-elastic-id
             # ELASTIC_PASS: your-elastic-password
+
+            # Readiness report PDF logo (optional - defaults to the bundled MahaAgX logo).
+            # To use a file outside the image, mount it and point at the mount, e.g.
+            #   volumes: ["./branding/logo.png:/config/branding/logo.png:ro"]
+            #   REPORT_LOGO_PATH=/config/branding/logo.png
+            REPORT_LOGO_PATH: ${REPORT_LOGO_PATH:-}
         restart: unless-stopped
         # For development, can run multiple workers by scaling:
         # docker-compose up -d --scale report-worker=4

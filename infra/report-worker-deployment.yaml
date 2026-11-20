@@ -200,6 +200,16 @@ spec:
               key: ELASTIC_PASS
               optional: true
 
+        # Readiness report PDF logo. Unset uses the logo bundled in the image
+        # (plots/pretty/mahaagx-logo-dark.png). Either point at another file bundled in the
+        # image (relative to /app) or at a mounted file - see the commented volume below.
+        - name: REPORT_LOGO_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: files-connect-config
+              key: REPORT_LOGO_PATH
+              optional: true
+
         # OpenAI API key - from Secret (report-worker-secret)
         - name: OPENAI_API_KEY
           valueFrom:
@@ -214,6 +224,19 @@ spec:
           limits:
             memory: "4Gi"
             cpu: "2000m"
+
+        # Custom report logo without rebuilding the image: create the ConfigMap with
+        #   kubectl -n sandbox create configmap report-worker-branding --from-file=logo.png=./logo.png
+        # uncomment both blocks, and set REPORT_LOGO_PATH=/config/branding/logo.png in files-connect-config.
+        # volumeMounts:
+        # - name: branding
+        #   mountPath: /config/branding
+        #   readOnly: true
+      # volumes:
+      # - name: branding
+      #   configMap:
+      #     name: report-worker-branding
+      #     optional: true
 
       terminationGracePeriodSeconds: 120
       securityContext:

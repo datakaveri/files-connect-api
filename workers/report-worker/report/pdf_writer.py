@@ -1,8 +1,35 @@
 from fpdf import FPDF
 import json
+import logging
+import os
 import datetime
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+_WORKER_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DEFAULT_LOGO_PATH = os.path.join("plots", "pretty", "mahaagx-logo-dark.png")
+
+
+def _resolve_logo_path():
+    """
+    Logo shown at the top-left of every Data Readiness Report PDF.
+
+    Set REPORT_LOGO_PATH at deploy time to use a different logo: an absolute path
+    (e.g. a file mounted into the container) or a path relative to the worker
+    directory (e.g. plots/pretty/<file>.png). Unset/empty falls back to the bundled
+    default. A missing file logs a warning and the report is rendered without a logo
+    rather than failing the job.
+    """
+    path = os.environ.get("REPORT_LOGO_PATH", "").strip() or _DEFAULT_LOGO_PATH
+    if not os.path.isabs(path):
+        path = os.path.join(_WORKER_DIR, path)
+    if not os.path.isfile(path):
+        logging.warning(f"Report logo not found at {path}; PDF reports will be generated without a logo.")
+        return None
+    return path
+
+
+LOGO_PATH = _resolve_logo_path()
 
 class PDFReport(FPDF):
     @staticmethod

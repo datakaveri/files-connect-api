@@ -141,6 +141,18 @@ code almost line for line. Only the differences are repeated here:
 - **Failure mode:** wrongly `true` → datasets are auto-published the moment a report finishes, bypassing that deployment's review step. Wrongly `false` → datasets stay unpublished and operators see readiness scores appear with no state change (log line `CAT_SET_PUBLISH_STATUS is disabled. Skipping publishStatus update.`).
 - **Notes:** added in commit `a21ca17`; it must be set explicitly in every non-TG-DEX deployment because the default publishes.
 
+### `REPORT_LOGO_PATH`
+
+- **Type / format:** file path to a PNG or JPEG image.
+- **Required:** no.
+- **Purpose:** the logo drawn at the top-left of every Data Readiness Report PDF, 40 mm wide with height from the image's aspect ratio ([report/pdf_writer.py](../../workers/report-worker/report/pdf_writer.py)).
+- **Expected value:** an absolute path, typically a file mounted into the container (e.g. `/config/branding/logo.png` from a ConfigMap — see the commented `branding` volume in [infra/report-worker-deployment.yaml](../../infra/report-worker-deployment.yaml)), or a path relative to the worker directory (`/app` in the image) for a logo bundled under `plots/pretty/`.
+- **Default if omitted:** `plots/pretty/mahaagx-logo-dark.png` (bundled). An empty value is treated as unset.
+- **How to obtain:** branding decision per deployment — get the logo file from the deployment owner.
+- **Failure mode:** path not found → `Report logo not found at <path>; PDF reports will be generated without a logo.` (WARN, once at import) and reports render without a logo; the job still succeeds.
+- **Change impact:** read when the framework is first imported in the process — restart the pods after changing it.
+- **Notes:** a very tall or square image can overlap the "Data Readiness Report" title, which starts at y = 10 mm; prefer a wide logo with little padding.
+
 ### `WORKER_TEMP_DIR` *(internal — do not set)*
 
 - **Purpose:** written by `readiness_processor.py` before invoking the framework so report output lands in the job's temp directory; read back by `get_output_dir()`.

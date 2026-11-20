@@ -8,7 +8,7 @@ import report.scoring_structured as scoring
 from report.multifile_average_score import calculate_average_readiness
 from report.dataset_clean_name_api import get_uuid_from_dataset_name, get_dataset_name_from_url
 from report.json_writer import write_report_outputs
-from report.pdf_writer import generate_pdf_from_json
+from report.pdf_writer import generate_pdf_from_json, LOGO_PATH
 # from structured_metrics.llm_api import infer_column_roles_openai
 from report.post_to_cat_api import update_cat_readiness_score
 
@@ -123,8 +123,7 @@ def main(directory, folder_key):
                 
                 # Generate a PDF report
                 pdf_output = f"{output_dir}/data_readiness_report.pdf"
-                logo_path = "plots/pretty/mahaagx-logo-dark.png"
-                log_and_call(generate_pdf_from_json, f"{output_dir}/{dataset_name}_final_readiness_report.json", pdf_output, uuid, final_score["total_percentage"], output_dir, true_name, logo_path, sample_size, sample)
+                log_and_call(generate_pdf_from_json, f"{output_dir}/{dataset_name}_final_readiness_report.json", pdf_output, uuid, final_score["total_percentage"], output_dir, true_name, LOGO_PATH, sample_size, sample)
                 logging.info(f"PDF generated for {file_path}")
                 
                 all_scores.append(final_score)
@@ -147,8 +146,7 @@ def main(directory, folder_key):
                 json.dump(final_avg_report, f, indent=4)
 
             pdf_output = f"{output_dir}/data_readiness_report.pdf"
-            logo_path = "plots/pretty/mahaagx-logo-dark.png"  # Set this to None if not needed
-            log_and_call(generate_pdf_from_json, f"{output_dir}/average_score_final_readiness_report.json", pdf_output, uuid, raw_avg_report["total_percentage"], output_dir, true_name, logo_path, sample_size, average_report=True)
+            log_and_call(generate_pdf_from_json, f"{output_dir}/average_score_final_readiness_report.json", pdf_output, uuid, raw_avg_report["total_percentage"], output_dir, true_name, LOGO_PATH, sample_size, average_report=True)
             logging.info("Average score report generated for all datasets")
             #final_percentage = average_percentage if average_percentage is not None else "unknown"
             final_percentage = float(average_percentage) if average_percentage is not None else None
