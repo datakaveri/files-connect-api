@@ -74,6 +74,16 @@ export const AllowedFileTypes = {
 };
 
 /**
+ * Top-level storage prefixes for assets
+ * - PRIVATE: readable only by the owner or cos_admin (POST /assets/download)
+ * - PUBLIC: readable by anyone, without a token (GET /public_assets/{userId}/{filename})
+ */
+export const AssetPrefixes = {
+  PRIVATE: 'assets',
+  PUBLIC: 'public_assets'
+} as const;
+
+/**
  * API paths for different endpoints
  * Organized by functionality and following REST practices
  * All endpoints are now organized under databanks for better resource hierarchy
@@ -87,6 +97,9 @@ export const ApiPaths = {
   
   // Asset operations (separate from databanks)
   ASSETS: '/assets',
+
+  // Public asset operations (unauthenticated reads, restricted to the public_assets/ prefix)
+  PUBLIC_ASSETS: '/public_assets',
 
   // Encryption key distribution (client-side envelope encryption)
   ENCRYPTION: '/encryption',

@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { databanksRoutes } from './databanks-routes';
 import { assetsRoutes, initAssetRoutes } from './assets-routes';
+import { initPublicAssetRoutes } from './public-assets-routes';
 import { encryptionRoutes } from './encryption-routes';
 import { ApiPaths } from '../config/constants';
 import { env } from '../config/environment';
@@ -28,6 +29,9 @@ router.use(ApiPaths.DATABANKS, databanksRoutes);
 
 // Mount assets routes
 router.use(ApiPaths.ASSETS, assetRoutesWithHandlers);
+
+// Mount public assets routes (GET is unauthenticated and limited to the public_assets/ prefix)
+router.use(ApiPaths.PUBLIC_ASSETS, initPublicAssetRoutes(s3Service));
 
 // Mount encryption routes (public key for client-side envelope encryption)
 // only when explicitly enabled — TANUH deployments only. When disabled the

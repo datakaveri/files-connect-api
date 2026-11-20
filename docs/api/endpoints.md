@@ -108,6 +108,17 @@ Base path `/v1/assets`; the router applies **authenticate** to every asset route
 | POST | `/v1/assets` | provider, consumer, cos_admin | authenticate → authorize | Upload a PDF or image (multipart/form-data). |
 | POST | `/v1/assets/download` | provider **(self-key)**, cos_admin | authenticate → authorize → in-handler owner check | Non-admins may only fetch assets whose key starts with their own `userId`. |
 
+### Public assets
+
+Base path `/v1/public_assets`. Files here are stored under the `public_assets/` prefix and are
+**readable by anyone who has the key, without a token**. Use `/v1/assets` for anything that must
+stay private.
+
+| Method | Path | Roles | Auth checks | Notes |
+|---|---|---|---|---|
+| POST | `/v1/public_assets` | provider, consumer, cos_admin | authenticate → authorize | Upload a PDF or image (multipart/form-data) to `public_assets/{userId}/`. Same file types, 10MB limit and delegation scope (`own-asset-management`) as `POST /v1/assets`. Returns `key` = `{userId}/{filename}`. |
+| GET | `/v1/public_assets/{userId}/{filename}` | — | **none (public)** | Streams the file with its stored `Content-Type`. The storage key is always `public_assets/{userId}/{filename}`; segments containing `/`, `\`, `..` or control characters return 400, so `assets/` and databank files cannot be reached. There is no listing endpoint. Responses send `Cross-Origin-Resource-Policy: cross-origin` and `Access-Control-Allow-Origin: *` without credentials (so other UIs can embed them, including with `crossorigin="anonymous"` under COEP), `Cache-Control: public, max-age=3600`, `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy`. |
+
 ### Encryption (TANUH deployments only)
 
 Mounted **only when `ENCRYPTION_ENABLED=true`**; otherwise the path 404s.

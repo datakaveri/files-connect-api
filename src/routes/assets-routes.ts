@@ -2,7 +2,7 @@
  * Asset Routes
  * Defines routes for asset operations
  */
-import { Router } from 'express';
+import { RequestHandler, Router } from 'express';
 import { z } from 'zod';
 import { StorageServiceInterface } from '../services/storage-service';
 import { createLogger } from '../core/utils/logger';
@@ -10,7 +10,7 @@ import { validateBody } from '../middleware/validation';
 import { authenticate, authorize } from '../middleware/auth';
 import { successResponse } from '../core/utils/response';
 import { ApplicationError, AuthorizationError, ValidationError } from '../core/errors';
-import { S3Constants } from '../config/constants';
+import { AssetPrefixes, S3Constants } from '../config/constants';
 import { UserRole } from '../core/types/auth';
 import { DelegationScope } from '../core/types/delegation';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,6 +18,71 @@ import { fileUpload } from '../middleware/file-upload';
 
 // Create a logger for this module
 const logger = createLogger('AssetRoutes');
+
+// Define allowed file types (as a backup validation)
+const ALLOWED_ASSET_MIME_TYPES = [
+  // PDF
+  'application/pdf',
+  // Images
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'image/tiff',
+  'image/bmp'
+];
+
+/**
+ * Creates the multipart/form-data upload handler shared by the private
+ * (/assets) and public (/public_assets) asset routes. The only difference
+ * between them is the storage prefix the file is written under.
+ * @param s3Service - The storage service used to write the asset
+ * @param prefix - The top-level storage prefix (e.g. 'assets' or 'public_assets')
+ */
+export function createAssetUploadHandler(s3Service: StorageServiceInterface, prefix: string): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      // Check if file was uploaded
+      if (!req.file) {
+        throw new ValidationError('No file uploaded');
+      }
+
+      const { originalname, mimetype, buffer } = req.file;
+
+      // Double-check file type validation
+      if (!ALLOWED_ASSET_MIME_TYPES.includes(mimetype)) {
+        logger.warn('Invalid file type detected', { mimetype, filename: originalname });
+        throw new ValidationError('File type not allowed. Only PDF and image files are accepted.');
+      }
+
+      logger.debug('Uploading asset via multipart/form-data', { prefix, filename: originalname, size: buffer.length });
+
+      // Generate a unique key for the asset using UUID
+      const key = `${Date.now()}-${uuidv4()}-${originalname}`;
+
+      // Full storage key: {prefix}/{userId}/{key}
+      const fullKey = `${prefix}/${res.locals.userId}/${key}`;
+
+      // Upload the file directly to S3
+      await s3Service.uploadAsset(fullKey, buffer, mimetype);
+
+      logger.debug('Asset uploaded successfully via multipart/form-data', { key: fullKey });
+
+      // Return the key (without the storage prefix) to the client
+      return successResponse({
+        key: `${res.locals.userId}/${key}`,
+        originalname,
+        size: buffer.length,
+        contentType: mimetype
+      }, res, 201);
+    } catch (error) {
+      logger.error('Error uploading asset via multipart/form-data', error as Error);
+      next(error);
+    }
+  };
+}
 
 // Create a router
 export const assetsRoutes = Router();
@@ -42,61 +107,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
   assetsRoutes.post(
     '/',
     authorize([UserRole.PROVIDER, UserRole.CONSUMER, UserRole.ADMIN], [DelegationScope.OWN_ASSET_MANAGEMENT]),
-    async (req, res, next) => {
-      try {
-        // Check if file was uploaded
-        if (!req.file) {
-          throw new ValidationError('No file uploaded');
-        }
-
-        const { originalname, mimetype, buffer } = req.file;
-
-        // Define allowed file types (as a backup validation)
-        const allowedFileTypes = [
-          // PDF
-          'application/pdf',
-          // Images
-          'image/jpeg',
-          'image/jpg',
-          'image/png',
-          'image/gif',
-          'image/webp',
-          'image/svg+xml',
-          'image/tiff',
-          'image/bmp'
-        ];
-
-        // Double-check file type validation
-        if (!allowedFileTypes.includes(mimetype)) {
-          logger.warn('Invalid file type detected', { mimetype, filename: originalname });
-          throw new ValidationError('File type not allowed. Only PDF and image files are accepted.');
-        }
-
-        logger.debug('Uploading asset via multipart/form-data', { filename: originalname, size: buffer.length });
-
-        // Generate a unique key for the asset using UUID
-        const key = `${Date.now()}-${uuidv4()}-${originalname}`;
-
-        // Use S3 service to upload the file directly
-        const fullKey = `assets/${res.locals.userId}/${key}`;
-
-        // Upload the file directly to S3
-        await s3Service.uploadAsset(fullKey, buffer, mimetype);
-
-        logger.debug('Asset uploaded successfully via multipart/form-data', { key: fullKey });
-
-        // Return the key to the client
-        return successResponse({
-          key: `${res.locals.userId}/${key}`,
-          originalname,
-          size: buffer.length,
-          contentType: mimetype
-        }, res, 201);
-      } catch (error) {
-        logger.error('Error uploading asset via multipart/form-data', error as Error);
-        next(error);
-      }
-    }
+    createAssetUploadHandler(s3Service, AssetPrefixes.PRIVATE)
   );
 
   /**
@@ -119,7 +130,7 @@ export function initAssetRoutes(s3Service: StorageServiceInterface) {
         logger.debug('Getting presigned URL for asset', { key, expiresIn });
 
         // The key provided by the client doesn't include the 'assets/' prefix, so add it
-        const fullKey = `assets/${key}`;
+        const fullKey = `${AssetPrefixes.PRIVATE}/${key}`;
 
         if (res.locals.isDelegated || !res.locals.isAdmin) {
           if (res.locals.userId !== key.split('/')[0]) {

@@ -114,6 +114,13 @@ export interface StorageServiceInterface {
   getAssetDetails(key: string): Promise<S3Object | null>;
 
   /**
+   * Gets the contents of an asset from the assets storage
+   * @param key - The full key of the asset (e.g., 'public_assets/userId/filename')
+   * @returns Promise resolving to a readable stream of the asset data
+   */
+  getAsset(key: string): Promise<Readable>;
+
+  /**
    * Creates a folder in the S3 bucket
    * @param folderPath - The path of the folder to create
    * @param databankId - The databank ID for authorization
@@ -275,6 +282,30 @@ export class StorageService implements StorageServiceInterface {
         key,
         expiresIn
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Gets the contents of an asset from the assets storage
+   * Uses the assets repository directly (not the main s3Repository)
+   * @param key - The full key of the asset (e.g., 'public_assets/userId/filename')
+   * @returns Promise resolving to a readable stream of the asset data
+   */
+  async getAsset(key: string): Promise<Readable> {
+    logger.debug('Getting asset', { key });
+
+    try {
+      // Use the assets repository specifically for asset operations
+      const response = await this.assetsRepository.getObject(key);
+
+      if (!response?.Body) {
+        throw new Error(`Asset not found: ${key}`);
+      }
+
+      return this.normalizeToReadable(response.Body);
+    } catch (error) {
+      logger.error('Error getting asset', error as Error, { key });
       throw error;
     }
   }

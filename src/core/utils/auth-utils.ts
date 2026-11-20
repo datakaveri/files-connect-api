@@ -259,7 +259,7 @@ export async function extractUserInfo(req: Request, res: Response): Promise<User
     // 2. Get databank ID from path parameters or determine if it's a route
     // with no databank scope (assets, platform-level encryption key)
     const originalUrl = req.originalUrl || '';
-    const isAssetRoute = originalUrl.includes('/assets');
+    const isAssetRoute = originalUrl.includes('/assets') || originalUrl.includes('/public_assets');
     const isDatabanklessRoute = isAssetRoute || originalUrl.includes('/encryption');
 
     // For databank-less routes, we don't need a databank ID
